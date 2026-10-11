@@ -1,0 +1,49 @@
+#include "SamplerEngine.h"
+#include "Effects.h"
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <cstdlib>
+#include <chrono>
+#include <thread>
+#include <atomic>
+using namespace pocket;
+static thread_local bool audioThread=false;
+static std::atomic<int> audioAllocations{0};
+void* operator new(std::size_t n){if(audioThread)++audioAllocations;if(auto p=std::malloc(n))return p;throw std::bad_alloc();}
+void* operator new[](std::size_t n){return ::operator new(n);}
+void operator delete(void* p) noexcept {std::free(p);}
+void operator delete[](void* p) noexcept {std::free(p);}
+void operator delete(void* p,std::size_t) noexcept {std::free(p);}
+void operator delete[](void* p,std::size_t) noexcept {std::free(p);}
+static void check(bool v,const char* text){if(!v)throw std::runtime_error(text);}
+static void render(SamplerEngine& e,float* b,int n){audioThread=true;e.render(b,n);audioThread=false;}
+static void put16(std::ofstream& f,uint16_t x){char b[2]={char(x),char(x>>8)};f.write(b,2);}
+static void put32(std::ofstream& f,uint32_t x){put16(f,x);put16(f,x>>16);}
+static std::string wav(){
+    std::string path="/tmp/pianopocket-test.wav";std::ofstream f(path,std::ios::binary);unsigned frames=50000;
+    f.write("RIFF",4);put32(f,36+frames*4);f.write("WAVEfmt ",8);put32(f,16);put16(f,1);put16(f,2);put32(f,44100);put32(f,44100*4);put16(f,4);put16(f,16);f.write("data",4);put32(f,frames*4);
+    for(unsigned i=0;i<frames;++i){put16(f,int16_t(std::sin(i*.04)*16000));put16(f,int16_t(std::sin(i*.04)*8000));}return path;
+}
+static std::unique_ptr<Instrument> bank(bool release=false){
+    auto b=std::make_unique<Instrument>();Sample s;s.frames=100000;s.rate=48000;s.head.resize((s.frames+1)*2);for(size_t i=0;i<s.frames;++i){s.head[i*2]=.15f*std::sin(i*.04);s.head[i*2+1]=.075f*std::sin(i*.04);}b->samples.push_back(std::move(s));Region r;r.release=.01f;b->regions.push_back(r);if(release){r.trigger=Trigger::Release;r.gain=.1f;b->regions.push_back(r);}b->prepare();return b;
+}
+static float energy(const float* b,int n){float sum=0;for(int i=0;i<n*2;++i)sum+=b[i]*b[i];return sum;}
+int main(){try{
+    auto path=wav();auto sample=Sample::open(path,8192);check(sample.rate==44100 && sample.frames==50000,"WAV metadata");float data[20];sample.decode(100,10,data);check(std::abs(data[0])>std::abs(data[1]),"WAV stereo");
+    {std::vector<Sample> samples;samples.push_back(std::move(sample));SampleCache cache(samples);cache.prefetch(0,20000);cache.prefetch(0,24000);cache.prefetch(0,28000);std::this_thread::sleep_for(std::chrono::milliseconds(40));SampleCache::View v;cache.view(0,20000,v);check(v.data!=nullptr,"stream cache worker / prefetch / LRU");check(std::abs(v.data[(20000-v.start)*2])>0,"stream decoded content");}
+    float out[512];SamplerEngine e;e.install(bank(),{},48000);e.send({0,0,60,127,0});render(e,out,256);float loud=energy(out,256);check(loud>0,"note playback");check(e.activeVoices==1,"voice count");
+    SamplerEngine soft;soft.install(bank(),{},48000);soft.send({0,0,60,32,0});render(soft,out,256);check(energy(out,256)<loud*.1,"velocity gain");
+    e.send({2,0,64,127,0});e.send({1,0,60,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==1,"sustain holds released key");e.send({2,0,64,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==0,"sustain releases");
+    e.install(bank(true),{},48000);e.send({0,0,60,100,0});render(e,out,256);e.send({1,0,60,0,0});render(e,out,256);check(e.activeVoices==2,"release sample starts");
+    {auto shortBank=bank(true);shortBank->samples[0].frames=256;e.install(std::move(shortBank),{},48000);e.send({0,0,60,100,0});render(e,out,256);render(e,out,256);check(e.activeVoices==0,"sample ended while key held");e.send({1,0,60,0,0});render(e,out,256);check(energy(out,256)>0,"release trigger after main sample naturally ends");}
+    e.install(bank(),{},48000);e.send({0,0,60,127,0});e.send({0,1,60,127,0});render(e,out,256);e.send({1,0,60,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==1,"channel isolation");
+    e.send({5});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==0,"panic releases");
+    {e.install(bank(),{},48000);e.send({0,0,60,127,0});e.send({0,0,60,127,0});render(e,out,256);e.send({1,0,60,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==1,"overlapping same-note FIFO note-off");}
+    for(int limit:{32,80,128}){e.install(bank(),{},48000);e.send({8,0,limit});for(int n=0;n<160;++n)e.send({0,n%16,48+n%36,127,0});render(e,out,256);check(e.activeVoices==limit,"voice stealing limit");for(float v:out)check(std::isfinite(v) && std::abs(v)<=1,"limiter finite output");auto start=std::chrono::steady_clock::now();for(int i=0;i<100;++i)render(e,out,256);std::cout<<"voices="<<limit<<" average_block_us="<<std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-start).count()/100<<'\n';}
+    e.install(bank(),{},48000);for(int i=0;i<3000;++i)e.send({0,0,60,127,0});render(e,out,256);check(e.droppedEvents>0,"queue overflow measured");for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==0,"overflow fails safe");
+    {std::vector<float> ir(2,1);Convolver c(ir);for(int i=0;i<700;++i){float l=i==0?1:0,r=l;audioThread=true;c.process(l,r);audioThread=false;check(std::abs(l-(i==256?1.f:0.f))<.0001,"FFT convolution impulse / block latency");}}
+    {EffectSpec fx;fx.p={1,.8f,.3f,0,1};Effect reverb(fx,48000);float tail=0;for(int i=0;i<10000;++i){float l=i==0?1:0,r=l;audioThread=true;reverb.process(l,r);audioThread=false;if(i>2000)tail+=std::abs(l)+std::abs(r);}check(tail>0,"reverb tail survives silence");}
+    check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb; audio allocations=0\n";
+    std::remove(path.c_str());return 0;
+}catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

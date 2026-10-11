@@ -1,0 +1,13 @@
+.gradle/
+.kotlin/
+**/.cxx/
+**/build/
+.cxx/
+local.properties
+*.apk
+*.aab
+*.keystore
+*.wav
+*.zip
+!gradle/wrapper/gradle-wrapper.jar
+artifacts/
