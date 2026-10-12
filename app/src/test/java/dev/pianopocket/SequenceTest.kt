@@ -90,8 +90,14 @@ class SequenceTest {
         assertFalse(song.sustainIndex.active(9));assertTrue(song.sustainIndex.active(10));assertTrue(song.sustainIndex.active(35));assertFalse(song.sustainIndex.active(40));assertTrue(song.sustainIndex.active(25));assertFalse(song.sustainIndex.active(0))
         var clock=0L;val live=LiveNotes { clock };live.event(0xb2,64,127);assertTrue(live.snapshot().pedalDown);assertTrue(live.snapshot().held.isEmpty());clock=1000000;live.event(0xb2,64,0);assertFalse(live.snapshot().pedalDown)
     }
-    @Test fun multiCharacterKatakanaStacksInNarrowKeys() {
-        assertEquals(listOf("フ","ァ"),noteLabelLines(65));assertEquals(listOf("フ","ァ","♯"),noteLabelLines(66));assertEquals(listOf("ド"),noteLabelLines(60))
+    @Test fun faAndAccidentalsStayOnOneKeyboardBaseline() {
+        assertEquals(listOf("ファ"),noteLabelLines(65));assertEquals(listOf("ファ♯"),noteLabelLines(66));assertEquals(listOf("ド"),noteLabelLines(60))
+    }
+
+    @Test fun midiImportRestrictsExtensionsWithoutWildcardMime() {
+        for(name in listOf("song.mid","song.midi","曲.MID","演奏.MiDi"))assertTrue(name,MidiFilePolicy.accepts(name))
+        for(name in listOf("song.mp3","song.wav","song.mid.zip","song.mid.","song.mid.backup",".mid","Imported MIDI","song.kar"))assertFalse(name,MidiFilePolicy.accepts(name))
+        assertTrue(MidiFilePolicy.mimeTypes.none { it.contains('*') || it=="application/octet-stream" })
     }
 
 }

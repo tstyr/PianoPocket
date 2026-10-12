@@ -38,9 +38,10 @@ fun PianoRoll(state: PocketState,modifier: Modifier=Modifier) {
                     val color=if(live)noteColors[0]else noteColors[n.track%noteColors.size]
                     val start=y(n.start);val stop=y(n.keyEnd)
                     val top=minOf(start,stop);val height=kotlin.math.abs(start-stop).coerceAtLeast(3f)
-                    drawRoundRect(color.copy(alpha=.55f+n.velocity/127f*.45f),Offset(x,top),Size(w,height),CornerRadius(minOf(4.dp.toPx(),w*.15f)))
-                    if(seq.noteLabels && height>24.dp.toPx()){
-                        drawNoteLabel(n.key,x+w/2,top.coerceAtLeast(0f),w,minOf(height,size.height),paint,color=0xff16231c.toInt(),fromTop=true)
+                    drawRoundRect(color,Offset(x,top),Size(w,height),CornerRadius(minOf(4.dp.toPx(),w*.15f)))
+                    val visibleTop=top.coerceAtLeast(0f);val visibleBottom=(top+height).coerceAtMost(size.height)
+                    if(seq.noteLabels && visibleBottom-visibleTop>12.dp.toPx()){
+                        drawNoteLabel(n.key,x+w/2,visibleTop,w,visibleBottom-visibleTop,paint,roll=true)
                     }
                 }
                 if(liveMode)seq.live.notes.filter { it.keyEnd>=begin }.forEach { note(it,true) }

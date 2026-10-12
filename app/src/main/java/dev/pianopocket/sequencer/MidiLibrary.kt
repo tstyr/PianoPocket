@@ -19,6 +19,7 @@ class MidiLibrary(private val context: Context) {
     fun load(entry: MidiEntry)=File(home,"${entry.id}.mid").inputStream().use(MidiFileCodec::read)
     fun import(uri: Uri): Pair<MidiEntry,MidiSong> {
         val name=context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c->if(c.moveToFirst())c.getString(0)else null } ?: "Imported MIDI"
+        require(MidiFilePolicy.accepts(name)){"追加できるMIDIファイルは .mid / .midi のみです。"}
         val song=context.contentResolver.openInputStream(uri)?.use(MidiFileCodec::read) ?: error("MIDIを開けません")
         return save(name,song) to song
     }

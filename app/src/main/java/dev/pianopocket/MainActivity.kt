@@ -13,6 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import dev.pianopocket.ui.PocketScreen
 import dev.pianopocket.ui.PocketViewModel
 import dev.pianopocket.sequencer.ExportFormat
+import dev.pianopocket.sequencer.MidiFilePolicy
 
 class MainActivity:ComponentActivity() {
     private lateinit var model:PocketViewModel
@@ -44,7 +45,7 @@ class MainActivity:ComponentActivity() {
         pendingFormat=runCatching { ExportFormat.valueOf(savedInstanceState?.getString("exportFormat") ?: "WAV24") }.getOrDefault(ExportFormat.WAV24)
         pendingRate=savedInstanceState?.getInt("exportRate",48000) ?: 48000;pendingTail=savedInstanceState?.getInt("exportTail",8) ?: 8
         pendingBitrate=savedInstanceState?.getInt("exportBitrate",256) ?: 256
-        setContent { PocketScreen(model,{file.launch(arrayOf("*/*"))},{ permissions.launch(if(Build.VERSION.SDK_INT>=31)arrayOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT)else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)) },{midiFile.launch(arrayOf("*/*"))},{format,rate,tail,bitrate->
+        setContent { PocketScreen(model,{file.launch(arrayOf("*/*"))},{ permissions.launch(if(Build.VERSION.SDK_INT>=31)arrayOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT)else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)) },{midiFile.launch(MidiFilePolicy.mimeTypes)},{format,rate,tail,bitrate->
             pendingFormat=format;pendingRate=rate;pendingTail=tail;pendingBitrate=bitrate
             val name=model.state.value.sequence.title.substringBeforeLast('.').replace(Regex("[^\\p{L}\\p{N} _.-]"),"_").take(80).ifBlank { "PianoPocket" }
             saveFile.launch(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(android.content.Intent.CATEGORY_OPENABLE);type=format.mime;putExtra(android.content.Intent.EXTRA_TITLE,"$name.${format.extension}") })

@@ -19,4 +19,4 @@ class KeyLayout(low: Int,high: Int) {
 }
 fun solfege(note: Int): String = arrayOf("ド","ド♯","レ","レ♯","ミ","ファ","ファ♯","ソ","ソ♯","ラ","ラ♯","シ")[note.mod(12)]
 
-fun noteLabelLines(note: Int): List<String> = solfege(note).map { it.toString() }
+fun noteLabelLines(note: Int): List<String> = listOf(solfege(note))

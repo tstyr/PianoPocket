@@ -103,3 +103,11 @@ APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署�
 - `AacExporterDeviceTest` 2 testsとAndroid test APKを用意しビルド。端末未接続なので実行せず、M4Aの出力成功を検証済みとは主張しない。新ドレミ・SUSの表示、SAF保存、USB/BLE連動の実機試験も未実施。
 
 0.4.1をmain / tag / release-artifactsとプリリリースに公開。Assetsへの通常添付はHTTP 401で未完了。公開先のAPK・対応ソースZIP・検証ZIP・自作fixture/MIDIを再取得し、SHA-256一覧との一致を確認。新しいActions実行や実機M4A・UI試験の成功は主張しません。
+
+## 0.4.2 MIDI picker / opaque single-line labels
+
+MIDI SAFのワイルドカードを削除し、streamを開く前に拡張子を確認。ドレミは不透明の太い白文字・暗い縁取り、一行の共通ベースラインへ変更。ファを縦に並べず、横幅のみ調整。ロールも不透明な色へ変更。音声エンジン・コーデックは変更なし。
+
+`assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS。JUnit42 / failures0 / errors0 / skipped0、Lint errors0。MIDI拡張子の受入／拒否・ワイルドカードなしを検査し、既存のファ一行回帰テストを更新。今回はUI・ファイル選択の変更で、C++・codec・ASan/UBSanの再実行とは扱いません。Android test APKはビルドのみで端末未接続のため未実行。新しい表示・SAFピッカーは実機未検証です。
+
+versionCode7 / 0.4.2-alpha / ARM64、旧版と同じdebug v2署名。zipalign16KiB・4 ELF LOAD>=16384 PASS。APK 27686877bytes / SHA-256 `f77301301575998d26700bdb95d49323dcfc72c010b223d7ce79f43804fc66d4`。

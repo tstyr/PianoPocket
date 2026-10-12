@@ -56,7 +56,7 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
                 val left=key.left*size.width;val width=key.width*size.width;val height=if(key.black)size.height*.62f else size.height
                 drawRect(color,Offset(left+1,0f),Size((width-2).coerceAtLeast(1f),height))
                 if(seq.noteLabels){
-                    drawNoteLabel(key.note,left+width/2,0f,width,height,paint,color=if(key.black)0xffeff2f5.toInt()else 0xff303943.toInt(),black=key.black)
+                    drawNoteLabel(key.note,left+width/2,0f,width,height,paint,black=key.black)
                 }
             }
         }
