@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
@@ -36,6 +36,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             PocketIconButton(PocketIcon.Record,if(seq.recording)"録音を停止して保存"else "録音を開始",enabled=state.ready && !state.busy && !seq.exporting,selected=seq.recording,onClick={if(seq.recording)model.stopRecording()else model.startRecording()})
             PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
             PocketIconButton(PocketIcon.Mixer,"音源・マイク・エフェクト",onClick=instrument)
+            PocketIconButton(PocketIcon.Eye,"操作UIを隠す",onClick=hideUi)
             Box {
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {

@@ -26,6 +26,7 @@ private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0x
 fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int)->Unit) {
     val state by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var uiHidden by rememberSaveable { mutableStateOf(false) }
     var instrument by rememberSaveable { mutableStateOf(false) }
     var notice by remember { mutableStateOf(true) }
     LaunchedEffect(state.message){notice=true;kotlinx.coroutines.delay(5000);notice=false}
@@ -45,7 +46,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         if(tab==0)bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
         onDispose { bars.show(WindowInsetsCompat.Type.systemBars());activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
-    BackHandler(tab!=0 || instrument){if(instrument)instrument=false else tab=0}
+    BackHandler(tab!=0 || instrument || uiHidden){if(uiHidden)uiHidden=false else if(instrument)instrument=false else tab=0}
     var lastMidi by rememberSaveable { mutableStateOf(state.sequence.selected) }
     LaunchedEffect(state.sequence.selected){
         if(state.sequence.selected!=lastMidi && tab==1 && state.sequence.selected.isNotBlank())tab=0
@@ -62,22 +63,23 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                         Column(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 if(state.sequence.rollVisible)PianoRoll(state,model,Modifier.fillMaxSize())
-                                else Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
-                                Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                    PerformanceToolbar(state,model,export,{tab=1},{instrument=!instrument},{tab=3})
+                                else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
+                                if(!uiHidden)Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
+                                    PerformanceToolbar(state,model,export,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
                                 }
-                                if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter))
-                                Column(Modifier.align(Alignment.TopStart).padding(start=12.dp,top=if(state.sequence.song!=null && !state.sequence.recording)78.dp else 54.dp).widthIn(max=340.dp)) {
+                                if(!uiHidden && state.busy)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter))
+                                if(!uiHidden)Column(Modifier.align(Alignment.TopStart).padding(start=12.dp,top=if(state.sequence.song!=null && !state.sequence.recording)78.dp else 54.dp).widthIn(max=340.dp)) {
                                     Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.playing)state.sequence.title else if(state.sequence.live.held.isNotEmpty())"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
                                     if(notice || state.busy || !state.ready)Text(state.message,style=MaterialTheme.typography.bodySmall,maxLines=2)
                                 }
-                                KeyboardTools(state,model,Modifier.align(Alignment.BottomEnd).padding(4.dp))
-                                if(instrument)Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelWidth),tonalElevation=4.dp,shadowElevation=8.dp) {
+                                if(!uiHidden)KeyboardTools(state,model,Modifier.align(Alignment.BottomEnd).padding(4.dp))
+                                if(instrument && !uiHidden)Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelWidth),tonalElevation=4.dp,shadowElevation=8.dp) {
                                     InstrumentPanel(state,model,{instrument=false},{instrument=false;tab=2})
                                 }
                             }
                             PianoKeyboard(state,model,Modifier.fillMaxWidth().height(keyboardHeight))
                         }
+                        if(uiHidden)PocketIconButton(PocketIcon.Eye,"操作UIを表示",selected=true,modifier=Modifier.align(Alignment.TopEnd).padding(4.dp),onClick={uiHidden=false})
                         if(state.showFps)FpsOverlay(activity?.window,Modifier.align(Alignment.BottomStart).padding(start=4.dp,bottom=3.dp))
                     }
                 } else {
@@ -140,7 +142,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket 0.4.6 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.4.7 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

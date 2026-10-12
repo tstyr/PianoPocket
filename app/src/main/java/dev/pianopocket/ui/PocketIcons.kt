@@ -17,7 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 // Original vector drawings, with 48dp targets and accessible names / long-press hints.
-enum class PocketIcon { Back, Forward, Play, Pause, Stop, Record, Export, Mixer, Settings, Midi, Library, Close, More, Zoom, Pedal, Roll, Info }
+enum class PocketIcon { Back, Forward, Play, Pause, Stop, Record, Export, Mixer, Settings, Midi, Library, Close, More, Zoom, Pedal, Roll, Info, Eye }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PocketIconButton(icon: PocketIcon,label: String,modifier: Modifier=Modifier,enabled: Boolean=true,selected: Boolean=false,onClick:()->Unit) {
@@ -30,6 +30,10 @@ fun PocketIconButton(icon: PocketIcon,label: String,modifier: Modifier=Modifier,
                 fun line(x: Float,y: Float,xx: Float,yy: Float)=drawLine(color,point(x,y),point(xx,yy),1.7f*unit,StrokeCap.Round)
                 fun rect(x: Float,y: Float,w: Float,h: Float,fill: Boolean=false)=drawRect(color,point(x,y),Size(w*unit,h*unit),style=if(fill)androidx.compose.ui.graphics.drawscope.Fill else Stroke(1.7f*unit))
                 when(icon) {
+                    PocketIcon.Eye -> {
+                        drawPath(Path().apply {moveTo(2*unit,12*unit);cubicTo(7*unit,3*unit,17*unit,3*unit,22*unit,12*unit);cubicTo(17*unit,21*unit,7*unit,21*unit,2*unit,12*unit);close()},color,style=Stroke(1.7f*unit))
+                        drawCircle(color,3*unit,point(12f,12f),style=Stroke(1.7f*unit))
+                    }
                     PocketIcon.Back -> {line(18f,12f,5f,12f);line(5f,12f,11f,6f);line(5f,12f,11f,18f)}
                     PocketIcon.Forward -> {line(6f,12f,19f,12f);line(19f,12f,13f,6f);line(19f,12f,13f,18f)}
                     PocketIcon.Play -> drawPath(Path().apply{moveTo(8*unit,5*unit);lineTo(20*unit,12*unit);lineTo(8*unit,19*unit);close()},color)
