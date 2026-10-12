@@ -71,3 +71,5 @@ Release Assetsへの通常添付も試行しました。CLIからの直接添付
 ## 0.3.0 MIDI / recording / export
 
 MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件（新規14件）、native / ASan / UBSan、6 WAV形式／レート組合せ、Helsinki XFの実サンプル＋IRによる10秒書き出しがPASS。書き出しではIR mixを0.35に明示変更して残響を検査し、サンプルcache miss / I/O errorは0。Galaxy S26やエミュレーターは未接続のため、ロールUI・SAF保存・USB/BLE録音・レイテンシの実機成功は未確認です。
+
+0.3のmain / tag / release-artifactsブランチをプッシュ済み。Assets直接アップロードは再びHTTP 401となったため、配布用ブランチへAPK・ZIP・自作MIDIを保存してリリース本文からリンク。公開されたAPKを再取得しSHA-256一致を確認。Actionsの新しい実行は行っておらず、先のbilling lockをCI成功として扱いません。

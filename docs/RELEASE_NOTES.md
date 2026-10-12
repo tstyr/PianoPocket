@@ -16,3 +16,14 @@ Androidビルド・Lint・36 JVM tests・native / ASan / UBSanはPASS。Helsinki
 Pianobookのサンプル・IR・画像・実XML、ユーザーのMIDIは配布しません。Helsinkiは正規に取得した音源をインポートしてください。自作PocketStudy.midとPocketFixture.zipをテスト用に用意しています。
 
 [使い方](https://github.com/tstyr/PianoPocket#readme) / [検証と実機手順](https://github.com/tstyr/PianoPocket/blob/main/docs/SEQUENCER.md)。
+
+## ダウンロード
+
+Assetsへの直接添付は、この環境のアップロード認証エラーで完了していません。配布用release-artifactsブランチから、以下のファイルを取得できます。
+
+- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-arm64-debug.apk)
+- [ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-source.zip)
+- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-validation.zip)
+- [自作テストMIDI](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketStudy.mid)
+- [自作テスト音源](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketFixture.zip)
+- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.3.0.txt)
