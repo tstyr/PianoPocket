@@ -42,7 +42,9 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
                     val event=awaitPointerEvent()
                     event.changes.forEach { change ->
                         val old=touches[change.id]
-                        val next=if(change.pressed)layout.hit(change.position.x/size.width,change.position.y/size.height,viewport)else null
+                        // Another finger may be panning the roll. A stationary held finger keeps its note.
+                        val next=if(!change.pressed)null else if(old!=null && change.position==change.previousPosition)old
+                            else layout.hit(change.position.x/size.width,change.position.y/size.height,viewport)
                         if(old!=next){touches.remove(change.id);if(old!=null && old !in touches.values)model.key(old,0)
                             if(next!=null){if(next !in touches.values)model.key(next,(48+change.position.y/size.height*79).toInt().coerceIn(1,127));touches[change.id]=next};held=touches.values.toSet()}
                         change.consume()

@@ -121,3 +121,8 @@ versionCode7 / 0.4.2-alpha / ARM64、旧版と同じdebug v2署名。zipalign16K
 Android `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS、JUnit45 / failures0 / errors0 / skipped0、Lint errors0。ピンチ中心の音程維持、拡大した全キーの描画／hit一致、画面外のタッチ拒否、拡大縮小と左右移動の範囲、100%復帰を検査。ジェスチャーイベント・描画の実機／エミュレーター試験は未実施。旧版のnative／codec試験を今回の新規実行として扱いません。
 
 APK versionCode8 / 0.4.3-alpha / ARM64 / min29 / target36、旧版と同じdebug v2署名。zipalign16KiB、4 ELF LOAD>=16384 PASS。28259860 bytes / SHA-256 `aee18608d1732b0556f68c8485d62d2ed94de844c8536efb36260613d930edab`。
+
+## 0.4.4 publication build
+
+公開準備時の0.4.3から、鍵盤上で静止している指をロールのzoom/panだけで別ノートへ移さないよう入力処理を修正。公開するAPKは0.4.4 / versionCode9。45 JVM tests・Androidビルド・Lint errors0、Android test APKのビルドはPASS。実機ジェスチャー・M4Aは未検証。旧版と同じdebug v2署名、zipalign16KiBと4 ELF LOAD>=16384 PASS。
+APK 27686877 bytes / SHA-256 `60074983ed3f0e6ad46519f85256b2e796125417798d8e87ec4a72efe58a1598`。0.4.3のタグは準備時の履歴として保持し、リリース配布は0.4.4で行います。

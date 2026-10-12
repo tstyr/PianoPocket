@@ -1,4 +1,4 @@
-# PianoPocket 0.4.3-alpha — 落ちるドレミ・連動ピンチズーム
+# PianoPocket 0.4.4-alpha — 落ちるドレミ・連動ピンチズーム
 
 - ロールのドレミを画面下端へ貼り付けず、ノートと一緒に落ちて消えるように変更。鍵盤のドレミ表示は維持。
 - ロール上のピンチアウト／インで横幅を1〜6.5倍に拡大・縮小。鍵盤も同じ倍率と音域へ連動します。
@@ -14,9 +14,9 @@ Androidビルド・45 JVM tests・Lint errors0・署名・16KiB整列を確認�
 
 Assets添付先のHTTP 401制限が継続しているため、配布用release-artifactsブランチから取得できます。
 
-- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.3-alpha-arm64-debug.apk)
-- [対応ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.3-alpha-source.zip)
-- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.3-alpha-validation.zip)
+- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.4-alpha-arm64-debug.apk)
+- [対応ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.4-alpha-source.zip)
+- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.4-alpha-validation.zip)
 - [自作テストMIDI](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketStudy.mid)
 - [自作テスト音源](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketFixture.zip)
-- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.4.3.txt)
+- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.4.4.txt)
