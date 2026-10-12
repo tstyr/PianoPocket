@@ -23,7 +23,7 @@ import java.util.Date
 
 private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0xff181b1f),surface=Color(0xff20242a),onSurface=Color(0xffe1e3e5),secondary=Color(0xffb5bec7))
 @Composable
-fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int)->Unit) {
+fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit) {
     val state by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var uiHidden by rememberSaveable { mutableStateOf(false) }

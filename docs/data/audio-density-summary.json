@@ -1,0 +1,15 @@
+{
+  "notes": 80,
+  "limit": 512,
+  "memoryMiB": 256,
+  "missingStartedNotes": 0,
+  "steals": 0,
+  "cacheMisses": 0,
+  "readErrors": 0,
+  "requestDrops": 0,
+  "pages": 7502,
+  "peak": 0.95,
+  "maxHostCallbackMs": 3.75604,
+  "androidDeviceVerified": false,
+  "mapping": "User-owned Helsinki 1967 XF v1.6"
+}

@@ -1,0 +1,46 @@
+{
+  "fixture": "FFmpeg original testsrc2 and synthetic 440Hz stereo",
+  "androidDeviceVerified": false,
+  "cases": [
+    {
+      "container": "mp4",
+      "brand": "isom",
+      "frames": 90,
+      "fps": "30/1",
+      "audioRate": 48000,
+      "duration": "3.029333",
+      "identicalDecodedVideoAndAudio": true,
+      "sha256": "6a5c07906a48954be708b1f078cee6ab68e54ed00ed9f2df6872be1b1339c715"
+    },
+    {
+      "container": "mov",
+      "brand": "qt  ",
+      "frames": 90,
+      "fps": "30/1",
+      "audioRate": 48000,
+      "duration": "3.029333",
+      "identicalDecodedVideoAndAudio": true,
+      "sha256": "7cb06a268416f6430625bda079c9c2e2dcf0651ea5c1b851d0a858b1f8c4979b"
+    },
+    {
+      "container": "mp4",
+      "brand": "isom",
+      "frames": 180,
+      "fps": "60/1",
+      "audioRate": 44100,
+      "duration": "3.041814",
+      "identicalDecodedVideoAndAudio": true,
+      "sha256": "d50c4b6a965d66ab41805711cf0f1803487baebb49db8f4e1ac4bb25a252f5f5"
+    },
+    {
+      "container": "mov",
+      "brand": "qt  ",
+      "frames": 180,
+      "fps": "60/1",
+      "audioRate": 44100,
+      "duration": "3.041814",
+      "identicalDecodedVideoAndAudio": true,
+      "sha256": "040ac0620fddae6c36e973c885fa803943417eb38291c7801fcbf0d1e1826784"
+    }
+  ]
+}

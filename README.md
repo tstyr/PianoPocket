@@ -1,10 +1,17 @@
 # PianoPocket
 
-Android向けのオフライン・ネイティブサンプラー、**0.5.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
+Android向けのオフライン・ネイティブサンプラー、**0.6.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
 
 **ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。開発環境にはGalaxy S26 / Android 16の実機が未接続です。利用者のAndroidでのHelsinki演奏・リバーブ時の音割れ報告を受け、0.3.1で修正しました。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
 
 **0.3.1: Reverb Mixを上げた際の音割れ対策。** IRの音量補正と、波形をつぶすtanh処理から先読みリミッターへの変更を実装。School Hall・Mix 0.71で再現し、実IR5種の60ケースで検証しました。[修正内容と実機での再確認](docs/REVERB_FIX.md)。
+
+## 今回の追加（0.4.5〜0.6.0）
+
+- **設定 → 表示**で30／60／90／120fpsの上限を選択。FPS表示をオンにすると左下に実描画FPSを小さく表示します。120Hz動作はOS・画面・省電力状態に依存し、実機測定は未実施です。
+- **目のアイコン**で操作UIを隠し、ロールと鍵盤へ集中できます。右上の小さな目、または戻る操作で復帰します。
+- 多層音源の同一ノート内スティールを修正し、既定512／最大1024サンプルボイスへ。メモリ予算に応じたキャッシュと欠落時フェードを追加しました。実Helsinki XFのホスト80鍵テストで発音開始欠落0。[音声修正・残る実機確認](docs/AUDIO_DENSITY_FIX.md)。
+- **︙ → MIDI / 音声 / 動画を書き出し**にMP4／MOVを追加。720p／1080p・30／60fps、ロール・鍵盤・現在の音源音声を保存します。対応する設定だけを選択できます。[動画形式・検証手順](docs/VIDEO_EXPORT.md)。
 
 ## 使い方
 
@@ -47,10 +54,10 @@ FLAC24・MP3・M4Aの実エンコードを追加。MP3 / M4Aは128〜320 kbpsを
 - 演奏画面のロールは上からノートが降り、鍵盤位置で発音します。不透明のトラック色を表示します。ノートは押鍵から離鍵までで、ペダルの尾は描きません。音声はCC64に従って伸び、SUS表示が黄色に変わります。**フェーダーアイコン**で、鍵盤を表示したまま音源パネルを開きます。
 - **設定 → 表示**でカタカナのドレミ、ロール、表示時間2〜10秒を変更します。拡大アイコンで88鍵／2オクターブを切り替えます。狭い画面では拡大するとドレミが読みやすくなります。
 - **設定 → MIDI入力**でUSB / BLEのデバイス・ポート、全入力、画面鍵盤、入力なしを選びます。録音ボタンで選択入力を記録し、もう一度録音アイコンを押すとライブラリへ保存します。ライブ入力は押鍵とペダル区間を履歴として表示し、未来のノートは予測しません。ファイル再生とライブ入力の音声チャンネルは分離しています。
-- **︙ → MIDI / 音声を書き出し**で **MIDI Type 0／1、WAV PCM16／PCM24／Float32、FLAC24、MP3、M4A（AAC）** を選び、Androidの保存先ピッカーへ保存します。WAVは44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量・発音数を反映。残響追加時間0〜30秒を選択でき、既定8秒です。MIDIファイルにはサンプル音源・エフェクトの音は含まれません。
+- **︙ → MIDI / 音声 / 動画を書き出し**で **MIDI Type 0／1、WAV PCM16／PCM24／Float32、FLAC24、MP3、M4A（AAC）、MP4／MOV動画** を選び、Androidの保存先ピッカーへ保存します。WAVは44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量・発音数を反映。残響追加時間0〜30秒を選択でき、既定8秒です。MIDIファイルにはサンプル音源・エフェクトの音は含まれません。
 - 録音は固定120 BPM / 480 PPQNへ約1ms以内のtick精度で保存します。画面鍵盤は保存MIDIのChannel 16に記録し、外部の同チャンネル入力があれば併合します。録音中のアプリ背景移行・入力切断では録音を止めて保存します。回転時はViewModelを保持します。音源やエフェクトの操作自体のオートメーション録音・オーバーダブは未対応です。
 - 最大16 MiB／20万イベント／256トラック／2時間、ライブラリ256件。SMPTE・Type 2は拒否。SysEx、Program Change、pressure等はファイルに保持し、再生未対応機能を警告します。全トラックを現在の同じ音源で演奏し、GM音色・ドラムへの自動切替はしません。シークはコントローラーとPitch Bendを復元し、その後に開始するノートから発音します。コールバック1回に2048を超えるファイルイベントが集中すると警告して再生を停止します。
-- Learning Mode、トラック編集・ミュート、MIDI 2.0 UMPは未対応。WAV書き出しは別エンジンのWAV先頭＋固定LRUキャッシュを使うため、その分のメモリと一時音声ファイル用の空き容量が必要です。ホスト検証済みですが、SAF保存・タッチ・外部MIDI録音・UI表示の実機検証は未実施です。
+- Learning Mode、トラック編集・ミュート、MIDI 2.0 UMPは未対応。WAV書き出しは別エンジンのWAV先頭＋有界LRUキャッシュを使うため、その分のメモリと一時音声ファイル用の空き容量が必要です。ホスト検証済みですが、SAF保存・タッチ・外部MIDI録音・UI表示の実機検証は未実施です。
 
 自作の[PocketStudy.mid](tests/fixtures/PocketStudy.mid)でテンポ変化・ペダル・19音のスケール／和音を試せます。[検証結果と実機手順](docs/SEQUENCER.md)。ユーザー指定の[openthesia-android](https://github.com/tstyr/openthesia-android)はロールと入力選択の操作を参考に確認しました（GPL-3.0-only）。そのコード・素材を取り込まず、今回のMIDI codec、録音、鍵盤配置、描画、C++ transportはPianoPocketの独自実装です。
 
@@ -66,8 +73,8 @@ FLAC24・MP3・M4Aの実エンコードを追加。MP3 / M4Aは128〜320 kbpsを
 | velocity XF | 実XMLのmidiVelocity scope=voice・table・multiplyを128 MIDI velocityのカーブに事前変換。タグミキサーの音量とは独立 |
 | ペダルノイズ | `onLoCC64 / onHiCC64` の0..63側・64..127側を状態の変化時に発音。ハーフペダルや任意CCトリガーは未対応 |
 | ループ | 明示的loopStart / loopEnd、loopEnabled。リリース時にループを終了。WAV内蔵マーカー、ループクロスフェード未対応 |
-| 発音数 | 32〜128 sample voices、既定80、Helsinki XMLのpolyphonyタグは70を初期上限に適用（tag個別poolではなくsample voicesとして近似）。最小エンベロープ値／古いボイスからスティーリング。マイク・velocityレイヤーも1 voiceずつ消費 |
-| 大容量サンプル | WAVごとの先頭8192 frames事前読込＋4096 frameページの256ページLRU、専用ワーカーストリーミング。ミス時はフェード付き無音で継続し、ミス数とI/Oエラーを表示 |
+| 発音数 | 32〜1024 sample voices、既定512。XML tag polyphonyはsample voice数へ自動適用せず未対応警告。同一ノートのレイヤーを互いに奪わず、リリース中／小さいエンベロープ／古い順でスティール。マイク・velocityレイヤーも1 voiceずつ消費 |
+| 大容量サンプル | WAVごとの先頭8192 frames事前読込＋4096 frameページの256〜8192ページLRU、予算連動。4候補ハッシュ検索・先読み重複抑制・優先読み込み。ミス時は直前値からフェード。ミス・I/Oエラー・スティール・要求欠落を表示 |
 | メモリ | WAV先頭＋ページキャッシュの予算32〜512 MiB、既定256。超過時ロードを中断して旧音源を保持。DSP・UI・一時ロード領域は別途メモリを消費 |
 | マイク / グループ | XMLタグを解決し、XFの12レイヤーを3マイクにまとめて制御。通常版はgroup indexで制御。Release / Pedal Noiseを含む実UIの5系統を表示 |
 | Reverb / Delay / Chorus | 公式XMLパラメータを解析し、独自の近似DSP。純正と同じ音やアルゴリズムは保証しない |
@@ -88,7 +95,7 @@ FLAC24・MP3・M4Aの実エンコードを追加。MP3 / M4Aは128〜320 kbpsを
 - 一部の新しいエフェクト属性（例：delay feedbackCutoff）は警告付きで未対応です。公式に存在する全属性の互換実装ではありません。
 - `.dslibrary` はZIPベースの平文アーカイブだけに対応。暗号化ライブラリは非対応。`.sfz` / `.sf2` はまだ非対応です。
 - WAV参照はプリセット配下の相対パスのみ。`../Samples` のような親方向の参照は拒否します。必要なら利用者のコピー上でプリセットとSamplesを同一のルートに配置してください。
-- キャッシュ不足やストレージ速度不足で欠落が発生する可能性があります。5マイク・長いIR・80 voicesで安定動作するかは実機で確認が必要です。
+- キャッシュ不足やストレージ速度不足で欠落が発生する可能性があります。5マイク・長いIR・512 sample voicesで安定動作するかは実機で確認が必要です。
 - MIDIの入力timestampに合わせたサンプル単位スケジュールは未実装。入力を次の音声ブロックで処理します。
 - アプリはバックグラウンドで停止します。音声経路が切断された場合は設定の「オーディオを再開」を使用します。自動再接続・バックグラウンド演奏サービスは未実装。
 - UIテーマはダークのみ。設定の永続化は前回音源・MIDI、発音数、バッファ、メモリ予算、ドレミ／ロール表示・表示時間。エフェクト／マイクのユーザープリセット保存は未実装。
@@ -133,7 +140,7 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 | --- | --- | --- |
 | LAME | 3.100 + UB fixes | LGPL-2.0-or-later、共有ライブラリ・対応ソース・再リンク手順を提供 |
 | libFLAC | 1.4.3 | BSD-3-Clause、static libFLACのみをリンク |
-| Android AAC / MP4 | OS API | OS提供のMediaCodec / MediaMuxer、外部コードを同梱しない |
+| Android AAC / AVC / EGL | OS API | OS提供のMediaCodec / MediaMuxer / EGL14 / GLES20。動画のMP4／MOVコンテナは自作MIT。FFmpeg実装は同梱しない |
 | Google Oboe | 1.9.3 | Apache-2.0、ライセンスをvendorディレクトリに保存 |
 | AndroidX / Jetpack Compose / Material3 | build.gradle.kts参照 | Apache-2.0 |
 | Kotlin / kotlinx.coroutines | 2.1.21 / 1.10.2 | Apache-2.0 |
@@ -147,8 +154,8 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 ## リリースとGitHub
 
-最新: [v0.5.0-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.5.0-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.5.0-alpha-arm64-debug.apk)。
+最新: [v0.6.0-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.6.0-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.6.0-alpha-arm64-debug.apk)。
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開版 0.4.5-alpha: 左下FPS表示。47 JVM tests・Androidビルド・Lintを通過。詳細と実機未検証項目はリリース本文を参照。
+公開版 0.6.0-alpha: MP4／MOV動画書き出し。51 JVM tests・Androidビルド・Lintを通過。詳細と実機未検証項目はリリース本文を参照。

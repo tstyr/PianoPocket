@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
@@ -40,7 +40,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             Box {
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
-                    DropdownMenuItem(text={Text("MIDI / 音声を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
+                    DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
                     DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                     DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                     DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
@@ -59,7 +59,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)
         }
     }
-    if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,onDismiss={exporting=false}){f,r,t,b->exporting=false;export(f,r,t,b)}
+    if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,state.videoOptions,onDismiss={exporting=false}){f,r,t,b,v->exporting=false;export(f,r,t,b,v)}
     if(info)AlertDialog(onDismissRequest={info=false},title={Text("状態・互換性警告")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(state.message)
         Text(state.midi)

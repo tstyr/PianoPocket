@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.5.0-alpha"
+        versionCode = 14
+        versionName = "0.6.0-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -38,4 +38,10 @@ tasks.register<JavaExec>("inspectOwnedPresets") {
     classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter { it.extension=="jar" }
     mainClass.set("dev.pianopocket.tools.PresetProbeKt")
     doFirst { args(project.property("instrumentDir").toString(),project.property("reportDir").toString());project.findProperty("ownedArchive")?.let { args(it.toString()) } }
+}
+tasks.register<JavaExec>("verifyMovieMuxer") {
+    dependsOn("compileDebugUnitTestKotlin")
+    classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter { it.extension=="jar" }
+    mainClass.set("dev.pianopocket.tools.VideoMuxerProbeKt")
+    doFirst { args(project.property("packetFixture").toString(),project.property("movieOutput").toString()) }
 }

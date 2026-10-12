@@ -1,16 +1,18 @@
-# PianoPocket 0.5.0-alpha — 多層音源の発音抜け・ノイズ対策
+# PianoPocket 0.6.0-alpha — MP4／MOV動画書き出し
 
-同一ノートのマイク／ベロシティレイヤーが互いを奪う不具合を修正。既定512・最大1024サンプルボイス、メモリ予算に応じたLRU、優先読み込み・重複要求抑制、キャッシュ欠落／サンプル終端のフェードを追加。設定にスティール数・要求欠落・キャッシュページ数を表示します。
+現在の音源・マイク・IR・エフェクトの音声と、ロール・鍵盤を合わせてMP4／MOVへ保存。720p／1080p・30／60fps、ドレミ設定・横ズーム・黄色SUSを反映し、残響追加・進行状況・キャンセルに対応。端末で対応する解像度・FPSだけを選べます。
 
-実Helsinki XFマッピングを使用したホスト80鍵テストで発音欠落・スティール・キャッシュミス・読み込みエラー0。Native tests、ASan/UBSan PASS。詳細はdocs/AUDIO_DENSITY_FIX.md。
+MP4はisom、MOVはQuickTime qtコンテナ。独立したFFmpegによる30fps/48kHz・60fps/44.1kHzの計4本の復号で全映像フレームと音声が一致。詳しい仕様・制約・実機確認はdocs/VIDEO_EXPORT.md。
 
-Androidビルド・Lint・48 JVM tests・APK署名と16KiB整列を確認。実機／エミュレーター未接続。 イヤホン音質・Android端末上の高負荷演奏は未検証。発音数は有限で、上限超過時はボイススティールします。
+このAPKには0.4.5〜0.5.0で機能ごとに公開した左下FPS表示、最大120FPS設定、目のアイコンによるUI非表示、発音抜け／ストリーミングノイズ対策も含みます。
+
+Androidビルド・Lint・51 JVM tests・APK署名と16KiB整列を確認。実機／エミュレーター未接続。 端末のSurface H.264＋AAC動画生成・GPU描画・長時間同期・イヤホン音質・120Hz動作は未検証。Android test APKのビルド済み／実行未実施。発音数は有限、既定512／最大1024サンプルボイス。
 
 ## ダウンロード
 
 Release Assets添付先の既存HTTP 401制限があるため、配布ブランチからダウンロードできます。
 
-- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.5.0-alpha-arm64-debug.apk)
-- [対応ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.5.0-alpha-source.zip)
-- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.5.0-alpha-validation.zip)
-- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.5.0.txt)
+- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.6.0-alpha-arm64-debug.apk)
+- [対応ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.6.0-alpha-source.zip)
+- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.6.0-alpha-validation.zip)
+- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.6.0.txt)
