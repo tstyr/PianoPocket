@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: attach-pianopocket-v0.4.5-alpha
+  group: attach-pianopocket-v0.4.6-alpha
   cancel-in-progress: false
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: v0.4.5-alpha
+      RELEASE_TAG: v0.4.6-alpha
       ARTIFACT_COMMIT: release-artifacts
     steps:
       - name: Download and verify the tested packages
@@ -28,16 +28,16 @@ jobs:
           cd packages
           base="https://raw.githubusercontent.com/${GH_REPO}/${ARTIFACT_COMMIT}"
           for file in \
-            PianoPocket-0.4.5-alpha-arm64-debug.apk \
-            PianoPocket-0.4.5-alpha-source.zip \
-            PianoPocket-0.4.5-alpha-validation.zip \
+            PianoPocket-0.4.6-alpha-arm64-debug.apk \
+            PianoPocket-0.4.6-alpha-source.zip \
+            PianoPocket-0.4.6-alpha-validation.zip \
             PocketFixture.zip \
             PocketStudy.mid \
             SHA256SUMS-0.4.4.txt; do
             curl --fail --location --retry 3 --output "$file" "$base/$file"
           done
           # Anchor the APK hash to the artifact already built and tested locally.
-          echo '89cda023e36d773dc4baf5af461298251bc7720f00ab7ac169c1278819b59364  PianoPocket-0.4.5-alpha-arm64-debug.apk' | sha256sum --check
+          echo '415124d8c3a87ce6d8fc2517e32be5b590c86ed0061883465a9ebb1a6f2a253b  PianoPocket-0.4.6-alpha-arm64-debug.apk' | sha256sum --check
           sha256sum --check SHA256SUMS-0.4.4.txt
 
       - name: Attach packages to the existing GitHub release
@@ -57,9 +57,9 @@ jobs:
           from pathlib import Path
           release = json.loads(Path('release.json').read_text())
           labels = {
-              'PianoPocket-0.4.5-alpha-arm64-debug.apk': 'Android ARM64 デバッグAPK',
-              'PianoPocket-0.4.5-alpha-source.zip': 'ソースZIP',
-              'PianoPocket-0.4.5-alpha-validation.zip': '検証結果ZIP',
+              'PianoPocket-0.4.6-alpha-arm64-debug.apk': 'Android ARM64 デバッグAPK',
+              'PianoPocket-0.4.6-alpha-source.zip': 'ソースZIP',
+              'PianoPocket-0.4.6-alpha-validation.zip': '検証結果ZIP',
               'PocketFixture.zip': '自作テスト音源',
               'PocketStudy.mid': '自作テストMIDI',
               'SHA256SUMS-0.4.4.txt': 'SHA-256一覧',

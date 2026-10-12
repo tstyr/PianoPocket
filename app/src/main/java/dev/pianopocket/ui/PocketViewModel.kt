@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val targetFps: Int = 60,
     val showFps: Boolean = false,
     val aacAvailable: Boolean = false,
     val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
@@ -44,7 +45,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     @Volatile private var encodingProgress=0f
     @Volatile private var compressedExport=false
     private fun exportProgress(): Float=when(exportStage){1->.7f+NativeAudio.exportProgress()*.25f;2->.7f+encodingProgress*.25f;3->.98f;else->NativeAudio.exportProgress()*(if(compressedExport).7f else .98f)}
-    private val mutable=MutableStateFlow(PocketState(showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -60,18 +61,19 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
             mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) }
         }
         viewModelScope.launch {
-            while(isActive){
-                delay(33)
-                if(foreground){
-                    val transport=NativeAudio.transport();val snapshot=live.snapshot()
-                    mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。" else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)exportProgress()else s.sequence.exportProgress)) }
-                    if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
-                }
-            }
+            while(isActive){delay(100);if(foreground && !displayFramesActive)displayFrame()}
         }
         viewModelScope.launch {
             while(isActive){delay(500);if(foreground)withContext(worker){val values=NativeAudio.stats().toList();val pss=android.os.Debug.getPss()/1024f;mutable.update { it.copy(stats=values,processMiB=pss) };refreshOutputs()}}
         }
+    }
+    @Volatile var displayFramesActive=false
+    fun targetFps(value: Int){if(value !in listOf(30,60,90,120))return;preferences.targetFps=value;mutable.update { it.copy(targetFps=value) }}
+    fun displayFrame() {
+        if(!foreground)return
+        val transport=NativeAudio.transport();val snapshot=live.snapshot()
+        mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)exportProgress()else s.sequence.exportProgress)) }
+        if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
     }
     private fun work(action: suspend () -> Unit) { viewModelScope.launch { withContext(worker) { try { action() } catch(e: Exception) { NativeAudio.abort();mutable.update { it.copy(busy=false,message=e.message ?: e.javaClass.simpleName) } } catch(e: OutOfMemoryError) { NativeAudio.abort();mutable.update { it.copy(busy=false,message="メモリ不足。音源を減らすかメモリ設定を下げて再試行してください。") } } } } }
     fun foreground(active: Boolean) {

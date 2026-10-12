@@ -55,6 +55,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 if(tab==0) {
+                    PerformanceFrameClock(activity,model,state.targetFps)
                     BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                         val panelWidth=if(landscape) minOf(420.dp,maxWidth*.6f) else maxWidth
                         val keyboardHeight=(maxHeight*.29f).coerceIn(96.dp,180.dp)
@@ -106,6 +107,9 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             }
                             }
                             3 -> {
+                            Text("描画の上限FPS",style=MaterialTheme.typography.titleMedium)
+                            Row {listOf(30,60,90,120).forEach { rate->FilterChip(selected=state.targetFps==rate,onClick={model.targetFps(rate)},label={Text("$rate")},modifier=Modifier.weight(1f))}}
+                            Text("端末の対応Hz・省電力設定・負荷で実際のFPSは変わります。音声のサンプルレートとは別です。",style=MaterialTheme.typography.bodySmall)
                             Row { Text("FPSを左下に表示",Modifier.weight(1f));Switch(checked=state.showFps,onCheckedChange=model::showFps) }
                             Text("表示",style=MaterialTheme.typography.titleMedium)
                             Row { Text("演奏画面は横向きを優先",Modifier.weight(1f));Switch(checked=state.landscapePerformance,onCheckedChange=model::landscapePerformance) }
@@ -136,7 +140,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket 0.4.5 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.4.6 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
