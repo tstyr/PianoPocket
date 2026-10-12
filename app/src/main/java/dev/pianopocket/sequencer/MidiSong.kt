@@ -10,6 +10,8 @@ data class RollNote(val key: Int, val velocity: Int, val channel: Int, val track
 data class MidiSong(val ppqn: Int, val tracks: Int, val records: List<MidiRecord>, val messages: List<SongMessage>, val duration: Long, val bpm: Double, val warnings: List<String>, val endTick: Long = records.maxOfOrNull { it.tick } ?: 0L) {
     val notes = makeNotes(messages, duration)
     val noteIndex = NoteIndex(notes)
+    val keyIndex = NoteIndex(notes,keyOnly=true)
+    val sustainIndex = SustainIndex(messages)
     companion object {
         fun recorded(input: List<SongMessage>, end: Long): MidiSong {
             val events = input.sortedBy { it.micros }
@@ -126,13 +128,33 @@ private fun makeNotes(messages: List<SongMessage>, duration: Long): List<RollNot
 }
 
 /** Interval segment tree: long held notes remain visible without scanning the whole song. */
-class NoteIndex(private val notes: List<RollNote>) {
+class NoteIndex(private val notes: List<RollNote>,private val keyOnly: Boolean=false) {
     private val ends=LongArray(maxOf(1,notes.size*4))
     init { if(notes.isNotEmpty())build(1,0,notes.lastIndex) }
-    private fun build(node: Int,l: Int,r: Int): Long {ends[node]=if(l==r)notes[l].end else {val m=(l+r)/2;maxOf(build(node*2,l,m),build(node*2+1,m+1,r))};return ends[node]}
+    private fun build(node: Int,l: Int,r: Int): Long {ends[node]=if(l==r){if(keyOnly)notes[l].keyEnd else notes[l].end} else {val m=(l+r)/2;maxOf(build(node*2,l,m),build(node*2+1,m+1,r))};return ends[node]}
     fun visible(from: Long,to: Long,draw: (RollNote)->Unit) { if(notes.isNotEmpty())visit(1,0,notes.lastIndex,from,to,draw) }
     private fun visit(node: Int,l: Int,r: Int,from: Long,to: Long,draw: (RollNote)->Unit) {
         if(ends[node]<from || notes[l].start>to)return
         if(l==r){draw(notes[l]);return};val m=(l+r)/2;visit(node*2,l,m,from,to,draw);visit(node*2+1,m+1,r,from,to,draw)
+    }
+}
+
+/** Indexed CC64 state. Any input channel holding the pedal lights SUS. */
+class SustainIndex(messages: List<SongMessage>) {
+    private val times: LongArray
+    private val values: BooleanArray
+    init {
+        val channels=BooleanArray(16);val changes=mutableListOf<Pair<Long,Boolean>>()
+        messages.forEach { e->if(e.status and 0xf0==0xb0 && e.a in listOf(64,120,121,123)) {
+            channels[e.status and 15]=e.a==64 && e.b>=64
+            val active=channels.any { it }
+            if(changes.lastOrNull()?.second!=active)changes+=e.micros to active
+        } }
+        times=LongArray(changes.size){changes[it].first};values=BooleanArray(changes.size){changes[it].second}
+    }
+    fun active(micros: Long): Boolean {
+        var low=0;var high=times.size
+        while(low<high){val mid=(low+high) ushr 1;if(times[mid]<=micros)low=mid+1 else high=mid}
+        return low>0 && values[low-1]
     }
 }

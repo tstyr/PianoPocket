@@ -2,7 +2,7 @@ package dev.pianopocket.sequencer
 
 import java.util.ArrayDeque
 
-data class LiveSnapshot(val notes: List<RollNote>, val held: Set<Int>, val sustained: Set<Int>, val now: Long)
+data class LiveSnapshot(val notes: List<RollNote>, val held: Set<Int>, val sustained: Set<Int>, val now: Long, val pedalDown: Boolean=false)
 class LiveNotes(private val clock: () -> Long = System::nanoTime) {
     private val epoch=clock()
     private data class Held(val key: Int,val channel: Int,val velocity: Int,val start: Long,var off: Long=-1)
@@ -27,6 +27,6 @@ class LiveNotes(private val clock: () -> Long = System::nanoTime) {
         val t=now();while(history.isNotEmpty() && history.first().end<t-8000000)history.removeFirst()
         val active=ArrayList<Held>();held.forEach { row->row.forEach { q->if(q.isNotEmpty())q.forEach { active+=it } } };val tails=ArrayList<Held>();released.forEach { q->q.forEach { tails+=it } }
         val notes=history.toList()+(active+tails).map { RollNote(it.key,it.velocity,it.channel,0,it.start,if(it.off<0)t else it.off,t) }
-        return LiveSnapshot(notes,active.map { it.key }.toSet(),tails.map { it.key }.toSet(),t)
+        return LiveSnapshot(notes,active.map { it.key }.toSet(),tails.map { it.key }.toSet(),t,pedal.any { it })
     }
 }

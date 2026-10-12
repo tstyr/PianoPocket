@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val aacAvailable: Boolean = false,
     val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
     val busy: Boolean = false, val message: String = "準備中", val midi: String = "MIDI未接続",
@@ -38,6 +39,10 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val recorder=MidiRecorder()
     private val live=LiveNotes()
     private val exportCancelled=AtomicBoolean(false)
+    @Volatile private var exportStage=0
+    @Volatile private var encodingProgress=0f
+    @Volatile private var compressedExport=false
+    private fun exportProgress(): Float=when(exportStage){1->.7f+NativeAudio.exportProgress()*.25f;2->.7f+encodingProgress*.25f;3->.98f;else->NativeAudio.exportProgress()*(if(compressedExport).7f else .98f)}
     private val mutable=MutableStateFlow(PocketState(landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
@@ -48,8 +53,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     },::receiveMidi)
     init {
         work {
+            mutable.update { it.copy(aacAvailable=AacExporter.available()) }
             val pid=android.os.Process.myPid().toString()
-            getApplication<Application>().cacheDir.listFiles().orEmpty().filter { it.name.startsWith("render-") && it.extension=="wav" && it.name.split('-').getOrNull(1)!=pid }.forEach { it.delete() }
+            getApplication<Application>().cacheDir.listFiles().orEmpty().filter { it.name.startsWith("render-") && it.extension in listOf("wav","flac","mp3","m4a") && it.name.split('-').getOrNull(1)!=pid }.forEach { it.delete() }
             mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) }
         }
         viewModelScope.launch {
@@ -57,7 +63,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
                 delay(33)
                 if(foreground){
                     val transport=NativeAudio.transport();val snapshot=live.snapshot()
-                    mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。" else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)NativeAudio.exportProgress()else s.sequence.exportProgress)) }
+                    mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。" else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)exportProgress()else s.sequence.exportProgress)) }
                     if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
                 }
             }
@@ -203,10 +209,11 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         work {val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date());val entry=midiLibrary.save(name,song);selectSong(entry,song);mutable.update { it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。") }}
     }
     fun cancelExport(){exportCancelled.set(true);NativeAudio.cancelExport()}
-    fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int)=work {
+    fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int,bitrate: Int)=work {
         val snapshot=state.value;val song=snapshot.sequence.song ?: error("MIDIを選択してください")
         val context=getApplication<Application>();val temp=File(context.cacheDir,"render-${android.os.Process.myPid()}-${System.nanoTime()}.wav")
-        exportCancelled.set(false)
+        val encoded=File(context.cacheDir,temp.nameWithoutExtension+".${format.extension}")
+        exportCancelled.set(false);exportStage=0;encodingProgress=0f;compressedExport=format.compressed
         mutable.update { it.copy(sequence=it.sequence.copy(exporting=true,exportProgress=0f),busy=true,message="${format.label}を書き出し中") }
         NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()
         try {
@@ -214,7 +221,8 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
             else {
                 val preset=snapshot.preset ?: error("音源を読み込んでください")
                 val entry=snapshot.library.first { it.id==snapshot.selected }
-                val expected=(song.duration/1000000.0+tail)*rate*2*(format.bits/8)
+                val pcmBytes=(song.duration/1000000.0+tail)*rate*2*(format.bits/8)
+                val expected=pcmBytes*(if(format.compressed)2 else 1)
                 require(context.cacheDir.usableSpace>expected+128*1048576){"音声書き出し用の空き容量が不足しています"}
                 NativeAudio.exportBegin(snapshot.memoryMiB,rate)
                 preset.regions.forEach { r->NativeAudio.region(repository.resolve(entry,r.path).path,r.ints,r.floats) }
@@ -224,14 +232,23 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
                 snapshot.groups.forEachIndexed { g,v->NativeAudio.exportControl(6,g,0,v) }
                 preset.controls.forEach { c->c.bindings.filter { it.type=="master" }.forEach { b->NativeAudio.exportControl(9,0,0,bindingValue(b,c,c.value)) } }
                 check(!exportCancelled.get()){ "書き出しをキャンセルしました" };val (times,data)=arrays(song);NativeAudio.exportWav(temp.path,times,data,song.duration,format.bits,tail)
+                var rendered=temp
+                if(format.compressed){
+                    check(!exportCancelled.get()){ "書き出しをキャンセルしました" }
+                    mutable.update { it.copy(message="${format.label}へエンコード中") }
+                    if(format==ExportFormat.M4A){exportStage=2;AacExporter.encode(temp,encoded,bitrate,exportCancelled){encodingProgress=it}}
+                    else {exportStage=1;NativeAudio.encodeCompressed(temp.path,encoded.path,if(format==ExportFormat.FLAC)1 else 2,bitrate)}
+                    rendered=encoded
+                }
+                exportStage=3
                 mutable.update { it.copy(message="保存先へ音声をコピー中") }
-                context.contentResolver.openOutputStream(uri,"wt")?.use { out->temp.inputStream().use { input->
+                context.contentResolver.openOutputStream(uri,"wt")?.use { out->rendered.inputStream().use { input->
                     val buffer=ByteArray(65536);while(true){check(!exportCancelled.get()){ "書き出しをキャンセルしました" };val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n)}
                 } } ?: error("保存先を開けません")
             }
             mutable.update { it.copy(message="${format.label}を書き出しました。${if(format.bits==0)"音源はMIDIに含まれません。" else "現在の音源・ミキサー・エフェクトを反映しています。"}") }
         }catch(e: Throwable){NativeAudio.abort();runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver,uri) };throw e}
-        finally{temp.delete();mutable.update { it.copy(busy=false,sequence=it.sequence.copy(exporting=false)) }}
+        finally{temp.delete();if(encoded!=temp)encoded.delete();mutable.update { it.copy(busy=false,sequence=it.sequence.copy(exporting=false)) }}
     }
     override fun onCleared() { cancelExport();midi.close();executor.execute { NativeAudio.stop();NativeAudio.abort() };executor.shutdown();super.onCleared() }
 }

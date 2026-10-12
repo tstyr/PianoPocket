@@ -1,0 +1,13 @@
+{
+  "instrument": "Helsinki1967 XF v1.6",
+  "rate": 48000,
+  "frames": 480000,
+  "flac24BitIdentical": true,
+  "mp3RatesPassed": [
+    128,
+    192,
+    256,
+    320
+  ],
+  "m4aDeviceTest": "not run"
+}

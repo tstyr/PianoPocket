@@ -12,5 +12,10 @@ data class SequenceState(
 enum class ExportFormat(val label: String,val extension: String,val mime: String,val bits: Int) {
     MIDI0("MIDI Type 0", "mid", "audio/midi", 0), MIDI1("MIDI Type 1", "mid", "audio/midi", 0),
     WAV16("WAV · PCM 16-bit", "wav", "audio/wav", 16), WAV24("WAV · PCM 24-bit", "wav", "audio/wav", 24),
-    WAV32("WAV · Float32", "wav", "audio/wav", 32)
+    WAV32("WAV · Float32", "wav", "audio/wav", 32),
+    FLAC("FLAC · lossless 24-bit", "flac", "audio/flac", 24),
+    MP3("MP3 · LAME", "mp3", "audio/mpeg", 24),
+    M4A("M4A · AAC-LC", "m4a", "audio/mp4", 16);
+    val compressed: Boolean get()=this in listOf(FLAC,MP3,M4A)
+    val lossy: Boolean get()=this==MP3 || this==M4A
 }

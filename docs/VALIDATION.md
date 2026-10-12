@@ -90,3 +90,14 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署名PASS、zipalign 16KiB PASS、3つのELFのLOAD整列が16384。旧版と同じ証明書SHA-256 `d2b4e0c9de24c4a5ec51e6e05651e526aee3da3e3a720f756c2027789b132761`。APK SHA-256 `b0e177b3b0f209e717b66a2ed59060dca7337f43ca16a31de0ea3a9bd5eef027`、27481758 bytes。開発環境の実機・エミュレーターは未接続で、スクリーンショット・UI操作・Galaxy S26での更新成功を検証済みとは主張しません。
 
 0.4.0のmain / tag / release-artifactsとプリリリースを公開済み。Assets直接添付は今回もHTTP 401で未完了。公開先から27481758 bytesのAPKを再取得し、上記SHA-256と一致しました。ソース・検証ZIP・checksum一覧も公開先から取得可能と確認。新しいActions実行は行っておらず、既存billing lockの解消やホステッドCI成功を主張しません。
+
+## 0.4.1 sustain / labels / compressed audio
+
+ロールはkeyEndまでを表示し、発音end・MIDI CC64は維持。チャンネル別ペダルのSUS表示とドレミの縦配置を追加。FLAC24 / LAME MP3 / Android AAC-LC M4Aの実エンコードを実装。[書き出しと実機確認手順](EXPORT_FORMATS.md)。
+
+- `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS。JUnit 41 / failures 0 / errors 0 / skipped 0、Lint errors 0。native suite PASS。
+- 44.1 / 48 kHz × 入力PCM16 / PCM24でFLAC4ケースとMP3 4bitrates16ケースを独立したFFmpegで復号。FLACはバイト一致、MP3は全フレーム数一致・左右の波形相関0.99超。キャンセル時の途中ファイル削除PASS。
+- C/C++ともASan / UBSanを有効化し、native suiteと20 codec round tripsを通過。LAME upstreamのbit mask / scale / bit packingの符号付きシフトのUBを修正して再実行。Helsinki実演奏PCMの5 codecs（FLAC+4MP3）もASan / UBSanで通過。
+- Helsinki XFの実サンプル・IRによる10秒、480000frames、PCM24書き出し。FLACは全PCM一致、MP3は各480000framesを復号。音声・原XML・IRは公開しない。前段のSampler/Effectsのアルゴリズムは変更していません。
+- APK versionCode6 / versionName0.4.1-alpha / ARM64 / min29 / target36。署名v2・zipalign16KiB PASS。4 ELFのLOAD alignment>=16384、新しいlibmp3lame.soと実ライセンス本文assetを確認。旧版と同じ証明書。APK 28589208 bytes / SHA-256 `1605ef1417621c60c563632d55b40afa08596ecd5d3ed65a0e14a34e67dd6bf7`。
+- `AacExporterDeviceTest` 2 testsとAndroid test APKを用意しビルド。端末未接続なので実行せず、M4Aの出力成功を検証済みとは主張しない。新ドレミ・SUSの表示、SAF保存、USB/BLE連動の実機試験も未実施。

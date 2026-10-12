@@ -1,26 +1,24 @@
-# PianoPocket 0.4.0-alpha — Landscape performance view
+# PianoPocket 0.4.1-alpha — SUS / ドレミ / FLAC・MP3・M4A
 
-横画面のロールと鍵盤を中心に、演奏画面を再構成しました。カタカナのドレミを維持し、基本操作をアイコンにまとめました。
+- ロールは鍵盤を押している区間だけ表示し、サステインの尾を描きません。音声とMIDIのペダルは維持します。
+- サステイン中はSUSが黄色。画面ペダル・USB/BLE MIDI・MIDIファイルのCC64に連動。
+- 88鍵で極小になっていたドレミを拡大し、ファ／♯を縦配置。設定でオン／オフ可能です。
+- FLAC24、MP3、M4A（AAC-LC）を追加。MP3 / M4Aは128〜320 kbps、44.1 / 48 kHzを選択できます。M4Aは端末のAAC encoderがない場合は無効になります。
+- LAMEは共有ライブラリとしてリンクし、LGPL本文・対応ソース・改変／差し替え手順を提供。libFLACはBSD-3-Clause。
 
-- 横画面優先・全画面表示。ロール上の小さな操作バー、下部の88鍵／2オクターブ鍵盤。
-- 再生・録音・全音停止・音源パネルをアイコンで操作。48dpのタッチ領域と長押し説明。︙から設定・書き出しへ。
-- 音源パネルは「ミキサー / エフェクト / 情報」。実XMLのマイクを縦フェーダーに並べ、IR・Reverb Mixとチェーンの有効／無効を整理。鍵盤の位置を変えずに操作できます。
-- ドレミのオン／オフと横画面優先の設定を保存。ライブラリは自動回転へ対応。
-- MIDI再生・ライブ録音・WAV/MIDI書き出し、0.3.1の音割れ対策を維持。
+Androidビルド・Lint errors 0・41 JVM tests・native / ASan / UBSan PASS。独立したFFmpegで20 codec round tripsを通過。実Helsinki XFのFLACは元のPCMに完全一致、MP3は4bitratesで再生時間を確認しました。音源・IR・原XMLや実音源から書き出した音声は同梱していません。
 
-Windows VSTホストは未実装です。今回の音源パネルは動作するネイティブサンプラーの操作です。Helsinkiの音源・IR・XML原本は同梱していません。
+M4AのMediaCodec端末テストは作成・ビルド済みですが、端末未接続で未実行です。新しいドレミ・SUS表示とAndroid保存も実機未検証。旧版と同じ署名で上書き更新できます。
 
-Android ARM64ビルド、36 JVM tests、native suite、Lint errors 0、v2署名・16KiB整列を確認。旧版と同じ署名で上書き更新できます。新画面の表示・タッチ・USB/BLE・実測レイテンシは開発環境で実機未検証です。
-
-[操作・実機確認手順](https://github.com/tstyr/PianoPocket/blob/main/docs/PERFORMANCE_UI.md)
+[形式・ライセンス・検証手順](https://github.com/tstyr/PianoPocket/blob/main/docs/EXPORT_FORMATS.md)
 
 ## ダウンロード
 
-配布用release-artifactsブランチから取得できます。Assetsアップロード先の認証エラーが継続しており、直接添付は未完了です。
+配布用release-artifactsブランチから取得できます。Assetsアップロード先のHTTP 401制限は未解消のため、直接添付は未完了です。
 
-- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.0-alpha-arm64-debug.apk)
-- [ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.0-alpha-source.zip)
-- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.0-alpha-validation.zip)
+- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.1-alpha-arm64-debug.apk)
+- [対応ソースZIP（エンコーダー含む）](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.1-alpha-source.zip)
+- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.1-alpha-validation.zip)
 - [自作テストMIDI](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketStudy.mid)
 - [自作テスト音源](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketFixture.zip)
-- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.4.0.txt)
+- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.4.1.txt)

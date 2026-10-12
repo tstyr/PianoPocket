@@ -13,20 +13,27 @@ import java.text.DateFormat
 import java.util.Date
 
 fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLeast(0);return "%d:%02d".format(seconds/60,seconds%60)}
-@Composable internal fun ExportDialog(name: String,audioReady: Boolean,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int)->Unit) {
+@Composable internal fun ExportDialog(name: String,audioReady: Boolean,aacAvailable: Boolean,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int,Int)->Unit) {
     var format by remember { mutableStateOf(ExportFormat.WAV24) }
     var rate by remember { mutableIntStateOf(48000) }
+    var bitrate by remember { mutableIntStateOf(256) }
     var tail by remember { mutableFloatStateOf(8f) }
     AlertDialog(onDismissRequest=onDismiss,title={Text("書き出し形式")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(name,maxLines=2)
-        ExportFormat.entries.forEach { f->Row { RadioButton(selected=format==f,onClick={format=f});TextButton(onClick={format=f}){Text(f.label)} } }
+        ExportFormat.entries.forEach { f->Row { RadioButton(selected=format==f,onClick={format=f},enabled=f!=ExportFormat.M4A || aacAvailable);TextButton(onClick={format=f},enabled=f!=ExportFormat.M4A || aacAvailable){Text(f.label)} } }
+        if(!aacAvailable)Text("この端末のAACエンコーダーを検出できないためM4Aは利用できません。",style=MaterialTheme.typography.bodySmall)
+        if(format.lossy){
+            Text("音質: ${bitrate} kbps",style=MaterialTheme.typography.bodySmall)
+            Row { listOf(128,192,256,320).forEach { b->FilterChip(selected=bitrate==b,onClick={bitrate=b},label={Text("$b")},modifier=Modifier.weight(1f)) } }
+            Text("非可逆圧縮。FLAC / WAVは音質を保った保存です。",style=MaterialTheme.typography.bodySmall)
+        }
         if(format.bits>0){
             Row { FilterChip(selected=rate==44100,onClick={rate=44100},label={Text("44.1 kHz")});Spacer(Modifier.width(8.dp));FilterChip(selected=rate==48000,onClick={rate=48000},label={Text("48 kHz")}) }
             Text("残響の追加時間: ${tail.toInt()}秒",style=MaterialTheme.typography.bodySmall)
             Slider(value=tail,onValueChange={tail=it},valueRange=0f..30f,steps=29)
             Text("現在の音源・マイク音量・エフェクトでステレオ音声を生成します。保存先を選ぶ時点の設定を使います。",style=MaterialTheme.typography.bodySmall)
         }else Text("MIDIにはノート・ペダル・テンポなどを保存します。サンプル音源やエフェクト音は含まれません。",style=MaterialTheme.typography.bodySmall)
-    }},confirmButton={TextButton(onClick={onExport(format,rate,tail.toInt())},enabled=format.bits==0 || audioReady){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
+    }},confirmButton={TextButton(onClick={onExport(format,rate,tail.toInt(),bitrate)},enabled=(format.bits==0 || audioReady) && (format!=ExportFormat.M4A || aacAvailable)){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
 }
 @Composable
 fun MidiLibraryPanel(state: PocketState,model: PocketViewModel,importMidi:()->Unit,onOpen:()->Unit) {

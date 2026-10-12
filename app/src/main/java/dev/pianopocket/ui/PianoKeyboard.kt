@@ -29,9 +29,9 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
     val paint=remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER } }
     DisposableEffect(enabled,low) { onDispose { model.pedal(false);held=emptySet() } }
     val external=remember(seq.position,seq.playing,seq.song,seq.live){
-        val active=seq.live.held.toMutableSet();val tails=seq.live.sustained.toMutableSet()
-        if(seq.playing)seq.song?.noteIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd)active+=it.key else tails+=it.key}
-        active to tails
+        val active=seq.live.held.toMutableSet()
+        if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd)active+=it.key}
+        active
     }
     Box(modifier.background(Color(0xff20242a))) {
         Canvas(Modifier.fillMaxSize().semantics { contentDescription="マルチタッチのピアノ鍵盤。下側ほど強いベロシティ。" }.pointerInput(layout,enabled) {
@@ -51,14 +51,12 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
             }finally{touches.values.toSet().forEach { model.key(it,0) };held=emptySet()}
         }) {
             layout.shapes.forEach { key ->
-                val down=key.note in held || key.note in external.first
-                val tail=key.note in external.second
-                val color=if(key.black){if(down)Color(0xff488a77)else if(tail)Color(0xff6a6248)else Color(0xff10141a)}else{if(down)Color(0xffa8d4bf)else if(tail)Color(0xffcfcaab)else Color(0xffe4e6e7)}
+                val down=key.note in held || key.note in external
+                val color=if(key.black){if(down)Color(0xff488a77)else Color(0xff10141a)}else{if(down)Color(0xffa8d4bf)else Color(0xffe4e6e7)}
                 val left=key.left*size.width;val width=key.width*size.width;val height=if(key.black)size.height*.62f else size.height
                 drawRect(color,Offset(left+1,0f),Size((width-2).coerceAtLeast(1f),height))
                 if(seq.noteLabels){
-                    paint.color=if(key.black)0xffc5ccce.toInt()else 0xff404a50.toInt();paint.textSize=minOf(14.dp.toPx(),width*.45f)
-                    drawIntoCanvas { it.nativeCanvas.drawText(solfege(key.note),left+width/2,height-10.dp.toPx(),paint) }
+                    drawNoteLabel(key.note,left+width/2,0f,width,height,paint,color=if(key.black)0xffeff2f5.toInt()else 0xff303943.toInt(),black=key.black)
                 }
             }
         }

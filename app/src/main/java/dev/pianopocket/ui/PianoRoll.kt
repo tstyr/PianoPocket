@@ -36,16 +36,15 @@ fun PianoRoll(state: PocketState,modifier: Modifier=Modifier) {
                     val key=layout.shapes.firstOrNull { it.note==n.key } ?: return
                     val x=key.left*size.width+1;val w=(key.width*size.width-2).coerceAtLeast(2f)
                     val color=if(live)noteColors[0]else noteColors[n.track%noteColors.size]
-                    val start=y(n.start);val stop=y(n.keyEnd);val released=y(n.end)
-                    if(n.end>n.keyEnd)drawRect(Color(0xffb3a26e).copy(alpha=.35f),Offset(x,minOf(stop,released)),Size(w,kotlin.math.abs(stop-released).coerceAtLeast(2f)))
+                    val start=y(n.start);val stop=y(n.keyEnd)
                     val top=minOf(start,stop);val height=kotlin.math.abs(start-stop).coerceAtLeast(3f)
                     drawRoundRect(color.copy(alpha=.55f+n.velocity/127f*.45f),Offset(x,top),Size(w,height),CornerRadius(minOf(4.dp.toPx(),w*.15f)))
-                    if(seq.noteLabels && w>18.dp.toPx() && height>20.dp.toPx()){
-                        paint.textSize=minOf(13.dp.toPx(),w*.45f);drawIntoCanvas { it.nativeCanvas.drawText(solfege(n.key),x+w/2,top.coerceAtLeast(0f)+16.dp.toPx(),paint) }
+                    if(seq.noteLabels && height>24.dp.toPx()){
+                        drawNoteLabel(n.key,x+w/2,top.coerceAtLeast(0f),w,minOf(height,size.height),paint,color=0xff16231c.toInt(),fromTop=true)
                     }
                 }
-                if(liveMode)seq.live.notes.filter { it.end>=begin }.forEach { note(it,true) }
-                else {seq.song?.noteIndex?.visible(begin,end){note(it)};seq.live.notes.filter { it.end>=seq.live.now-span }.forEach { n->note(n.copy(start=position,keyEnd=position+100000,end=position+100000),true) }}
+                if(liveMode)seq.live.notes.filter { it.keyEnd>=begin }.forEach { note(it,true) }
+                else {seq.song?.keyIndex?.visible(begin,end){note(it)};seq.live.notes.filter { it.keyEnd>=seq.live.now }.forEach { n->note(n.copy(start=position,keyEnd=position+100000,end=position+100000),true) }}
             }
             drawLine(Color(0xff86bca7),Offset(0f,size.height-1),Offset(size.width,size.height-1),2.dp.toPx())
         }

@@ -3,6 +3,7 @@ package dev.pianopocket
 import dev.pianopocket.sequencer.*
 import dev.pianopocket.ui.KeyLayout
 import dev.pianopocket.ui.solfege
+import dev.pianopocket.ui.noteLabelLines
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayOutputStream
@@ -78,4 +79,19 @@ class SequenceTest {
         assertEquals(21,all.hit(.001f,.9f));assertEquals(108,all.hit(.999f,.9f));assertNull(all.hit(-.1f,.5f))
         val two=KeyLayout(60,83);assertEquals(60,two.hit(.01f,.9f));assertEquals(61,two.hit(1/14f,.1f));assertEquals("ファ♯",solfege(66))
     }
+    @Test fun rollStopsAtKeyOffWhileAudioDurationKeepsPedalTail() {
+        val song=MidiSong.recorded(listOf(SongMessage(0,0,0,0x90,60,90),SongMessage(0,5,0,0xb0,64,127),SongMessage(0,20,0,0x80,60,0),SongMessage(0,100,0,0xb0,64,0)),110)
+        val held=mutableListOf<Int>();val sounding=mutableListOf<Int>()
+        song.keyIndex.visible(21,99){held+=it.key};song.noteIndex.visible(21,99){sounding+=it.key}
+        assertTrue(held.isEmpty());assertEquals(listOf(60),sounding);assertEquals(20L,song.notes.single().keyEnd);assertEquals(100L,song.notes.single().end)
+    }
+    @Test fun sustainDisplayTracksEmptyPedalAndOverlappingChannelsAndSeek() {
+        val song=MidiSong.recorded(listOf(SongMessage(0,10,0,0xb0,64,127),SongMessage(0,20,0,0xb1,64,127),SongMessage(0,30,0,0xb0,64,0),SongMessage(0,40,0,0xb1,121,0)),100)
+        assertFalse(song.sustainIndex.active(9));assertTrue(song.sustainIndex.active(10));assertTrue(song.sustainIndex.active(35));assertFalse(song.sustainIndex.active(40));assertTrue(song.sustainIndex.active(25));assertFalse(song.sustainIndex.active(0))
+        var clock=0L;val live=LiveNotes { clock };live.event(0xb2,64,127);assertTrue(live.snapshot().pedalDown);assertTrue(live.snapshot().held.isEmpty());clock=1000000;live.event(0xb2,64,0);assertFalse(live.snapshot().pedalDown)
+    }
+    @Test fun multiCharacterKatakanaStacksInNarrowKeys() {
+        assertEquals(listOf("フ","ァ"),noteLabelLines(65));assertEquals(listOf("フ","ァ","♯"),noteLabelLines(66));assertEquals(listOf("ド"),noteLabelLines(60))
+    }
+
 }

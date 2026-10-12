@@ -1,0 +1,163 @@
+{
+  "tests": 20,
+  "passed": 20,
+  "cases": [
+    {
+      "format": "FLAC",
+      "rate": 44100,
+      "bits": 16,
+      "frames": 132300,
+      "lossless": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 16,
+      "kbps": 128,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 16,
+      "kbps": 192,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 16,
+      "kbps": 256,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 16,
+      "kbps": 320,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "FLAC",
+      "rate": 44100,
+      "bits": 24,
+      "frames": 132300,
+      "lossless": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 24,
+      "kbps": 128,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 24,
+      "kbps": 192,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 24,
+      "kbps": 256,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 44100,
+      "inputBits": 24,
+      "kbps": 320,
+      "frames": 132300,
+      "stereo": true
+    },
+    {
+      "format": "FLAC",
+      "rate": 48000,
+      "bits": 16,
+      "frames": 144000,
+      "lossless": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 16,
+      "kbps": 128,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 16,
+      "kbps": 192,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 16,
+      "kbps": 256,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 16,
+      "kbps": 320,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "FLAC",
+      "rate": 48000,
+      "bits": 24,
+      "frames": 144000,
+      "lossless": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 24,
+      "kbps": 128,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 24,
+      "kbps": 192,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 24,
+      "kbps": 256,
+      "frames": 144000,
+      "stereo": true
+    },
+    {
+      "format": "MP3",
+      "rate": 48000,
+      "inputBits": 24,
+      "kbps": 320,
+      "frames": 144000,
+      "stereo": true
+    }
+  ],
+  "androidAacTest": "not run; no device"
+}

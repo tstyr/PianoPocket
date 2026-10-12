@@ -1,6 +1,7 @@
 #include "AudioEngine.h"
 #include "ImpulseLoader.h"
 #include "OfflineRenderer.h"
+#include "CompressedEncoder.h"
 #include <jni.h>
 #include <unordered_map>
 #include <string>
@@ -77,3 +78,8 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_exportW
 }catch(const std::exception& x){staged.reset();effects.clear();paths.clear();exportControls.clear();exportRate=0;fail(e,x);}}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_cancelExport(JNIEnv*,jobject){exportCancel.store(true);}
 extern "C" JNIEXPORT jfloat JNICALL Java_dev_pianopocket_audio_NativeAudio_exportProgress(JNIEnv*,jobject){return exportProgress.load();}
+
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_encodeCompressed(JNIEnv* e,jobject,jstring wav,jstring output,jint format,jint bitrate) {
+    try { encodeCompressed(string(e,wav),string(e,output),format,bitrate,exportCancel,exportProgress); }
+    catch(const std::exception& x){fail(e,x);}
+}

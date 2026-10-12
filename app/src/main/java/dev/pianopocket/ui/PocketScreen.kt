@@ -23,12 +23,16 @@ import java.util.Date
 
 private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0xff181b1f),surface=Color(0xff20242a),onSurface=Color(0xffe1e3e5),secondary=Color(0xffb5bec7))
 @Composable
-fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int)->Unit) {
+fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int)->Unit) {
     val state by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var instrument by rememberSaveable { mutableStateOf(false) }
     var notice by remember { mutableStateOf(true) }
     LaunchedEffect(state.message){notice=true;kotlinx.coroutines.delay(5000);notice=false}
+    var licenses by remember { mutableStateOf(false) }
+    var licenseText by remember { mutableStateOf("読み込み中") }
+    val context=androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(licenses){if(licenses)licenseText=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.assets.open("encoder-licenses.txt").bufferedReader().use { it.readText() }}}
     var deleting by remember { mutableStateOf<LibraryEntry?>(null) }
     val activity=LocalActivity.current
     val window=LocalWindowInfo.current.containerSize
@@ -129,12 +133,14 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            Text("PianoPocket 0.4.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
+                            Text("PianoPocket 0.4.1 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
                 }
             }
+            if(licenses)AlertDialog(onDismissRequest={licenses=false},title={Text("エンコーダーのライセンス")},text={Text(licenseText,Modifier.verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)},confirmButton={TextButton(onClick={licenses=false}){Text("閉じる")}})
             deleting?.let { entry -> AlertDialog(onDismissRequest={deleting=null},title={Text("音源フォルダーを削除")},text={Text("${entry.name} と同じインポートに含まれる全プリセット・サンプルを削除します。")},confirmButton={TextButton(onClick={model.delete(entry);deleting=null}){Text("削除")}},dismissButton={TextButton(onClick={deleting=null}){Text("キャンセル")}}) }
         }
     }

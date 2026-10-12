@@ -1,6 +1,6 @@
 # PianoPocket
 
-Android向けのオフライン・ネイティブサンプラー、**0.4.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
+Android向けのオフライン・ネイティブサンプラー、**0.4.1 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
 
 **ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。開発環境にはGalaxy S26 / Android 16の実機が未接続です。利用者のAndroidでのHelsinki演奏・リバーブ時の音割れ報告を受け、0.3.1で修正しました。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
 
@@ -17,6 +17,12 @@ Android向けのオフライン・ネイティブサンプラー、**0.4.0 alpha
 
 有線またはUSBオーディオ出力を推奨します。Bluetoothイヤホンでは遅延が増える場合があります。10ms以下は保証しません。設定の遅延はOboe timestampによる**出力経路の推定値**で、鍵盤から音までの実測値ではありません。
 
+## 0.4.1の修正
+
+ロールは押鍵の長さだけを表示し、サステイン音声を維持。ペダル中は**SUS**が黄色になります（画面・USB/BLE・MIDIファイルのCC64）。88鍵で極小になっていたドレミを大きくし、「ファ」「♯」を縦配置。ドレミの表示設定は引き続き保存します。
+
+FLAC24・MP3・M4Aの実エンコードを追加。MP3 / M4Aは128〜320 kbpsを選択でき、M4Aは端末のAAC encoderがない場合は無効表示します。FLAC / MP3の独立した復号検証20ケースと実Helsinkiのホスト書き出しは成功。M4Aの端末テストはビルド済み・未実行です。[形式・ライセンス・検証手順](docs/EXPORT_FORMATS.md)。
+
 ## 演奏画面（0.4）
 
 横画面を優先し、ロールと鍵盤を全画面で表示します。上部の操作はアイコン、音源名を押すと音源パネルを開きます。アイコンの長押しで説明を表示。拡大・オクターブ・ペダルもアイコンで操作します。カタカナのドレミは維持し、**︙ → 設定・MIDI入力 → 表示**でオン／オフと縦横自動回転への切替が可能です。
@@ -26,13 +32,13 @@ Android向けのオフライン・ネイティブサンプラー、**0.4.0 alpha
 ## MIDIファイル・ロール・録音・書き出し
 
 - **鍵盤アイコン → MIDIを追加**から `.mid` / `.midi` を選びます。Type 0 / 1、PPQN、テンポ変化・ペダルを解析し、名前・BPM・日付のカードとして端末内に保存します。選択した音源で再生・一時停止・シークできます。ファイル再生はC++のサンプル時計でコールバックを分割して発音します。
-- 演奏画面のロールは上からノートが降り、鍵盤位置で発音します。トラック色、ベロシティ濃淡、ペダルの残音区間を表示します。**フェーダーアイコン**で、鍵盤を表示したまま音源パネルを開きます。
+- 演奏画面のロールは上からノートが降り、鍵盤位置で発音します。トラック色とベロシティ濃淡を表示します。ノートは押鍵から離鍵までで、ペダルの尾は描きません。音声はCC64に従って伸び、SUS表示が黄色に変わります。**フェーダーアイコン**で、鍵盤を表示したまま音源パネルを開きます。
 - **設定 → 表示**でカタカナのドレミ、ロール、表示時間2〜10秒を変更します。拡大アイコンで88鍵／2オクターブを切り替えます。狭い画面では拡大するとドレミが読みやすくなります。
 - **設定 → MIDI入力**でUSB / BLEのデバイス・ポート、全入力、画面鍵盤、入力なしを選びます。録音ボタンで選択入力を記録し、もう一度録音アイコンを押すとライブラリへ保存します。ライブ入力は押鍵とペダル区間を履歴として表示し、未来のノートは予測しません。ファイル再生とライブ入力の音声チャンネルは分離しています。
-- **︙ → MIDI / WAVを書き出し**で **MIDI Type 0／1** または **WAV PCM16／PCM24／Float32** を選び、Androidの保存先ピッカーへ保存します。WAVは44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量・発音数を反映。残響追加時間0〜30秒を選択でき、既定8秒です。MIDIファイルにはサンプル音源・エフェクトの音は含まれません。
+- **︙ → MIDI / 音声を書き出し**で **MIDI Type 0／1、WAV PCM16／PCM24／Float32、FLAC24、MP3、M4A（AAC）** を選び、Androidの保存先ピッカーへ保存します。WAVは44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量・発音数を反映。残響追加時間0〜30秒を選択でき、既定8秒です。MIDIファイルにはサンプル音源・エフェクトの音は含まれません。
 - 録音は固定120 BPM / 480 PPQNへ約1ms以内のtick精度で保存します。画面鍵盤は保存MIDIのChannel 16に記録し、外部の同チャンネル入力があれば併合します。録音中のアプリ背景移行・入力切断では録音を止めて保存します。回転時はViewModelを保持します。音源やエフェクトの操作自体のオートメーション録音・オーバーダブは未対応です。
 - 最大16 MiB／20万イベント／256トラック／2時間、ライブラリ256件。SMPTE・Type 2は拒否。SysEx、Program Change、pressure等はファイルに保持し、再生未対応機能を警告します。全トラックを現在の同じ音源で演奏し、GM音色・ドラムへの自動切替はしません。シークはコントローラーとPitch Bendを復元し、その後に開始するノートから発音します。コールバック1回に2048を超えるファイルイベントが集中すると警告して再生を停止します。
-- MP3 / AAC / FLACの書き出し、Learning Mode、トラック編集・ミュート、MIDI 2.0 UMPは未対応。WAV書き出しは別エンジンのWAV先頭＋固定LRUキャッシュを使うため、その分のメモリと一時音声ファイル用の空き容量が必要です。ホスト検証済みですが、SAF保存・タッチ・外部MIDI録音・UI表示の実機検証は未実施です。
+- Learning Mode、トラック編集・ミュート、MIDI 2.0 UMPは未対応。WAV書き出しは別エンジンのWAV先頭＋固定LRUキャッシュを使うため、その分のメモリと一時音声ファイル用の空き容量が必要です。ホスト検証済みですが、SAF保存・タッチ・外部MIDI録音・UI表示の実機検証は未実施です。
 
 自作の[PocketStudy.mid](tests/fixtures/PocketStudy.mid)でテンポ変化・ペダル・19音のスケール／和音を試せます。[検証結果と実機手順](docs/SEQUENCER.md)。ユーザー指定の[openthesia-android](https://github.com/tstyr/openthesia-android)はロールと入力選択の操作を参考に確認しました（GPL-3.0-only）。そのコード・素材を取り込まず、今回のMIDI codec、録音、鍵盤配置、描画、C++ transportはPianoPocketの独自実装です。
 
@@ -113,6 +119,9 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 | 依存 | バージョン | ライセンス |
 | --- | --- | --- |
+| LAME | 3.100 + UB fixes | LGPL-2.0-or-later、共有ライブラリ・対応ソース・再リンク手順を提供 |
+| libFLAC | 1.4.3 | BSD-3-Clause、static libFLACのみをリンク |
+| Android AAC / MP4 | OS API | OS提供のMediaCodec / MediaMuxer、外部コードを同梱しない |
 | Google Oboe | 1.9.3 | Apache-2.0、ライセンスをvendorディレクトリに保存 |
 | AndroidX / Jetpack Compose / Material3 | build.gradle.kts参照 | Apache-2.0 |
 | Kotlin / kotlinx.coroutines | 2.1.21 / 1.10.2 | Apache-2.0 |
@@ -126,8 +135,8 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 ## リリースとGitHub
 
-最新: [v0.4.0-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.4.0-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.0-alpha-arm64-debug.apk)。
+最新: [v0.4.1-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.4.1-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.1-alpha-arm64-debug.apk)。
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開状態（2026-10-12）: main / v0.4.0-alpha / release-artifactsをプッシュし、0.4.0のリリースを公開しました。36 JVM tests・native・Androidビルド・Lintを通過。APKの署名と16KiB整列を確認し、0.3.1と同じdebug署名で上書き更新できます。0.3.1で検証したリバーブ対策を維持しています。新画面の実機UI試験と修正後の聴感確認は未完了です。GitHub Actionsには先のbilling lock、Assetsアップロード先にはHTTP 401があり、配布用release-artifactsブランチからAPKを提供しています。公開先のAPKを再取得し、ローカルのSHA-256との一致を確認済みです。ホステッドCI成功やAssets添付成功とは扱いません。
+公開準備（2026-10-12）: 0.4.1のSUS・ロール・ドレミ修正と圧縮形式を実装。Galaxy S26の新表示・SAF書き出し・M4A出力・実測レイテンシは実機未検証です。既存のGitHub Actions billing lock / Assetsアップロード認証制限は解消を主張せず、配布ブランチのAPKを使用します。

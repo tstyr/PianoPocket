@@ -19,6 +19,7 @@ object NativeAudio {
     external fun exportBegin(memoryMiB: Int, rate: Int)
     external fun exportControl(type: Int, a: Int, b: Int, value: Float)
     external fun exportWav(path: String, times: LongArray, messages: IntArray, duration: Long, bits: Int, tail: Int)
+    external fun encodeCompressed(wav: String,output: String,format: Int,bitrate: Int)
     external fun cancelExport()
     external fun exportProgress(): Float
     fun noteOn(note: Int, velocity: Int, channel: Int = 16) = event(0, channel, note, velocity, 0f)

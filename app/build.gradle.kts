@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.4.0-alpha"
+        versionCode = 6
+        versionName = "0.4.1-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -28,6 +28,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
     testImplementation("junit:junit:4.13.2")
     testImplementation("net.sf.kxml:kxml2:2.3.0")
 }

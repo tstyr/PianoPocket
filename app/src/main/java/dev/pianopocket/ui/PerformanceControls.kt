@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -17,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
@@ -38,7 +39,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             Box {
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
-                    DropdownMenuItem(text={Text("MIDI / WAVを書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
+                    DropdownMenuItem(text={Text("MIDI / 音声を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
                     DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                     DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                     DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
@@ -57,7 +58,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)
         }
     }
-    if(exporting)ExportDialog(seq.title,state.ready,onDismiss={exporting=false}){f,r,t->exporting=false;export(f,r,t)}
+    if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,onDismiss={exporting=false}){f,r,t,b->exporting=false;export(f,r,t,b)}
     if(info)AlertDialog(onDismissRequest={info=false},title={Text("状態・互換性警告")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(state.message)
         Text(state.midi)
@@ -71,6 +72,7 @@ fun KeyboardTools(state: PocketState,model: PocketViewModel,modifier: Modifier=M
     val seq=state.sequence
     Surface(modifier,shape=MaterialTheme.shapes.small,color=MaterialTheme.colorScheme.surface.copy(alpha=.96f)) {
         Row(verticalAlignment=Alignment.CenterVertically) {
+            SustainIndicator(state,Modifier.padding(horizontal=8.dp))
             PocketIconButton(PocketIcon.Zoom,if(seq.fullKeyboard)"2オクターブに拡大"else "88鍵を表示",selected=!seq.fullKeyboard,onClick={model.fullKeyboard(!seq.fullKeyboard)})
             if(!seq.fullKeyboard) {
                 PocketIconButton(PocketIcon.Back,"低いオクターブへ",enabled=seq.octave>1,onClick={model.octave(seq.octave-1)})
@@ -90,7 +92,7 @@ fun InstrumentPanel(state: PocketState,model: PocketViewModel,close:()->Unit,lib
         Row(Modifier.padding(start=16.dp),verticalAlignment=Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(preset?.name ?: "音源",style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-                Text("NATIVE SAMPLER",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary)
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){Text("NATIVE SAMPLER",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary);SustainIndicator(state)}
             }
             PocketIconButton(PocketIcon.Library,"音源ライブラリを開く",enabled=!state.sequence.recording,onClick=library)
             PocketIconButton(PocketIcon.Pedal,if(state.uiPedal)"ペダルを離す"else "ペダルを踏む",selected=state.uiPedal,enabled=enabled,onClick={model.pedal(!state.uiPedal)})
@@ -158,4 +160,10 @@ fun InstrumentPanel(state: PocketState,model: PocketViewModel,close:()->Unit,lib
             }
         }
     }
+}
+
+@Composable private fun SustainIndicator(state: PocketState,modifier: Modifier=Modifier) {
+    val seq=state.sequence
+    val active=state.uiPedal || seq.live.pedalDown || seq.playing && seq.song?.sustainIndex?.active(seq.position)==true
+    Text("SUS",modifier.semantics { contentDescription=if(active)"サステイン中"else "サステイン解除" },color=if(active)Color(0xffffd66b)else MaterialTheme.colorScheme.secondary,style=MaterialTheme.typography.labelMedium)
 }
