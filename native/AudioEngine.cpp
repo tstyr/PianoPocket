@@ -32,9 +32,9 @@ void AudioEngine::replaceEffect(int index,std::unique_ptr<Effect> effect){
     stop();sampler.replaceEffect(index,std::move(effect));
     if(!start(device,bursts))throw std::runtime_error("Audio restart failed after IR change");
 }
-std::array<double,15> AudioEngine::stats(){
+std::array<double,18> AudioEngine::stats(){
     double latency=-1;int xruns=-1,buffer=0,burst=0,state=0,sharing=0;
     if(stream){auto l=stream->calculateLatencyMillis();if(l)latency=l.value();auto x=stream->getXRunCount();if(x)xruns=x.value();buffer=stream->getBufferSizeInFrames();burst=stream->getFramesPerBurst();state=int(stream->getState());sharing=int(stream->getSharingMode());}
-    return {sampleRate(),double(buffer),double(burst),double(xruns),latency,load.load()*100,double(sampler.activeVoices.load()),double(sampler.memory()),double(sampler.misses()),double(sampler.droppedEvents.load()),double(disconnected.load() || !stream),double(sampler.errors()),sampler.inputPeak.load(),sampler.gainReductionDb.load(),sampler.outputDelayFrames()/double(sampleRate())*1000};
+    return {sampleRate(),double(buffer),double(burst),double(xruns),latency,load.load()*100,double(sampler.activeVoices.load()),double(sampler.memory()),double(sampler.misses()),double(sampler.droppedEvents.load()),double(disconnected.load() || !stream),double(sampler.errors()),sampler.inputPeak.load(),sampler.gainReductionDb.load(),sampler.outputDelayFrames()/double(sampleRate())*1000,double(sampler.stolenVoices.load()),double(sampler.cacheDrops()),double(sampler.cachePages())};
 }
 }

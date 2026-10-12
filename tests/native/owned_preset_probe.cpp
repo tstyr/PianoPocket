@@ -13,7 +13,7 @@ using namespace pocket;
 static std::vector<std::string> split(const std::string& line,char delimiter){std::vector<std::string> parts;std::stringstream s(line);std::string p;while(std::getline(s,p,delimiter))parts.push_back(p);return parts;}
 static void require(bool pass,const char* message){if(!pass)throw std::runtime_error(message);}
 int main(int argc,char** argv){try{
-    require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export") || (argc==6 && std::string(argv[2])=="--reverb-stress"),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
+    require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export") || (argc==6 && (std::string(argv[2])=="--reverb-stress" || std::string(argv[2])=="--poly-stress")),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
     auto bank=std::make_unique<Instrument>();std::unordered_map<std::string,unsigned> paths;std::vector<EffectSpec> fx;
     std::vector<Event> setup;std::string line;std::set<std::string> impulses;
     while(std::getline(file,line)){
@@ -32,6 +32,15 @@ int main(int argc,char** argv){try{
         else if(t[0]=="F"){EffectSpec spec;spec.type=EffectType(std::stoi(t[1]));auto p=split(t[2],',');require(p.size()==5,"effect parameters");for(int i=0;i<5;++i)spec.p[i]=std::stof(p[i]);if(spec.type==EffectType::Convolution){spec.ir=loadImpulse(t.at(3),48000);impulses.insert(t.at(3));}fx.push_back(std::move(spec));}
     }
     require(!bank->regions.empty(),"no regions");auto regions=bank->regions.size(),samples=bank->samples.size();int noteTests=0;float data[1024];
+
+    if(argc==6 && std::string(argv[2])=="--poly-stress"){
+        int notes=std::stoi(argv[3]),limit=std::stoi(argv[4]),memory=std::stoi(argv[5]);require(notes>0 && notes<=80 && limit<=1024 && memory>=32 && memory<=512,"stress range");
+        bank->memoryBudget=size_t(memory)*1024*1024;bank->prepare();SamplerEngine engine;engine.install(std::move(bank),fx,48000);setup.push_back({8,0,limit});engine.initialControls(setup);
+        for(int note=21;note<21+notes;++note)engine.send({0,0,note,90});
+        auto deadline=std::chrono::steady_clock::now();double maxMs=0,peak=0;int zeroNotes=0;
+        for(int frame=0;frame<48000*4;frame+=256){auto begin=std::chrono::steady_clock::now();engine.render(data,256);maxMs=std::max(maxMs,std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count());for(int i=0;i<512;++i){require(std::isfinite(data[i]),"finite stream audio");peak=std::max(peak,double(std::abs(data[i])));}if(frame==256)for(int note=21;note<21+notes;++note)if(engine.noteVoiceCount(note,0)==0)++zeroNotes;deadline+=std::chrono::nanoseconds(256000000000LL/48000);std::this_thread::sleep_until(deadline);}
+        std::cout<<"{\"notes\":"<<notes<<",\"limit\":"<<limit<<",\"memoryMiB\":"<<memory<<",\"missingStartedNotes\":"<<zeroNotes<<",\"steals\":"<<engine.stolenVoices.load()<<",\"cacheMisses\":"<<engine.misses()<<",\"readErrors\":"<<engine.errors()<<",\"requestDrops\":"<<engine.cacheDrops()<<",\"pages\":"<<engine.cachePages()<<",\"peak\":"<<peak<<",\"maxHostCallbackMs\":"<<maxMs<<"}"<<std::endl;require(zeroNotes==0 && engine.errors()==0 && engine.cacheDrops()==0,"polyphonic stream stress");return 0;
+    }
     if(argc==6){
         auto mix=std::stof(argv[4]);require(mix>=0 && mix<=1,"mix range");
         for(auto& effect:fx)if(effect.type==EffectType::Convolution){effect.ir=loadImpulse(argv[3],48000);effect.p[0]=mix;}

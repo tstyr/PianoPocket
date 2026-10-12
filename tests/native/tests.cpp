@@ -46,7 +46,7 @@ int main(){try{
     e.install(bank(),{},48000);e.send({0,0,60,127,0});e.send({0,1,60,127,0});render(e,out,256);e.send({1,0,60,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==1,"channel isolation");
     e.send({5});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==0,"panic releases");
     {e.install(bank(),{},48000);e.send({0,0,60,127,0});e.send({0,0,60,127,0});render(e,out,256);e.send({1,0,60,0,0});for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==1,"overlapping same-note FIFO note-off");}
-    for(int limit:{32,80,128}){e.install(bank(),{},48000);e.send({8,0,limit});for(int n=0;n<160;++n)e.send({0,n%16,48+n%36,127,0});render(e,out,256);check(e.activeVoices==limit,"voice stealing limit");for(float v:out)check(std::isfinite(v) && std::abs(v)<=1,"limiter finite output");auto start=std::chrono::steady_clock::now();for(int i=0;i<100;++i)render(e,out,256);std::cout<<"voices="<<limit<<" average_block_us="<<std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-start).count()/100<<'\n';}
+    for(int limit:{32,80,128,512,1024}){e.install(bank(),{},48000);e.send({8,0,limit});for(int n=0;n<limit+16;++n)e.send({0,n/128,n%128,127,0});render(e,out,256);check(e.activeVoices==limit,"voice stealing limit");for(float v:out)check(std::isfinite(v) && std::abs(v)<=1,"limiter finite output");auto start=std::chrono::steady_clock::now();for(int i=0;i<100;++i)render(e,out,256);std::cout<<"voices="<<limit<<" average_block_us="<<std::chrono::duration<double,std::micro>(std::chrono::steady_clock::now()-start).count()/100<<'\n';}
     e.install(bank(),{},48000);for(int i=0;i<3000;++i)e.send({0,0,60,127,0});render(e,out,256);check(e.droppedEvents>0,"queue overflow measured");for(int i=0;i<8;++i)render(e,out,256);check(e.activeVoices==0,"overflow fails safe");
     {std::vector<float> ir(2,1);Convolver c(ir);for(int i=0;i<700;++i){float l=i==0?1:0,r=l;audioThread=true;c.process(l,r);audioThread=false;check(std::abs(l-(i==256?1.f:0.f))<.0001,"FFT convolution impulse / block latency");}}
     {std::vector<float> ir(10000,0);ir[0]=1;ir[1]=.5f;ir[2047*2]=.25f;ir[2048*2]=.75f;ir[4097*2+1]=.4f;Convolver c(ir);for(int i=0;i<6000;++i){float l=i==0?1:0,r=l;audioThread=true;c.process(l,r);audioThread=false;float el=i==256?1.f:i==2303?.25f:i==2304?.75f:0;float er=i==256?.5f:i==4353?.4f:0;check(std::abs(l-el)<.0002f && std::abs(r-er)<.0002f,"hybrid early/late IR partitions align at 256 frames");}}
@@ -89,6 +89,38 @@ int main(){try{
             for(int i=0;i<400;++i){float l=i==0?1:0,r=l;audioThread=true;effect.process(l,r);audioThread=false;float expected=i==256?std::min(scale,.125f):0;check(std::abs(l-expected)<.00001 && std::abs(r-expected*.5f)<.00001,"IR energy gain preserves stereo ratio and never boosts quiet IR");}
         }
         EffectSpec spec;spec.type=EffectType::Convolution;spec.p={0,0,0,0,1};spec.ir={8,4};Effect dry(spec,48000);for(int i=0;i<500;++i){float l=.3,r=-.2;dry.process(l,r);check(l==.3f && r==-.2f,"zero reverb mix leaves dry audio unchanged");}
+    }
+
+    {
+        auto layers=bank();layers->regions.resize(6,layers->regions.front());layers->prepare();
+        e.install(std::move(layers),{},48000);e.send({8,0,32});
+        for(int key=60;key<65;++key)e.send({0,0,key,100});render(e,out,256);
+        e.send({0,0,72,100});render(e,out,256);
+        check(e.noteVoiceCount(72,0)==6,"new layered note must not steal its own just-started layers");
+        check(e.stolenVoices.load()==4,"only older layers are replaced at budget boundary");
+        auto many=bank();many->regions.resize(6,many->regions.front());many->prepare();e.install(std::move(many),{},48000);e.send({8,0,512});
+        for(int note=21;note<101;++note)e.send({0,0,note,100});render(e,out,256);
+        check(e.activeVoices==480 && e.stolenVoices.load()==0,"80 simultaneous six-layer notes fit 512 budget");
+        for(int note=21;note<101;++note)check(e.noteVoiceCount(note,0)==6,"every key retains all its microphone layers");
+    }
+    {
+        auto source=Sample::open(path,32);std::vector<Sample> many(350,source);SampleCache cache(many,false,1024);
+        for(unsigned i=0;i<many.size();++i)cache.prefetch(i,20000);
+        bool complete=false;
+        for(int retry=0;retry<100 && !complete;++retry){std::this_thread::sleep_for(std::chrono::milliseconds(10));complete=true;for(unsigned i=0;i<many.size();++i){SampleCache::View v;cache.view(i,20000,v);if(!v.data)complete=false;}}
+        check(complete && cache.readErrors==0,"hashed budget cache holds more than legacy 256 sample pages");
+        for(int i=0;i<1000;++i)cache.prefetch(0,30000);std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        check(cache.requestDrops==0,"duplicate prefetch requests are coalesced");
+        auto instrument=bank();instrument->memoryBudget=64*1024*1024;instrument->prepare();check(instrument->residentBytes<=instrument->memoryBudget && instrument->cache->capacity()>256,"configured budget sizes the real resident cache");
+    }
+
+    {
+        const std::string missing="/tmp/pocket-missing-stream.wav";std::ofstream f(missing,std::ios::binary);unsigned frames=48000;
+        f.write("RIFF",4);put32(f,36+frames*4);f.write("WAVEfmt ",8);put32(f,16);put16(f,1);put16(f,2);put32(f,48000);put32(f,48000*4);put16(f,4);put16(f,16);f.write("data",4);put32(f,frames*4);
+        for(unsigned i=0;i<frames;++i){put16(f,16000);put16(f,8000);}f.close();
+        auto b=std::make_unique<Instrument>();b->samples.push_back(Sample::open(missing));std::remove(missing.c_str());Region r;r.root=60;b->regions.push_back(r);b->prepare();e.install(std::move(b),{},48000);e.send({0,0,60,127});
+        float previous=0,maxJump=0;for(int frame=0;frame<16000;frame+=256){render(e,out,256);for(int i=0;i<256;++i){maxJump=std::max(maxJump,std::abs(out[i*2]-previous));previous=out[i*2];}}
+        check(e.misses()>0 && maxJump<.02f,"stream starvation fades the last source instead of a hard zero click");
     }
     check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb; audio allocations=0\n";
     std::remove(path.c_str());return 0;

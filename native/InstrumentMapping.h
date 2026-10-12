@@ -2,6 +2,7 @@
 #include "SampleCache.h"
 #include <array>
 #include <memory>
+#include <stdexcept>
 namespace pocket {
 enum class Trigger:int {Attack=0,Release=1,PedalDown=2,PedalUp=3};
 struct Region {
@@ -20,16 +21,23 @@ struct Instrument {
     std::vector<Region> regions;
     std::array<std::array<std::vector<unsigned>,128>,4> lookup;
     std::unique_ptr<SampleCache> cache;
-    size_t residentBytes=0;
+    size_t residentBytes=0,memoryBudget=0;
     Instrument(){for(auto& curve:velocityGains)curve.fill(1);}
     void prepare(bool offline=false){
+        for(auto& kind:lookup)for(auto& notes:kind)notes.clear();
         for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];
             if(r.trigger==Trigger::PedalDown || r.trigger==Trigger::PedalUp)lookup[int(r.trigger)][60].push_back(i);
             else for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);
         }
-        cache=std::make_unique<SampleCache>(samples,offline);
-        residentBytes=SampleCache::PageCount*(SampleCache::PageFrames+1)*2*sizeof(float);
-        for(auto& s:samples)residentBytes+=s.head.size()*sizeof(float);
+        size_t heads=0;for(auto& s:samples)heads+=s.head.size()*sizeof(float);
+        size_t count=SampleCache::PageCount;
+        if(memoryBudget){
+            const size_t minimum=SampleCache::PageCount*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes;
+            if(heads+minimum>memoryBudget)throw std::runtime_error("Sample heads and cache exceed memory budget");
+            count=std::min(SampleCache::MaxPages,(memoryBudget-heads-SampleCache::DirectoryBytes)/sizeof(SampleCache::Page));
+            if(offline)count=std::min<size_t>(count,512);
+        }
+        cache=std::make_unique<SampleCache>(samples,offline,count);residentBytes=heads+cache->bytes();
     }
 };
 }

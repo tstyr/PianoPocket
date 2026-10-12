@@ -17,8 +17,11 @@ class Preferences(context: Context) {
         get()=store.getString("lastInstrument","")!!
         set(value){store.edit().putString("lastInstrument",value).apply()}
     var voiceLimit: Int
-        get()=store.getInt("voices",80)
-        set(value){store.edit().putInt("voices",value.coerceIn(32,128)).apply()}
+        get(){
+            if(!store.getBoolean("polyphonyV2",false))store.edit().putInt("voices",maxOf(512,store.getInt("voices",512))).putBoolean("polyphonyV2",true).apply()
+            return store.getInt("voices",512)
+        }
+        set(value){store.edit().putInt("voices",value.coerceIn(32,1024)).apply()}
     var memoryMiB: Int
         get()=store.getInt("memory",256)
         set(value){store.edit().putInt("memory",value.coerceIn(32,512)).apply()}

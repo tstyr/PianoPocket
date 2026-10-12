@@ -19,7 +19,7 @@ static std::string string(JNIEnv* e,jstring s){auto p=e->GetStringUTFChars(s,nul
 static void fail(JNIEnv* e,const std::exception& x){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),x.what());}
 extern "C" JNIEXPORT jboolean JNICALL Java_dev_pianopocket_audio_NativeAudio_start(JNIEnv*,jobject,jint device,jint bursts){return engine.start(device,bursts);}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_stop(JNIEnv*,jobject){engine.stop();}
-extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_begin(JNIEnv*,jobject,jint memoryMiB){staged=std::make_unique<Instrument>();effects.clear();paths.clear();exportRate=0;budget=size_t(std::clamp(memoryMiB,32,512))*1024*1024;}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_begin(JNIEnv*,jobject,jint memoryMiB){staged=std::make_unique<Instrument>();effects.clear();paths.clear();exportRate=0;budget=size_t(std::clamp(memoryMiB,32,512))*1024*1024;staged->memoryBudget=budget;}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_abort(JNIEnv*,jobject){staged.reset();effects.clear();paths.clear();}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(JNIEnv* e,jobject,jstring file,jintArray ints,jfloatArray floats){
     try{
@@ -28,7 +28,7 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         jint a[19];jfloat f[9];e->GetIntArrayRegion(ints,0,19,a);e->GetFloatArrayRegion(floats,0,9,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
-            if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::PageCount*(SampleCache::PageFrames+1)*8>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
+            if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::PageCount*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
             auto wav=Sample::open(path);staged->residentBytes+=wav.head.size()*sizeof(float);sample=staged->samples.size();paths[path]=sample;staged->samples.push_back(std::move(wav));
         }else sample=found->second;
         Region r;r.sample=sample;r.group=a[0];r.low=a[1];r.high=a[2];r.root=a[3];r.lowVel=a[4];r.highVel=a[5];r.trigger=Trigger(a[6]);r.start=a[7];r.end=a[8];r.loopStart=a[9];r.loopEnd=a[10];r.cc=a[11];r.ccLow=a[12];r.ccHigh=a[13];r.fadeInLow=a[14];r.fadeInHigh=a[15];r.fadeOutLow=a[16];r.fadeOutHigh=a[17];r.enabled=a[18]!=0;

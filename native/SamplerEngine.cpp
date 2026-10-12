@@ -9,7 +9,7 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
     for(auto& c:controllers){c.fill(0);c[7]=c[11]=127;}bends.fill(0);groupGains.fill(1);
-    effects=std::move(prepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
+    effects=std::move(prepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);stolenVoices.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
     playing=false;reportedPlaying.store(false);
 }
 bool SamplerEngine::send(Event e){std::lock_guard<std::mutex> lock(producer);if(events.push(e))return true;droppedEvents.fetch_add(1);panic.store(true);return false;}
@@ -23,13 +23,22 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         if(r.fadeOutLow>=0 && r.fadeOutHigh>r.fadeOutLow)fade*=std::clamp(float(r.fadeOutHigh-vel)/(r.fadeOutHigh-r.fadeOutLow),0.f,1.f);
         if(fade<=0)continue;
         Voice* voice=nullptr;for(int i=0;i<limit;++i)if(!voices[i].active){voice=&voices[i];break;}
-        if(!voice){voice=&voices[0];for(int i=1;i<limit;++i)if(voices[i].envelope.value<voice->envelope.value || (voices[i].envelope.value==voice->envelope.value && voices[i].id<voice->id))voice=&voices[i];}
+        if(!voice){
+            // Never steal a layer just allocated for this same MIDI note / trigger.
+            for(int i=0;i<limit;++i){auto& candidate=voices[i];if(candidate.id==id)continue;
+                if(!voice || (candidate.envelope.stage==Envelope::Release && voice->envelope.stage!=Envelope::Release) ||
+                   ((candidate.envelope.stage==Envelope::Release)==(voice->envelope.stage==Envelope::Release) &&
+                    (candidate.envelope.value<voice->envelope.value || (candidate.envelope.value==voice->envelope.value && candidate.id<voice->id))))voice=&candidate;
+            }
+            if(!voice)continue;
+            stolenVoices.fetch_add(1,std::memory_order_relaxed);
+        }
         float oldL=voice->active?voice->lastL:0,oldR=voice->active?voice->lastR:0;
         *voice=Voice{};voice->active=true;voice->held=kind==Trigger::Attack;voice->channel=ch;voice->note=note;voice->velocity=vel;voice->id=id;voice->region=index;voice->position=r.start;
         auto playedNote=(kind==Trigger::PedalDown || kind==Trigger::PedalUp)?r.root:note;
         voice->baseStep=instrument->samples[r.sample].rate/rate*std::pow(2.,(playedNote-r.root+r.tune/100.)*r.keyTrack/12.);
         voice->gain=r.gain*fade*((1-r.velTrack)+r.velTrack*vel/127.f);voice->envelope.start(r.attack,r.decay,r.sustain,r.release);
-        voice->stealL=oldL;voice->stealR=oldR;voice->stealRemaining=oldL!=0 || oldR!=0?64:0;
+        voice->stealL=oldL;voice->stealR=oldR;voice->stealRemaining=oldL!=0 || oldR!=0?128:0;
         instrument->cache->prefetch(r.sample,r.start+4096);instrument->cache->prefetch(r.sample,r.start+8192);
     }
 }
@@ -63,7 +72,7 @@ void SamplerEngine::dispatch(const Event& e) noexcept {
     else if(e.type==5){keys={};for(auto& v:voices){v.held=false;v.pending=false;v.envelope.off(rate);}for(auto& c:controllers)c[64]=0;}
     else if(e.type==6)groupGains[std::clamp(e.a,0,255)]=std::clamp(e.value,0.f,4.f);
     else if(e.type==7)effects.parameter(e.a,e.b,e.value);
-    else if(e.type==8){limit=std::clamp(e.a,32,128);for(int i=limit;i<128;++i)voices[i].active=false;}
+    else if(e.type==8){limit=std::clamp(e.a,32,MaxVoices);for(int i=limit;i<MaxVoices;++i)if(voices[i].active){voices[i].envelope.stage=Envelope::Release;voices[i].envelope.releaseStep=voices[i].envelope.value/(rate*.01f);voices[i].held=false;voices[i].pending=false;}}
     else if(e.type==9)targetInstrumentVolume=std::clamp(e.value,0.f,8.f);
     else if(e.type==10){playing=e.a!=0;reportedPlaying.store(playing);if(!playing)for(int channel=17;channel<33;++channel){dispatch({2,channel,120,0});dispatch({2,channel,64,0});}}
 }
@@ -102,7 +111,7 @@ void SamplerEngine::render(float* output,int count) noexcept {
 void SamplerEngine::renderBlock(float* output,int count) noexcept {
     std::fill(output,output+count*2,0.f);
     if(instrument)for(auto& v:voices){if(!v.active)continue;auto& r=instrument->regions[v.region];auto& s=instrument->samples[r.sample];
-        SampleCache::View view;uint64_t attemptedPage=UINT64_MAX;double step=v.baseStep*std::pow(2.,bends[v.channel]*r.keyTrack/12.);float channelGain=controllers[v.channel][7]/127.f*controllers[v.channel][11]/127.f;
+        SampleCache::View view;uint64_t attemptedPage=UINT64_MAX;int retry=0;double step=v.baseStep*std::pow(2.,bends[v.channel]*r.keyTrack/12.);float channelGain=controllers[v.channel][7]/127.f*controllers[v.channel][11]/127.f;
         uint64_t end=r.end>=0?std::min<uint64_t>(r.end+1,s.frames):s.frames;
         float gl=std::sqrt(1-std::max(0.f,r.pan)),gr=std::sqrt(1+std::min(0.f,r.pan));
         instrument->cache->prefetch(r.sample,uint64_t(v.position)+4096);instrument->cache->prefetch(r.sample,uint64_t(v.position)+8192);
@@ -111,14 +120,15 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
             if(r.loopStart>=0 && r.loopEnd>r.loopStart && v.envelope.stage!=Envelope::Release && v.position>=r.loopEnd+1)v.position=r.loopStart+std::fmod(v.position-r.loopStart,double(r.loopEnd+1-r.loopStart));
             if(v.position>=end || v.envelope.stage==Envelope::Done){v.active=false;break;}
             auto pos=uint64_t(v.position);
-            if((!view.data && pos/SampleCache::PageFrames!=attemptedPage) || (view.data && (pos<view.start || pos>=view.start+view.frames))){attemptedPage=pos/SampleCache::PageFrames;instrument->cache->view(r.sample,pos,view);}
-            float l=0,rr=0,t=float(v.position-pos);
-            if(view.data){auto off=(pos-view.start)*2;l=view.data[off]*(1-t)+view.data[off+2]*t;rr=view.data[off+1]*(1-t)+view.data[off+3]*t;}
+            if((!view.data && (pos/SampleCache::PageFrames!=attemptedPage || retry++>=32)) || (view.data && (pos<view.start || pos>=view.start+view.frames))){retry=0;attemptedPage=pos/SampleCache::PageFrames;instrument->cache->view(r.sample,pos,view);}
+            float l=v.sourceL,rr=v.sourceR,t=float(v.position-pos);
+            if(view.data){auto off=(pos-view.start)*2;l=view.data[off]*(1-t)+view.data[off+2]*t;rr=view.data[off+1]*(1-t)+view.data[off+3]*t;v.sourceL=l;v.sourceR=rr;}
             v.streamGain+=((view.data?1.f:0.f)-v.streamGain)*.04f;
             v.mixGain+=(channelGain*groupGains[r.group]-v.mixGain)*.002f;
             float gain=v.gain*v.envelope.next(rate)*v.mixGain*v.streamGain;
+            if(r.loopStart<0 || v.envelope.stage==Envelope::Release)gain*=std::clamp(float(end-v.position)/128.f,0.f,1.f);
             l*=gain*gl;rr*=gain*gr;
-            if(v.stealRemaining>0){float fade=v.stealRemaining/64.f;l=l*(1-fade)+v.stealL*fade;rr=rr*(1-fade)+v.stealR*fade;--v.stealRemaining;}
+            if(v.stealRemaining>0){float fade=v.stealRemaining/128.f;l=l*(1-fade)+v.stealL*fade;rr=rr*(1-fade)+v.stealR*fade;--v.stealRemaining;}
             v.lastL=l;v.lastR=rr;output[i*2]+=l;output[i*2+1]+=rr;v.position+=step;
         }
     }

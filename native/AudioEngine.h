@@ -20,6 +20,6 @@ public:
     void seek(int64_t frame){stop();sampler.seek(frame);if(!start(device,bursts))throw std::runtime_error("Audio restart failed");}
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream*,void*,int32_t) override;
     void onErrorAfterClose(oboe::AudioStream*,oboe::Result) override {disconnected.store(true);}
-    std::array<double,15> stats();
+    std::array<double,18> stats();
 };
 }

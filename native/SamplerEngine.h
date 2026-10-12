@@ -14,7 +14,7 @@ struct Voice {
     uint64_t id=0;
     unsigned region=0;
     double position=0,baseStep=1;
-    float gain=1,lastL=0,lastR=0,stealL=0,stealR=0,streamGain=1,mixGain=0;
+    float gain=1,lastL=0,lastR=0,sourceL=0,sourceR=0,stealL=0,stealR=0,streamGain=1,mixGain=0;
     int stealRemaining=0;
     Envelope envelope;
 };
@@ -23,7 +23,8 @@ class SamplerEngine {
     std::unique_ptr<Instrument> instrument;
     Effects effects;
     OutputLimiter outputLimiter;
-    std::array<Voice,128> voices{};
+    static constexpr int MaxVoices=1024;
+    std::vector<Voice> voices=std::vector<Voice>(MaxVoices); // allocated before audio starts
     std::array<std::array<std::array<Key,4>,128>,33> keys{};
     std::array<std::array<int,128>,33> controllers{};
     std::array<float,33> bends{};
@@ -33,7 +34,7 @@ class SamplerEngine {
     std::atomic<bool> panic{false};
     float rate=48000,volume=.7f,targetVolume=.7f;
     float instrumentVolume=1,targetInstrumentVolume=1;
-    int limit=80;
+    int limit=512;
     uint64_t nextId=0;
     std::vector<TimedEvent> timeline;
     size_t cursor=0;
@@ -50,7 +51,7 @@ class SamplerEngine {
     void releaseId(int channel,int note,uint64_t id,int velocity) noexcept;
 public:
     std::atomic<int> activeVoices{0};
-    std::atomic<uint64_t> droppedEvents{0};
+    std::atomic<uint64_t> droppedEvents{0},stolenVoices{0};
     std::atomic<float> inputPeak{0},gainReductionDb{0};
     int outputDelayFrames() const noexcept {return outputLimiter.delayFrames();}
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
@@ -63,6 +64,9 @@ public:
     void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}
     uint64_t misses() const {return instrument?instrument->cache->misses.load():0;}
     uint64_t errors() const {return instrument?instrument->cache->readErrors.load():0;}
+    int noteVoiceCount(int note,int channel) const {int n=0;for(const auto& v:voices)if(v.active && v.note==note && v.channel==channel)++n;return n;} // stopped/offline diagnostics only
+    uint64_t cacheDrops() const {return instrument?instrument->cache->requestDrops.load():0;}
+    size_t cachePages() const {return instrument?instrument->cache->capacity():0;}
     size_t memory() const {return instrument?instrument->residentBytes:0;}
 };
 }

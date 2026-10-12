@@ -26,8 +26,8 @@ data class PocketState(
     val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
     val busy: Boolean = false, val message: String = "準備中", val midi: String = "MIDI未接続",
-    val stats: List<Double> = List(15){0.0}, val groups: List<Float> = emptyList(), val volume: Float = .7f,
-    val voices: Int = 80, val memoryMiB: Int = 256, val bursts: Int = 2,
+    val stats: List<Double> = List(18){0.0}, val groups: List<Float> = emptyList(), val volume: Float = .7f,
+    val voices: Int = 512, val memoryMiB: Int = 256, val bursts: Int = 2,
     val ble: List<BleMidiDevice> = emptyList(), val outputs: List<OutputDevice> = emptyList(), val device: Int = 0,
     val channel: Int = -1, val ready: Boolean = false, val processMiB: Float = 0f,
     val inputs: List<MidiInput> = emptyList(), val midiInput: String = "all", val sequence: SequenceState = SequenceState()
@@ -110,7 +110,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         preset.menus.forEach { menu->val option=menu.options[menu.selected];configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->if(i==option.effectIndex)fx.copy(ir=option.path)else fx }) }
         configured.effects.forEach { fx -> NativeAudio.effect(fx.type,fx.params,if(fx.ir.isBlank())"" else repository.resolve(entry,fx.ir).path) }
         NativeAudio.commit()
-        val voices=minOf(state.value.voices,preset.voiceLimit ?: state.value.voices).coerceIn(32,128)
+        val voices=state.value.voices.coerceIn(32,1024)
         NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,state.value.volume)
         initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) }
         preset.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }

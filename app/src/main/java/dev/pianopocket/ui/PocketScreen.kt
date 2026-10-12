@@ -123,11 +123,13 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             Text("オーディオ",style=MaterialTheme.typography.titleMedium)
                             DeviceMenu(state,model)
                             BufferControl(state,model)
-                            Parameter("最大発音数 (${state.voices} sample voices)",state.voices.toFloat(),32f..128f,true){model.voices(it.toInt())}
+                            Parameter("最大発音数 (${state.voices} sample voices)",state.voices.toFloat(),32f..1024f,true){model.voices(it.toInt())}
                             Parameter("先頭WAV＋キャッシュ予算 (${state.memoryMiB} MiB)",state.memoryMiB.toFloat(),32f..512f,true){model.memory(it.toInt())}
                             Text("${state.stats[0].toInt()} Hz / Float stereo · ${state.stats[1].toInt()} frames buffer · ${state.stats[2].toInt()} frames/burst")
                             Text("推定出力遅延: ${if(state.stats[4]<0)"取得不可" else "%.2f ms".format(state.stats[4])}（Oboe timestamp。鍵盤から音までの実測ではありません）",style=MaterialTheme.typography.bodySmall)
                             Text("XRun: ${state.stats[3].toInt()} · DSPコールバック予算: ${"%.1f".format(state.stats[5])}%")
+                            Text("ボイス置換: ${state.stats[15].toLong()} · 先読み要求落ち: ${state.stats[16].toLong()} · キャッシュ ${state.stats[17].toInt()} pages",style=MaterialTheme.typography.bodySmall)
+                            Text("1つの鍵盤でもマイク・velocityレイヤーが複数ボイスを使います。既定512、最大1024。上限や端末負荷を超えると古い音を置換します。",style=MaterialTheme.typography.bodySmall)
                             Text("サンプル常駐: ${"%.1f".format(state.stats[7]/1048576)} MiB · イベント欠落: ${state.stats[9].toLong()} · 読み込みエラー: ${state.stats[11].toLong()}",style=MaterialTheme.typography.bodySmall)
                             Text("出力保護: ${"%.2f".format(state.stats[13])} dB減衰 · ${"%.2f".format(state.stats[14])} ms先読み",style=MaterialTheme.typography.bodySmall)
                             Text("保護前ピーク: ${if(state.stats[12]<=0)"−∞" else "%.1f".format(20*kotlin.math.log10(state.stats[12]))} dBFS。減衰が大きい場合はOutputを下げてください。",style=MaterialTheme.typography.bodySmall)
@@ -142,7 +144,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket 0.4.7 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.5.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

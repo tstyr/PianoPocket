@@ -140,7 +140,7 @@ class DspresetParser {
             val value=tag.a["polyphony"]?.let { integerNumber(it,"polyphony") }
             if(value!=null && tag.a["name"] in tags.flatten().toSet())value else null
         }.minOrNull()
-        if(polyphony!=null)warnings+="XML tag polyphony=$polyphony is applied as a sample-voice cap; tag-specific voice pools are not reproduced."
+        if(polyphony!=null)warnings+="XML tag polyphony=$polyphony counts tagged notes in the original; it is not used to reduce the app sample-voice budget. Tag-specific pools are not reproduced."
         return Preset(doc.a["name"] ?: fallbackName, regions, labels, effects, controls, warnings.toList(), groupVolumes,velocityCurves,menus,polyphony)
     }
     private fun checkAttrs(n: Node, known: Set<String>) { n.a.keys.filter { it !in known }.forEach { warnings += "Unsupported ${n.name} attribute '$it' = '${n.a[it]}'" } }
