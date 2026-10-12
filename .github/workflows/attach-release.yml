@@ -1,0 +1,73 @@
+name: Attach verified alpha release packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: attach-pianopocket-v0.2.0-alpha
+  cancel-in-progress: false
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: v0.2.0-alpha
+      ARTIFACT_COMMIT: ea900af3fbcf608e4e2c75742889b8f8dc488cad
+    steps:
+      - name: Download and verify the tested packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir packages
+          cd packages
+          base="https://raw.githubusercontent.com/${GH_REPO}/${ARTIFACT_COMMIT}"
+          for file in \
+            PianoPocket-0.2.0-alpha-arm64-debug.apk \
+            PianoPocket-0.2.0-alpha-source.zip \
+            PianoPocket-0.2.0-alpha-validation.zip \
+            PocketFixture.zip \
+            SHA256SUMS-0.2.0.txt; do
+            curl --fail --location --retry 3 --output "$file" "$base/$file"
+          done
+          # Anchor the APK hash to the artifact already built and tested locally.
+          echo '3d05a53202bc36cecc15cccc349381613c747a40c5c75b61f82058ca15b841df  PianoPocket-0.2.0-alpha-arm64-debug.apk' | sha256sum --check
+          sha256sum --check SHA256SUMS-0.2.0.txt
+
+      - name: Attach packages to the existing GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO"
+          gh release upload "$RELEASE_TAG" packages/* --repo "$GH_REPO" --clobber
+
+      - name: Link the release Assets in the release description
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GH_REPO" --json body,assets > release.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          release = json.loads(Path('release.json').read_text())
+          labels = {
+              'PianoPocket-0.2.0-alpha-arm64-debug.apk': 'Android ARM64 デバッグAPK',
+              'PianoPocket-0.2.0-alpha-source.zip': 'ソースZIP',
+              'PianoPocket-0.2.0-alpha-validation.zip': '検証結果ZIP',
+              'PocketFixture.zip': '自作テスト音源',
+              'SHA256SUMS-0.2.0.txt': 'SHA-256一覧',
+          }
+          assets = {item['name']: item for item in release['assets']}
+          if any(name not in assets or assets[name]['size'] <= 0 for name in labels):
+              raise SystemExit('Required release Assets are missing or empty')
+          body = release['body'].split('## ダウンロード', 1)[0].rstrip()
+          body += '\n\n## ダウンロード\n\n以下のAPK・ZIPは、このリリースのAssetsに直接添付しています。\n\n'
+          body += '\n'.join(f'- [{label}]({assets[name]["url"]})' for name, label in labels.items())
+          Path('release-notes.md').write_text(body + '\n')
+          PY
+          gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --notes-file release-notes.md
