@@ -172,8 +172,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
     fun panic(){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
     fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
-    fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(fullKeyboard=value)) }}
-    fun octave(value: Int){mutable.update { it.copy(sequence=it.sequence.copy(octave=value)) }}
+    fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(viewport=if(value)KeyboardViewport()else KeyboardViewport.middleTwoOctaves())) }}
+    fun zoomKeyboard(factor: Float,anchor: Float,pan: Float){mutable.update { it.copy(sequence=it.sequence.copy(viewport=it.sequence.viewport.transform(factor,anchor,pan))) }}
+    fun shiftKeyboard(direction: Int){mutable.update { it.copy(sequence=it.sequence.copy(viewport=it.sequence.viewport.shiftOctave(direction))) }}
     fun noteLabels(value: Boolean){preferences.noteLabels=value;mutable.update { it.copy(sequence=it.sequence.copy(noteLabels=value)) }}
     fun rollVisible(value: Boolean){preferences.rollVisible=value;mutable.update { it.copy(sequence=it.sequence.copy(rollVisible=value)) }}
     fun lookAhead(value: Float){preferences.lookAhead=value;mutable.update { it.copy(sequence=it.sequence.copy(lookAhead=value)) }}

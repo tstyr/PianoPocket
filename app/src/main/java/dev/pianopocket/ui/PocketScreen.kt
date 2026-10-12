@@ -60,7 +60,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                         val keyboardHeight=(maxHeight*.29f).coerceIn(96.dp,180.dp)
                         Column(Modifier.fillMaxSize()) {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
-                                if(state.sequence.rollVisible)PianoRoll(state,Modifier.fillMaxSize())
+                                if(state.sequence.rollVisible)PianoRoll(state,model,Modifier.fillMaxSize())
                                 else Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
                                 Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
                                     PerformanceToolbar(state,model,export,{tab=1},{instrument=!instrument},{tab=3})
@@ -111,7 +111,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             Row { Text("カタカナのドレミ",Modifier.weight(1f));Switch(checked=state.sequence.noteLabels,onCheckedChange=model::noteLabels) }
                             Row { Text("ロールビュー",Modifier.weight(1f));Switch(checked=state.sequence.rollVisible,onCheckedChange=model::rollVisible) }
                             Parameter("ロール表示時間 (${state.sequence.lookAhead.toInt()} 秒)",state.sequence.lookAhead,2f..10f,true,model::lookAhead)
-                            Text("鍵盤の拡大アイコンで88鍵／2オクターブを切り替えます。矢印でオクターブを移動。",style=MaterialTheme.typography.bodySmall)
+                            Text("ロール上のピンチで横幅を拡大・縮小、横ドラッグで音域を移動。ロールと鍵盤は連動します。拡大アイコンで88鍵／2オクターブ、矢印で横移動。",style=MaterialTheme.typography.bodySmall)
                             Text("オーディオ",style=MaterialTheme.typography.titleMedium)
                             DeviceMenu(state,model)
                             BufferControl(state,model)
@@ -134,7 +134,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket 0.4.2 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.4.3 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

@@ -12,6 +12,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -22,12 +23,11 @@ import androidx.compose.ui.unit.dp
 fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=Modifier) {
     val seq=state.sequence
     val enabled=state.ready && !state.busy && !seq.exporting
-    val low=if(seq.fullKeyboard)21 else (seq.octave+1)*12
-    val high=if(seq.fullKeyboard)108 else low+23
-    val layout=remember(low,high){KeyLayout(low,high)}
+    val layout=remember {KeyLayout(21,108)}
+    val viewport by rememberUpdatedState(seq.viewport)
     var held by remember { mutableStateOf(setOf<Int>()) }
     val paint=remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER } }
-    DisposableEffect(enabled,low) { onDispose { model.pedal(false);held=emptySet() } }
+    DisposableEffect(enabled) { onDispose { model.pedal(false);held=emptySet() } }
     val external=remember(seq.position,seq.playing,seq.song,seq.live){
         val active=seq.live.held.toMutableSet()
         if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd)active+=it.key}
@@ -42,7 +42,7 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
                     val event=awaitPointerEvent()
                     event.changes.forEach { change ->
                         val old=touches[change.id]
-                        val next=if(change.pressed)layout.hit(change.position.x/size.width,change.position.y/size.height)else null
+                        val next=if(change.pressed)layout.hit(change.position.x/size.width,change.position.y/size.height,viewport)else null
                         if(old!=next){touches.remove(change.id);if(old!=null && old !in touches.values)model.key(old,0)
                             if(next!=null){if(next !in touches.values)model.key(next,(48+change.position.y/size.height*79).toInt().coerceIn(1,127));touches[change.id]=next};held=touches.values.toSet()}
                         change.consume()
@@ -50,15 +50,16 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
                 } }
             }finally{touches.values.toSet().forEach { model.key(it,0) };held=emptySet()}
         }) {
-            layout.shapes.forEach { key ->
+            clipRect { layout.shapes.forEach { key ->
                 val down=key.note in held || key.note in external
                 val color=if(key.black){if(down)Color(0xff488a77)else Color(0xff10141a)}else{if(down)Color(0xffa8d4bf)else Color(0xffe4e6e7)}
-                val left=key.left*size.width;val width=key.width*size.width;val height=if(key.black)size.height*.62f else size.height
+                val left=viewport.screen(key.left)*size.width;val width=key.width*viewport.zoom*size.width;val height=if(key.black)size.height*.62f else size.height
+                if(left+width<0 || left>=size.width)return@forEach
                 drawRect(color,Offset(left+1,0f),Size((width-2).coerceAtLeast(1f),height))
                 if(seq.noteLabels){
                     drawNoteLabel(key.note,left+width/2,0f,width,height,paint,black=key.black)
                 }
-            }
+            } }
         }
     }
 }

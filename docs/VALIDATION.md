@@ -113,3 +113,11 @@ MIDI SAFのワイルドカードを削除し、streamを開く前に拡張子を
 versionCode7 / 0.4.2-alpha / ARM64、旧版と同じdebug v2署名。zipalign16KiB・4 ELF LOAD>=16384 PASS。APK 27686877bytes / SHA-256 `f77301301575998d26700bdb95d49323dcfc72c010b223d7ce79f43804fc66d4`。
 
 0.4.2のmain / tag / release-artifactsとプリリリースを公開。Assets添付は今回もHTTP 401で未完了。公開されたAPK・対応ソース・検証ZIP・自作fixture/MIDIを取得し、checksum一覧とSHA-256一致を確認しました。ホステッドCI／実機UI／M4Aの新しい成功は報告しません。
+
+## 0.4.3 falling labels / linked pinch viewport
+
+ロールの文字のベースラインを画面下端へclampする処理を撤去。文字はノートの元の矩形と共に移動し、Canvas境界でクリップ。ロール上のピンチ・横ドラッグを追加。52白鍵／88鍵の同じ座標系でロール・鍵盤・タッチ判定を変換し、倍率1..6.5、範囲A0..C8へ制限。音声・MIDIスケジュール・エンコード処理は変更なし。
+
+Android `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS、JUnit45 / failures0 / errors0 / skipped0、Lint errors0。ピンチ中心の音程維持、拡大した全キーの描画／hit一致、画面外のタッチ拒否、拡大縮小と左右移動の範囲、100%復帰を検査。ジェスチャーイベント・描画の実機／エミュレーター試験は未実施。旧版のnative／codec試験を今回の新規実行として扱いません。
+
+APK versionCode8 / 0.4.3-alpha / ARM64 / min29 / target36、旧版と同じdebug v2署名。zipalign16KiB、4 ELF LOAD>=16384 PASS。28259860 bytes / SHA-256 `aee18608d1732b0556f68c8485d62d2ed94de844c8536efb36260613d930edab`。

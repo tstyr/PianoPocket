@@ -1,6 +1,6 @@
 # PianoPocket
 
-Android向けのオフライン・ネイティブサンプラー、**0.4.2 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
+Android向けのオフライン・ネイティブサンプラー、**0.4.3 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
 
 **ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。開発環境にはGalaxy S26 / Android 16の実機が未接続です。利用者のAndroidでのHelsinki演奏・リバーブ時の音割れ報告を受け、0.3.1で修正しました。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
 
@@ -16,6 +16,12 @@ Android向けのオフライン・ネイティブサンプラー、**0.4.2 alpha
 6. XMLの未対応機能は音源パネルの情報タブと `PianoPocket.XML` ログに表示します。未対応のエフェクト種類、テンポ同期delayなど、適切に再現できないエフェクトは読み込みを拒否します。
 
 有線またはUSBオーディオ出力を推奨します。Bluetoothイヤホンでは遅延が増える場合があります。10ms以下は保証しません。設定の遅延はOboe timestampによる**出力経路の推定値**で、鍵盤から音までの実測値ではありません。
+
+## 0.4.3の修正
+
+ロールのドレミを画面下端に固定せず、ノート本来の位置と一緒に移動して消えるようにしました。下部鍵盤のドレミ表示とオン／オフ設定は維持します。
+
+**ロール上を2指でピンチ**すると横幅を1〜6.5倍に拡大・縮小し、鍵盤も同じ倍率・音域へ連動します。拡大後はロールを横ドラッグで移動。拡大アイコンで88鍵表示へ戻れます。鍵盤上の複数指は和音演奏に使い、ズーム操作と競合させません。縦方向の時間スケール・サステイン・音声は変更しません。拡大時の座標・タッチ判定は単体テスト済み、新ジェスチャーと描画は実機未検証です。
 
 ## 0.4.2の修正
 
@@ -141,8 +147,8 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 ## リリースとGitHub
 
-最新: [v0.4.2-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.4.2-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.2-alpha-arm64-debug.apk)。
+最新: [v0.4.3-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.4.3-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.4.3-alpha-arm64-debug.apk)。
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開状態（2026-10-12）: main / v0.4.2-alpha / release-artifactsとプリリリースを公開。Assets添付はHTTP 401が継続するため、配布ブランチにAPK・対応ソース・検証ZIPを保存し、公開先から再取得してSHA-256一致を確認。42 JVM tests・Androidビルド・Lintを通過。新表示・SAF選択は実機未検証。0.4.1で検証した音声エンジン・エンコーダーを変更していません。
+公開準備（2026-10-12）: 0.4.3のノート名追従と連動ピンチズームを実装。45 JVM tests・Androidビルド・Lint・署名／16KiB整列を通過。新ジェスチャー・表示は実機未検証。既存の音声処理・エンコーダーを変更していません。

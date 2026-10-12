@@ -75,9 +75,9 @@ fun KeyboardTools(state: PocketState,model: PocketViewModel,modifier: Modifier=M
             SustainIndicator(state,Modifier.padding(horizontal=8.dp))
             PocketIconButton(PocketIcon.Zoom,if(seq.fullKeyboard)"2オクターブに拡大"else "88鍵を表示",selected=!seq.fullKeyboard,onClick={model.fullKeyboard(!seq.fullKeyboard)})
             if(!seq.fullKeyboard) {
-                PocketIconButton(PocketIcon.Back,"低いオクターブへ",enabled=seq.octave>1,onClick={model.octave(seq.octave-1)})
-                Text("C${seq.octave}",style=MaterialTheme.typography.labelSmall)
-                PocketIconButton(PocketIcon.Forward,"高いオクターブへ",enabled=seq.octave<7,onClick={model.octave(seq.octave+1)})
+                PocketIconButton(PocketIcon.Back,"低いオクターブへ",enabled=seq.viewport.start>0,onClick={model.shiftKeyboard(-1)})
+                Text("${(seq.viewport.zoom*100).toInt()}%",style=MaterialTheme.typography.labelSmall)
+                PocketIconButton(PocketIcon.Forward,"高いオクターブへ",enabled=seq.viewport.start<seq.viewport.maxStart,onClick={model.shiftKeyboard(1)})
             }
             PocketIconButton(PocketIcon.Pedal,if(state.uiPedal)"ペダルを離す"else "ペダルを踏む",selected=state.uiPedal,enabled=state.ready && !state.busy && !seq.exporting,onClick={model.pedal(!state.uiPedal)})
         }
