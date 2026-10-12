@@ -2,9 +2,10 @@
 #include <chrono>
 #include <algorithm>
 namespace pocket {
-SampleCache::SampleCache(const std::vector<Sample>& s):samples(s),pages(new Page[PageCount]),worker([this]{run();}){}
-SampleCache::~SampleCache(){running.store(false);worker.join();}
+SampleCache::SampleCache(const std::vector<Sample>& s,bool sync):samples(s),pages(new Page[PageCount]),offline(sync){if(!offline)worker=std::thread([this]{run();});}
+SampleCache::~SampleCache(){running.store(false);if(worker.joinable())worker.join();}
 void SampleCache::prefetch(unsigned s,uint64_t f) noexcept {
+    if(offline)return;
     if(s>=samples.size() || f>=samples[s].frames) return;
     if(f<samples[s].head.size()/2-1)return;
     requests.push((uint64_t(s)<<32)|(f/PageFrames));
@@ -19,6 +20,14 @@ void SampleCache::view(unsigned s,uint64_t f,View& out) noexcept {
         if(expected<0 || !p.readers.compare_exchange_strong(expected,expected+1,std::memory_order_acquire))continue;
         if(p.key==key){out.page=&p;out.data=p.data.data();out.start=(f/PageFrames)*PageFrames;out.frames=PageFrames;p.used.store(++clock,std::memory_order_relaxed);return;}
         p.readers.fetch_sub(1,std::memory_order_release);
+    }
+    if(offline){
+        Page* victim=nullptr;uint64_t oldest=UINT64_MAX;
+        for(size_t i=0;i<PageCount;++i)if(pages[i].readers.load()==0 && pages[i].used.load()<oldest){victim=&pages[i];oldest=pages[i].used.load();}
+        if(!victim){readErrors.fetch_add(1);return;}
+        try {sample.decode((f/PageFrames)*PageFrames,PageFrames+1,victim->data.data());victim->key=key;victim->used.store(++clock);victim->readers.store(1);out.page=victim;out.data=victim->data.data();out.start=(f/PageFrames)*PageFrames;out.frames=PageFrames;}
+        catch(...){readErrors.fetch_add(1);}
+        return;
     }
     misses.fetch_add(1,std::memory_order_relaxed);prefetch(s,f);
 }

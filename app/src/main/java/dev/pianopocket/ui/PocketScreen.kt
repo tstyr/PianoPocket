@@ -15,29 +15,36 @@ import java.util.Date
 
 private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0xff181b1f),surface=Color(0xff20242a),onSurface=Color(0xffe1e3e5),secondary=Color(0xffb5bec7))
 @Composable
-fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
+fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int)->Unit) {
     val state by model.state.collectAsState()
     var tab by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.sequence.selected){if(tab==1 && state.sequence.selected.isNotBlank())tab=0}
     var deleting by remember { mutableStateOf<LibraryEntry?>(null) }
     val window=LocalWindowInfo.current.containerSize
     val landscape=window.width>window.height
     MaterialTheme(colorScheme=colors) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=if(landscape)4.dp else 12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     Column(Modifier.weight(1f)) {
-                        Text("PIANOPOCKET",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
+                        if(!landscape)Text("PIANOPOCKET",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
                         Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.titleLarge,maxLines=1)
                     }
-                    Text(state.midi,style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=10.dp))
-                    TextButton(onClick={tab=2}){Text("設定")}
+                    Text(state.midi,style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=10.dp).widthIn(max=120.dp),maxLines=1)
+                    TextButton(onClick={tab=3},modifier=Modifier.height(32.dp)){Text("設定")}
                 }
-                TabRow(selectedTabIndex=tab) { listOf("演奏","ライブラリ","設定").forEachIndexed { i,label->Tab(selected=tab==i,onClick={tab=i},text={Text(label)}) } }
+                TabRow(selectedTabIndex=tab) { listOf("演奏","MIDI","音源","設定").forEachIndexed { i,label->Tab(selected=tab==i,onClick={tab=i},text={Text(label)}) } }
                 if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
                 Text(state.message,Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary,maxLines=2)
+                if(tab==0 && state.sequence.rollVisible) {
+                    SequenceTransport(state,model,export)
+                    PianoRoll(state,Modifier.fillMaxWidth().weight(1f))
+                } else {
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     when(tab) {
-                        0 -> state.preset?.let { preset ->
+                        0 -> {
+                            SequenceTransport(state,model,export)
+                            state.preset?.let { preset ->
                             Text("マイク / グループ",style=MaterialTheme.typography.titleMedium)
                             if(preset.controls.none { c->c.bindings.any { it.type=="group" } })preset.groups.forEachIndexed { i,name->Parameter(name,state.groups.getOrElse(i){1f},0f..2f,state.ready && !state.busy){model.group(i,it)} }
                             if(preset.controls.isNotEmpty())Text("プリセットの対応コントロール",style=MaterialTheme.typography.titleMedium)
@@ -58,8 +65,10 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                             Parameter("Output",state.volume,0f..1f,state.ready && !state.busy,model::volume)
                             Text("ボイス ${state.stats[6].toInt()}/${state.voices} · DSP ${"%.1f".format(state.stats[5])}% · キャッシュミス ${state.stats[8].toLong()}",style=MaterialTheme.typography.bodySmall)
                             if(preset.warnings.isNotEmpty()) { Text("互換性レポート",style=MaterialTheme.typography.titleMedium);preset.warnings.forEach { Text("• $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary) } }
-                        } ?: Text("ライブラリから音源を選択してください。")
-                        1 -> {
+                        } ?: Text("音源タブから音源を選択してください。")
+                        }
+                        1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
+                        2 -> {
                             Button(onClick=import,enabled=!state.busy){Text("音源をインポート")}
                             Text("ZIP / ZIP形式のdslibrary、またはdspreset＋サンプルフォルダー。利用者が正規に取得した音源を選択してください。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick=model::rescan,enabled=!state.busy){Text("再スキャン")}
@@ -72,7 +81,12 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                                 } }
                             }
                         }
-                        2 -> {
+                        3 -> {
+                            Text("表示",style=MaterialTheme.typography.titleMedium)
+                            Row { Text("カタカナのドレミ",Modifier.weight(1f));Switch(checked=state.sequence.noteLabels,onCheckedChange=model::noteLabels) }
+                            Row { Text("ロールビュー",Modifier.weight(1f));Switch(checked=state.sequence.rollVisible,onCheckedChange=model::rollVisible) }
+                            Parameter("ロール表示時間 (${state.sequence.lookAhead.toInt()} 秒)",state.sequence.lookAhead,2f..10f,true,model::lookAhead)
+                            Text("88鍵は全体表示。鍵盤の88鍵ボタンをオフにすると2オクターブに拡大します。",style=MaterialTheme.typography.bodySmall)
                             Text("オーディオ",style=MaterialTheme.typography.titleMedium)
                             DeviceMenu(state,model)
                             BufferControl(state,model)
@@ -87,15 +101,17 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                             OutlinedButton(onClick={model.audio()},enabled=!state.busy){Text("オーディオを再開")}
                             Text("有線またはUSB出力を推奨します。Bluetoothイヤホンは大きく遅延する場合があります。10ms以下は保証しません。",style=MaterialTheme.typography.bodySmall)
                             Text("MIDI入力",style=MaterialTheme.typography.titleMedium)
+                            MidiInputMenu(state,model)
                             ChannelMenu(state,model)
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            Text("PianoPocket 0.2.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.3.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
-                if(tab==0)PianoKeyboard(state.ready && !state.busy,Modifier.fillMaxWidth().height(if(landscape)180.dp else 230.dp))
+                }
+                if(tab==0)PianoKeyboard(state,model,Modifier.fillMaxWidth().height(if(landscape)120.dp else 210.dp))
             }
             deleting?.let { entry -> AlertDialog(onDismissRequest={deleting=null},title={Text("音源フォルダーを削除")},text={Text("${entry.name} と同じインポートに含まれる全プリセット・サンプルを削除します。")},confirmButton={TextButton(onClick={model.delete(entry);deleting=null}){Text("削除")}},dismissButton={TextButton(onClick={deleting=null}){Text("キャンセル")}}) }
         }

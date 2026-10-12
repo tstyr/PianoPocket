@@ -1,5 +1,6 @@
 #include "SamplerEngine.h"
 #include "Effects.h"
+#include "OfflineRenderer.h"
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -12,6 +13,11 @@ static thread_local bool audioThread=false;
 static std::atomic<int> audioAllocations{0};
 void* operator new(std::size_t n){if(audioThread)++audioAllocations;if(auto p=std::malloc(n))return p;throw std::bad_alloc();}
 void* operator new[](std::size_t n){return ::operator new(n);}
+void* operator new(std::size_t n,const std::nothrow_t&) noexcept {try{return ::operator new(n);}catch(...){return nullptr;}}
+void* operator new[](std::size_t n,const std::nothrow_t&) noexcept {return ::operator new(n,std::nothrow);}
+void operator delete(void* p,const std::nothrow_t&) noexcept {std::free(p);}
+void operator delete[](void* p,const std::nothrow_t&) noexcept {std::free(p);}
+
 void operator delete(void* p) noexcept {std::free(p);}
 void operator delete[](void* p) noexcept {std::free(p);}
 void operator delete(void* p,std::size_t) noexcept {std::free(p);}
@@ -47,6 +53,22 @@ int main(){try{
     {auto b=bank();for(int v=0;v<128;++v)b->velocityGains[0][v]=0;e.install(std::move(b),{},48000);e.send({0,0,60,127,0});render(e,out,256);check(energy(out,256)==0 && e.activeVoices==0,"per-voice velocity table suppresses zero layer");}
     {auto b=bank();b->regions[0].trigger=Trigger::PedalDown;b->regions[0].root=1;b->regions[0].low=b->regions[0].high=1;b->lookup={};b->prepare();e.install(std::move(b),{},48000);e.send({2,0,64,127,0});render(e,out,256);check(e.activeVoices==1,"CC trigger independent of mapped note 1");e.send({2,0,64,100,0});render(e,out,256);check(e.activeVoices==1,"continuous pedal messages are debounced");}
     {EffectSpec fx;fx.p={1,.8f,.3f,0,1};Effect reverb(fx,48000);float tail=0;for(int i=0;i<10000;++i){float l=i==0?1:0,r=l;audioThread=true;reverb.process(l,r);audioThread=false;if(i>2000)tail+=std::abs(l)+std::abs(r);}check(tail>0,"reverb tail survives silence");}
+    {
+        e.install(bank(),{},48000);e.setTimeline({{100,{0,17,60,127}},{400,{1,17,60,0}}},600);e.send({10,0,1});
+        render(e,out,256);check(energy(out,50)==0,"timeline waits until sample-accurate onset");check(energy(out+200,156)>0,"timeline dispatches within audio block");
+        check(e.transport()[0]==256/48000.,"timeline sample clock");e.send({10,0,0});render(e,out,256);check(e.transport()[0]==256/48000. && e.transport()[1]==0,"transport pause freezes clock");
+        e.seek(400);e.send({10,0,1});render(e,out,256);check(e.transport()[1]==0 && e.transport()[0]==600/48000.,"timeline ends and releases notes");
+    }
+    { e.install(bank(),{},48000);e.setTimeline({{0,{0,17,60,127}}},10000);e.send({0,0,60,127});e.send({10,0,1});render(e,out,256);check(e.activeVoices==2,"file and live MIDI use independent channels");e.send({10,0,0});render(e,out,256);check(e.activeVoices==1,"pausing file preserves live MIDI voice"); }
+    {e.install(bank(),{},48000);std::vector<TimedEvent> dense(3000,TimedEvent{0,{2,17,7,127}});e.setTimeline(std::move(dense),48000);e.send({10,0,1});render(e,out,256);check(e.transport()[2]==1 && e.transport()[1]==0 && e.activeVoices==0,"dense timeline fails safely within callback event budget");}
+    for(int rate:{44100,48000})for(int bits:{16,24,32}){
+        auto instrument=std::make_unique<Instrument>();instrument->samples.push_back(Sample::open(path));Region r;r.root=60;r.release=.01f;instrument->regions.push_back(r);instrument->prepare(true);
+        SamplerEngine offline;offline.install(std::move(instrument),{},rate);offline.setTimeline({{0,{0,17,60,127}},{rate/2,{1,17,60,0}}},rate/2);
+        std::string target="/tmp/pianopocket-export-"+std::to_string(bits)+".wav";std::atomic<bool> cancel{false};std::atomic<float> progress{0};renderWav(offline,target,rate,bits,rate,cancel,progress);
+        auto decoded=Sample::open(target);check(decoded.rate==unsigned(rate) && decoded.frames==unsigned(rate) && decoded.bits==unsigned(bits),"WAV export format/header");
+        decoded.decode(12000,10,data);check(energy(data,10)>0,"offline export streams beyond resident sample head");decoded.decode(rate-1000,10,data);check(energy(data,10)<.000001,"export includes note release and silence tail");
+        check(offline.misses()==0 && offline.errors()==0 && progress.load()==1,"offline cache is deterministic");cancel.store(true);bool failed=false;try{renderWav(offline,target,rate,bits,rate,cancel,progress);}catch(...){failed=true;}check(failed && !std::ifstream(target).good(),"cancelled WAV is removed");
+    }
     check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

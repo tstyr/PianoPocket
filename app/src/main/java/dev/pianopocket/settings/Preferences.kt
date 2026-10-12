@@ -16,4 +16,16 @@ class Preferences(context: Context) {
     var bursts: Int
         get()=store.getInt("bursts",2)
         set(value){store.edit().putInt("bursts",value.coerceIn(1,8)).apply()}
+    var lastMidi: String
+        get()=store.getString("lastMidi","")!!
+        set(value){store.edit().putString("lastMidi",value).apply()}
+    var noteLabels: Boolean
+        get()=store.getBoolean("noteLabels",true)
+        set(value){store.edit().putBoolean("noteLabels",value).apply()}
+    var rollVisible: Boolean
+        get()=store.getBoolean("rollVisible",true)
+        set(value){store.edit().putBoolean("rollVisible",value).apply()}
+    var lookAhead: Float
+        get()=store.getFloat("lookAhead",5f)
+        set(value){store.edit().putFloat("lookAhead",value.coerceIn(2f,10f)).apply()}
 }

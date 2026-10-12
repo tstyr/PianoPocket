@@ -1,26 +1,18 @@
-# PianoPocket 0.2.0-alpha — Helsinki v1.6 native compatibility
+# PianoPocket 0.3.0-alpha — MIDI library, falling notes, recording and export
 
-ユーザー提供のHelsinki 1967 Pro Decent Sampler版v1.6を実際に解析し、通常版／XF版をネイティブエンジンでホスト検証しました。
+MIDIを選んで、読み込んだピアノ音源で演奏・録音・書き出しできる機能を追加しました。
 
-- voice-scope velocity tableによるXF、タグ単位のマイクミキサー、Release / Pedal Noise、instrument Master。
-- CC64をkey rangeから独立させ、連続ペダルCCによるノイズ再発音を抑制。
-- 5種の純正IR選択、Convolution→+12dB Gain、初期Reverb Mix=0をXMLから反映。
-- 6秒IRを切り詰めず読込。256 / 2048 frame分割FFT、追加遅延256 frames。
-- macOS sidecarを音源として登録しない。Multi Out NOPEDALの配布XMLエラーを明示。
-- 344 WAV、5プリセット×1320発音ケース、5 IRの完全delta response、paced streaming、回帰・メモリ検査。
+- MIDI Type 0 / 1インポート、BPM・日付付きカードライブラリ、再起動後の再利用。
+- 上から降るロール、トラック色・velocity・ペダル残音、88鍵／2オクターブ、設定からカタカナのドレミをオン／オフ。
+- USB / BLEの入力ポート選択、リアルタイムの鍵盤／履歴表示、MIDI録音と保存。
+- C++のサンプル時計によるMIDI再生、一時停止・シーク。ファイルとライブ入力のチャンネルを分離。
+- MIDI Type 0 / 1、WAV PCM16 / PCM24 / Float32を選択して保存。音声は44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量を反映。
+- 書き出し専用サンプラーと同期LRUキャッシュ、追加残響時間、進捗・キャンセル。音源はMIDIファイル自体には含まれません。
 
-**Galaxy S26 / Android 16の起動・タッチ・USB / BLE MIDI・レイテンシは実機未検証。純正プラグインとの音響的同一性は保証しません。** Multi Outはステレオ混合のみ、Windows VSTは独立した調査・実験手順までです。
+Androidビルド・Lint・36 JVM tests・native / ASan / UBSanはPASS。Helsinki v1.6 XFの実ファイルで、ペダル・リリース・IRを含む10秒の音声生成を検証（試験時IR mix=0.35、cache miss / I/O error=0）。ユーザー指定のopenthesia-androidは操作の参考として確認し、GPLコードや素材は取り込んでいません。
 
-Pianobookのサンプル・IR・画像・実XMLはAPK／ソース／Releaseに含めません。利用者が正規に取得してインポートしてください。デバッグ署名ARM64 APK、ソースZIP、自作fixture、検証概要、SHA-256を配布します。
+**Galaxy S26 / Android 16のUI・USB / BLE録音・SAF保存・レイテンシは実機未検証です。** MIDI編集・Learning Mode・MP3/AAC/FLAC書き出し・MIDI 2.0・GM音色切替は未対応。Windows VSTは別の実験資料のままです。
 
-詳細: [README](https://github.com/tstyr/PianoPocket#readme)、[実ファイル検証](https://github.com/tstyr/PianoPocket/blob/main/docs/HELSINKI.md)、[検証結果](https://github.com/tstyr/PianoPocket/blob/main/docs/VALIDATION.md)。
+Pianobookのサンプル・IR・画像・実XML、ユーザーのMIDIは配布しません。Helsinkiは正規に取得した音源をインポートしてください。自作PocketStudy.midとPocketFixture.zipをテスト用に用意しています。
 
-## ダウンロード
-
-Releaseへの直接添付はアップロード先の認証エラーになったため、同じGitHubリポジトリのrelease-artifactsブランチに配布ファイルを保存しています。以下から取得できます。
-
-- [Android ARM64 デバッグAPK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.2.0-alpha-arm64-debug.apk)
-- [ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.2.0-alpha-source.zip)
-- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.2.0-alpha-validation.zip)
-- [自作テスト音源](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketFixture.zip)
-- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.2.0.txt)
+[使い方](https://github.com/tstyr/PianoPocket#readme) / [検証と実機手順](https://github.com/tstyr/PianoPocket/blob/main/docs/SEQUENCER.md)。

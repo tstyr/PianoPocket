@@ -4,11 +4,13 @@
 namespace pocket {
 void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr){
     Effects prepared;prepared.prepare(fx,sr);
-    instrument=std::move(bank);rate=sr;for(auto& v:voices)v=Voice{};
+    if(rate!=sr){for(auto& e:timeline)e.frame=int64_t(std::llround(e.frame*double(sr)/rate));playFrame=int64_t(std::llround(playFrame*double(sr)/rate));totalFrames=int64_t(std::llround(totalFrames*double(sr)/rate));}
+    instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
     for(auto& c:controllers){c.fill(0);c[7]=c[11]=127;}bends.fill(0);groupGains.fill(1);
     effects=std::move(prepared);Event discard;while(events.pop(discard)){}panic.store(false);
+    playing=false;reportedPlaying.store(false);
 }
 bool SamplerEngine::send(Event e){std::lock_guard<std::mutex> lock(producer);if(events.push(e))return true;droppedEvents.fetch_add(1);panic.store(true);return false;}
 void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) noexcept {
@@ -37,7 +39,7 @@ void SamplerEngine::releaseId(int ch,int note,uint64_t id,int velocity) noexcept
     trigger(Trigger::Release,ch,note,velocity,++nextId);
 }
 void SamplerEngine::dispatch(const Event& e) noexcept {
-    int ch=std::clamp(e.channel,0,16),a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);
+    int ch=std::clamp(e.channel,0,32),a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);
     if(e.type==0 && b>0){
         auto& stack=keys[ch][a];Key* key=&stack[0];
         for(auto& candidate:stack)if(!candidate.id){key=&candidate;break;}else if(candidate.id<key->id)key=&candidate;
@@ -63,10 +65,41 @@ void SamplerEngine::dispatch(const Event& e) noexcept {
     else if(e.type==7)effects.parameter(e.a,e.b,e.value);
     else if(e.type==8){limit=std::clamp(e.a,32,128);for(int i=limit;i<128;++i)voices[i].active=false;}
     else if(e.type==9)targetInstrumentVolume=std::clamp(e.value,0.f,8.f);
+    else if(e.type==10){playing=e.a!=0;reportedPlaying.store(playing);if(!playing)for(int channel=17;channel<33;++channel){dispatch({2,channel,120,0});dispatch({2,channel,64,0});}}
+}
+void SamplerEngine::setTimeline(std::vector<TimedEvent> source,int64_t duration){
+    timeline=std::move(source);std::stable_sort(timeline.begin(),timeline.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
+    totalFrames=std::max<int64_t>(duration,timeline.empty()?0:timeline.back().frame);playing=false;transportOverload.store(false);seekTimeline(0);reportedPlaying.store(false);
+}
+void SamplerEngine::seekTimeline(int64_t frame) noexcept {
+    // Seek restores controllers and pitch but intentionally starts only future notes.
+    for(int ch=17;ch<33;++ch){dispatch({2,ch,120,0});dispatch({2,ch,121,0});}
+    cursor=0;playFrame=frame;
+    while(cursor<timeline.size() && timeline[cursor].frame<frame){const auto& e=timeline[cursor++].event;if(e.type==2 || e.type==3)dispatch(e);}
+    for(auto& v:voices)if(v.channel>=17)v=Voice{};
+    reportedFrame.store(playFrame);
 }
 void SamplerEngine::render(float* output,int count) noexcept {
-    std::fill(output,output+count*2,0.f);Event e;int processed=0;while(processed++<2048 && events.pop(e))dispatch(e);
+    Event e;int processed=0;while(processed++<2048 && events.pop(e))dispatch(e);
     if(panic.exchange(false)){keys={};for(auto& v:voices)v.envelope.off(rate);for(auto& c:controllers)c[64]=0;}
+    int done=0,timelineProcessed=0;
+    while(done<count){
+        if(playing){
+            while(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed<2048){dispatch(timeline[cursor++].event);++timelineProcessed;}
+            if(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed==2048){
+                playing=false;reportedPlaying.store(false);transportOverload.store(true);droppedEvents.fetch_add(1);
+                for(int ch=17;ch<33;++ch)dispatch({2,ch,120,0});
+            }
+            if(playFrame>=totalFrames && cursor==timeline.size()){playing=false;reportedPlaying.store(false);for(int ch=17;ch<33;++ch){dispatch({2,ch,123,0});dispatch({2,ch,64,0});}}
+        }
+        int n=count-done;
+        if(playing){auto next=cursor<timeline.size()?timeline[cursor].frame:totalFrames;n=int(std::min<int64_t>(n,std::max<int64_t>(1,next-playFrame)));}
+        renderBlock(output+done*2,n);done+=n;if(playing)playFrame+=n;
+    }
+    reportedFrame.store(playFrame,std::memory_order_relaxed);
+}
+void SamplerEngine::renderBlock(float* output,int count) noexcept {
+    std::fill(output,output+count*2,0.f);
     if(instrument)for(auto& v:voices){if(!v.active)continue;auto& r=instrument->regions[v.region];auto& s=instrument->samples[r.sample];
         SampleCache::View view;uint64_t attemptedPage=UINT64_MAX;double step=v.baseStep*std::pow(2.,bends[v.channel]*r.keyTrack/12.);float channelGain=controllers[v.channel][7]/127.f*controllers[v.channel][11]/127.f;
         uint64_t end=r.end>=0?std::min<uint64_t>(r.end+1,s.frames):s.frames;

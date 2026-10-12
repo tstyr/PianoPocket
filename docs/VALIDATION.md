@@ -66,3 +66,8 @@ voice-scope table、tagミキサー、CC64のnote 1 / 2マッピング、整数�
 main / v0.2.0-alphaのプッシュは成功しました。GitHub Actionsの初回実行は `The job was not started because your account is locked due to a billing issue.` というGitHub側の理由でジョブ開始前に停止しています。ローカルのビルド・テスト成功をホステッドCI成功とは扱いません。[実行記録](https://github.com/tstyr/PianoPocket/actions/runs/38220736938)。本体の不具合ではなく、GitHubアカウント側で解消が必要です。
 
 Release Assetsへの通常添付も試行しました。CLIからの直接添付は `uploads.github.com` がHTTP 401を返します。代替として `.github/workflows/attach-release.yml` を追加し、固定した配布コミットから検証済みAPK等を取得・SHA-256確認して既存リリースへ添付する手動実行処理を用意しました。YAML・Bash・Python構文チェックはPASSですが、[添付処理の実行](https://github.com/tstyr/PianoPocket/actions/runs/38222693297)も同じbilling lockで開始前に停止しました。Assets添付の成功とは扱いません。Actionsを使わない方法として、リポジトリ所有者は[リリース編集画面](https://github.com/tstyr/PianoPocket/releases/edit/v0.2.0-alpha)から配布済みAPKを手動で添付できます。
+
+
+## 0.3.0 MIDI / recording / export
+
+MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件（新規14件）、native / ASan / UBSan、6 WAV形式／レート組合せ、Helsinki XFの実サンプル＋IRによる10秒書き出しがPASS。書き出しではIR mixを0.35に明示変更して残響を検査し、サンプルcache miss / I/O errorは0。Galaxy S26やエミュレーターは未接続のため、ロールUI・SAF保存・USB/BLE録音・レイテンシの実機成功は未確認です。

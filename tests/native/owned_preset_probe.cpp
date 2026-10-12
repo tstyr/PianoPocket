@@ -1,5 +1,6 @@
 #include "SamplerEngine.h"
 #include "ImpulseLoader.h"
+#include "OfflineRenderer.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -12,7 +13,7 @@ using namespace pocket;
 static std::vector<std::string> split(const std::string& line,char delimiter){std::vector<std::string> parts;std::stringstream s(line);std::string p;while(std::getline(s,p,delimiter))parts.push_back(p);return parts;}
 static void require(bool pass,const char* message){if(!pass)throw std::runtime_error(message);}
 int main(int argc,char** argv){try{
-    require(argc==2,"usage: owned_preset_probe <production-parser.mapping>");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
+    require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export"),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
     auto bank=std::make_unique<Instrument>();std::unordered_map<std::string,unsigned> paths;std::vector<EffectSpec> fx;
     std::vector<Event> setup;std::string line;std::set<std::string> impulses;
     while(std::getline(file,line)){
@@ -31,6 +32,16 @@ int main(int argc,char** argv){try{
         else if(t[0]=="F"){EffectSpec spec;spec.type=EffectType(std::stoi(t[1]));auto p=split(t[2],',');require(p.size()==5,"effect parameters");for(int i=0;i<5;++i)spec.p[i]=std::stof(p[i]);if(spec.type==EffectType::Convolution){spec.ir=loadImpulse(t.at(3),48000);impulses.insert(t.at(3));}fx.push_back(std::move(spec));}
     }
     require(!bank->regions.empty(),"no regions");auto regions=bank->regions.size(),samples=bank->samples.size();int noteTests=0;float data[1024];
+    if(argc==4){
+        // Deliberately turn up the IR mix for this export test; the factory preset's mix is zero.
+        for(auto& effect:fx)if(effect.type==EffectType::Convolution)effect.p[0]=.35f;
+        bank->prepare(true);SamplerEngine offline;offline.install(std::move(bank),fx,48000);offline.initialControls(setup);
+        offline.setTimeline({{0,{0,17,60,33}},{12000,{1,17,60,0}},{12000,{0,17,64,77}},{24000,{2,17,64,127}},{24000,{1,17,64,0}},{48000,{0,17,67,110}},{60000,{1,17,67,0}},{72000,{0,17,72,127}},{96000,{1,17,72,0}},{120000,{2,17,64,0}}},144000);
+        std::atomic<bool> cancel{false};std::atomic<float> progress{0};renderWav(offline,argv[3],48000,24,480000,cancel,progress);
+        auto output=Sample::open(argv[3],64);double total=0,tailEnergy=0;float block[1024];for(uint64_t frame=0;frame<output.frames;frame+=512){output.decode(frame,512,block);for(float value:block){require(std::isfinite(value) && std::abs(value)<=1,"offline export finite bounded output");total+=value*value;if(frame>=144000)tailEnergy+=value*value;}}
+        require(total>0 && tailEnergy>0 && offline.misses()==0 && offline.errors()==0,"offline owned instrument export, tail and deterministic cache");
+        std::cout<<"{\"status\":\"pass\",\"exportFrames\":"<<output.frames<<",\"bits\":24,\"rate\":48000,\"channels\":2,\"irMixTestOverride\":0.35,\"energy\":"<<total<<",\"tailEnergy\":"<<tailEnergy<<",\"cacheMisses\":"<<offline.misses()<<",\"readErrors\":"<<offline.errors()<<",\"androidDeviceVerified\":false}"<<std::endl;return 0;
+    }
     // Verify all genuine samples including the five menu IRs using the production decoder.
     auto sampleRoot=std::filesystem::path(bank->samples[0].path).parent_path();size_t decodedFiles=0;std::set<std::string> rates;
     for(auto& entry:std::filesystem::recursive_directory_iterator(sampleRoot))if(entry.is_regular_file() && entry.path().extension()==".wav"){

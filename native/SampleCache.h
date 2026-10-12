@@ -20,7 +20,7 @@ public:
         ~View(){reset();}
         void reset() noexcept { if(page) page->readers.fetch_sub(1,std::memory_order_release); page=nullptr; data=nullptr; }
     };
-    explicit SampleCache(const std::vector<Sample>& samples);
+    explicit SampleCache(const std::vector<Sample>& samples,bool offline=false);
     ~SampleCache();
     void view(unsigned sample,uint64_t frame,View& out) noexcept;
     void prefetch(unsigned sample,uint64_t frame) noexcept;
@@ -32,6 +32,7 @@ private:
     std::atomic<bool> running{true};
     std::atomic<uint64_t> clock{0};
     std::thread worker;
+    bool offline=false;
     void run();
 };
 }

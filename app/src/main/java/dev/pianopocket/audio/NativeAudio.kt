@@ -13,6 +13,14 @@ object NativeAudio {
     external fun commit()
     external fun event(type: Int, channel: Int, a: Int, b: Int, value: Float)
     external fun stats(): DoubleArray
+    external fun timeline(times: LongArray, messages: IntArray, duration: Long)
+    external fun transport(): DoubleArray
+    external fun seekTimeline(micros: Long)
+    external fun exportBegin(memoryMiB: Int, rate: Int)
+    external fun exportControl(type: Int, a: Int, b: Int, value: Float)
+    external fun exportWav(path: String, times: LongArray, messages: IntArray, duration: Long, bits: Int, tail: Int)
+    external fun cancelExport()
+    external fun exportProgress(): Float
     fun noteOn(note: Int, velocity: Int, channel: Int = 16) = event(0, channel, note, velocity, 0f)
     fun noteOff(note: Int, channel: Int = 16) = event(1, channel, note, 0, 0f)
     fun cc(number: Int, value: Int, channel: Int = 16) = event(2, channel, number, value, 0f)

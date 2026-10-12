@@ -1,0 +1,16 @@
+{
+  "status": "pass",
+  "exportFrames": 480000,
+  "bits": 24,
+  "rate": 48000,
+  "channels": 2,
+  "irMixTestOverride": 0.35,
+  "energy": 14175.8,
+  "tailEnergy": 9.34627,
+  "cacheMisses": 0,
+  "readErrors": 0,
+  "androidDeviceVerified": false,
+  "sanitizers": "ASan/UBSan PASS",
+  "instrument": "Helsinki 1967 XF Decent Sampler v1.6",
+  "distributedAudio": false
+}

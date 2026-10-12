@@ -6,6 +6,7 @@
 #include <mutex>
 namespace pocket {
 struct Event {int type=0,channel=0,a=0,b=0;float value=0;};
+struct TimedEvent {int64_t frame=0;Event event;};
 struct Voice {
     bool active=false,held=false,pending=false;
     int channel=0,note=0,velocity=0;
@@ -21,9 +22,9 @@ class SamplerEngine {
     std::unique_ptr<Instrument> instrument;
     Effects effects;
     std::array<Voice,128> voices{};
-    std::array<std::array<std::array<Key,4>,128>,17> keys{};
-    std::array<std::array<int,128>,17> controllers{};
-    std::array<float,17> bends{};
+    std::array<std::array<std::array<Key,4>,128>,33> keys{};
+    std::array<std::array<int,128>,33> controllers{};
+    std::array<float,33> bends{};
     std::array<float,256> groupGains{};
     SpscQueue<Event,2048> events;
     std::mutex producer; // producers ONLY; never taken by render
@@ -32,6 +33,16 @@ class SamplerEngine {
     float instrumentVolume=1,targetInstrumentVolume=1;
     int limit=80;
     uint64_t nextId=0;
+    std::vector<TimedEvent> timeline;
+    size_t cursor=0;
+    int64_t playFrame=0,totalFrames=0;
+    bool playing=false;
+    std::atomic<int64_t> reportedFrame{0};
+    std::atomic<bool> reportedPlaying{false};
+    std::atomic<bool> transportOverload{false};
+    std::atomic<float> reportedRate{48000};
+    void renderBlock(float*,int) noexcept;
+    void seekTimeline(int64_t frame) noexcept;
     void dispatch(const Event&) noexcept;
     void trigger(Trigger,int channel,int note,int velocity,uint64_t id) noexcept;
     void releaseId(int channel,int note,uint64_t id,int velocity) noexcept;
@@ -41,6 +52,10 @@ public:
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
     bool send(Event event); // outside callback; multiple producers serialized
     void render(float* stereo,int frames) noexcept;
+    void initialControls(const std::vector<Event>& values){for(const auto& e:values)dispatch(e);volume=targetVolume;instrumentVolume=targetInstrumentVolume;}
+    void setTimeline(std::vector<TimedEvent> events,int64_t duration); // callback stopped
+    void seek(int64_t frame){playing=false;transportOverload.store(false);reportedPlaying.store(false);seekTimeline(frame);}
+    std::array<double,3> transport() const {return {double(reportedFrame.load())/reportedRate.load(),reportedPlaying.load()?1.:0.,transportOverload.load()?1.:0.};}
     void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}
     uint64_t misses() const {return instrument?instrument->cache->misses.load():0;}
     uint64_t errors() const {return instrument?instrument->cache->readErrors.load():0;}

@@ -15,3 +15,7 @@ dependency versions and test-only dependencies.
 
 There are no Wine, Box64, Winlator, Windows VST host or Decent Sampler VST
 components in this APK.
+
+Openthesia Android (https://github.com/tstyr/openthesia-android, GPL-3.0-only)
+was consulted for interaction ideas. No code or assets from that project are
+included; PianoPocket's sequencer and piano roll are original implementations.

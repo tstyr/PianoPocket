@@ -16,18 +16,20 @@ import android.os.ParcelUuid
 import dev.pianopocket.audio.NativeAudio
 import java.util.UUID
 
+data class MidiInput(val id: String, val label: String)
 data class BleMidiDevice(val address: String, val name: String)
-class MidiController(private val context: Context, private val status: (String)->Unit, private val discovered: (List<BleMidiDevice>)->Unit) {
+class MidiController(private val context: Context, private val status: (String)->Unit, private val discovered: (List<BleMidiDevice>)->Unit, private val inputs: (List<MidiInput>)->Unit, private val receive: (Int,Int,Int,Long)->Unit) {
     private val manager=context.getSystemService(MidiManager::class.java)
     private val handler=Handler(Looper.getMainLooper())
-    private data class Open(val device: MidiDevice, val ports: List<MidiOutputPort>)
+    private data class Open(val device: MidiDevice, val ports: List<Pair<Int,MidiOutputPort>>)
     private val open=mutableMapOf<Int,Open>();private val pending=mutableSetOf<Int>()
     private val ble=linkedMapOf<String,BleMidiDevice>()
     private var scanning=false;private var closed=false
     @Volatile var channel=-1
+    @Volatile var selected="all"
     private val callback=object:MidiManager.DeviceCallback() {
         override fun onDeviceAdded(info: MidiDeviceInfo) { connect(info) }
-        override fun onDeviceRemoved(info: MidiDeviceInfo) { pending.remove(info.id);open.remove(info.id)?.let { it.ports.forEach { p -> p.close() };it.device.close();NativeAudio.panic() };report() }
+        override fun onDeviceRemoved(info: MidiDeviceInfo) { pending.remove(info.id);open.remove(info.id)?.let { it.ports.forEach { p -> p.second.close() };it.device.close();NativeAudio.panic() };report() }
     }
     init { manager?.registerDeviceCallback(callback,handler);manager?.devices?.forEach(::connect);report() }
     private fun connect(info: MidiDeviceInfo) {
@@ -41,21 +43,23 @@ class MidiController(private val context: Context, private val status: (String)-
     }
     private fun attach(device: MidiDevice) {
         val ports=(0 until device.info.outputPortCount).mapNotNull { index -> device.openOutputPort(index)?.also { port ->
+            var packetTime=0L
+            val source="${device.info.id}:$index"
             val decoder=MidiByteDecoder { s,a,b ->
+                if(selected!="all" && selected!=source)return@MidiByteDecoder
                 val ch=s and 15;if(channel>=0 && channel!=ch)return@MidiByteDecoder
-                when(s and 0xf0) {
-                    0x90 -> if(b==0)NativeAudio.noteOff(a,ch) else NativeAudio.noteOn(a,b,ch)
-                    0x80 -> NativeAudio.noteOff(a,ch)
-                    0xb0 -> NativeAudio.cc(a,b,ch)
-                    0xe0 -> NativeAudio.event(3,ch,0,0,((b*128+a)-8192)/8192f*2)
-                }
+                receive(s,a,b,packetTime)
             }
-            port.connect(object:MidiReceiver() { override fun onSend(msg: ByteArray, offset: Int, count: Int, timestamp: Long) { decoder.feed(msg,offset,count) } })
-        } }
-        open.remove(device.info.id)?.let { it.ports.forEach { p->p.close() };it.device.close() }
+            port.connect(object:MidiReceiver() { override fun onSend(msg: ByteArray, offset: Int, count: Int, timestamp: Long) { packetTime=timestamp;decoder.feed(msg,offset,count) } })
+        }?.let { index to it } }
+        open.remove(device.info.id)?.let { it.ports.forEach { p->p.second.close() };it.device.close() }
         if(ports.isEmpty()){device.close();status("MIDI入力ポートがありません")}else{open[device.info.id]=Open(device,ports);report()}
     }
-    private fun report() { status(if(open.isEmpty()) "MIDI未接続" else open.values.joinToString(" · ") { it.device.info.properties.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI keyboard" }) }
+    private fun report() {
+        val available=open.values.flatMap { entry->entry.ports.map { (index,_) -> MidiInput("${entry.device.info.id}:$index", "${entry.device.info.properties.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI"} · Port ${index+1}") } }
+        if(selected !in listOf("all","none") && available.none { it.id==selected }) { selected="none";NativeAudio.panic() }
+        inputs(available)
+        status(if(open.isEmpty()) "MIDI未接続" else open.values.joinToString(" · ") { it.device.info.properties.getString(MidiDeviceInfo.PROPERTY_NAME) ?: "MIDI keyboard" }) }
     private val scanCallback=object:ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
             try { val d=result.device;ble[d.address]=BleMidiDevice(d.address,result.scanRecord?.deviceName ?: "Bluetooth MIDI");discovered(ble.values.toList()) } catch(e:SecurityException){status("Bluetooth権限がありません")}
@@ -78,5 +82,5 @@ class MidiController(private val context: Context, private val status: (String)-
     }
     private fun hasPermission()=if(Build.VERSION.SDK_INT>=31) context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)==PackageManager.PERMISSION_GRANTED && context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)==PackageManager.PERMISSION_GRANTED else context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED
     fun stopScan() { if(scanning){try{context.getSystemService(BluetoothManager::class.java)?.adapter?.bluetoothLeScanner?.stopScan(scanCallback)}catch(_:SecurityException){};scanning=false} }
-    fun close() { closed=true;stopScan();manager?.unregisterDeviceCallback(callback);handler.removeCallbacksAndMessages(null);open.values.forEach { it.ports.forEach { p->p.close() };it.device.close() };open.clear();NativeAudio.panic() }
+    fun close() { closed=true;stopScan();manager?.unregisterDeviceCallback(callback);handler.removeCallbacksAndMessages(null);open.values.forEach { it.ports.forEach { p->p.second.close() };it.device.close() };open.clear();NativeAudio.panic() }
 }
