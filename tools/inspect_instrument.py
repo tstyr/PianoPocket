@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-KNOWN = {'path','name','rootNote','loNote','hiNote','loVel','hiVel','volume','pan','globalVolume','groupVolume','globalPan','groupPan','tuning','groupTuning','globalTuning','attack','decay','sustain','release','ampVelTrack','pitchKeyTrack','trigger','start','end','loopStart','loopEnd','loopEnabled','loopDuringRelease','enabled','onLoCC64','onHiCC64','loCC64','hiCC64'}
+KNOWN = {'path','name','tags','rootNote','loNote','hiNote','loVel','hiVel','volume','pan','globalVolume','groupVolume','globalPan','groupPan','tuning','groupTuning','globalTuning','attack','decay','sustain','release','ampVelTrack','pitchKeyTrack','trigger','start','end','loopStart','loopEnd','loopEnabled','loopDuringRelease','enabled','onLoCC64','onHiCC64','loCC64','hiCC64'}
 def inspect(path):
     raw=path.read_bytes()
     if len(raw)>4*1024*1024 or b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
@@ -35,7 +35,12 @@ def inspect(path):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('instrument',type=Path);parser.add_argument('--output',type=Path,required=True);a=parser.parse_args()
     files=sorted(a.instrument.rglob('*.dspreset')) if a.instrument.is_dir() else [a.instrument]
+    files=[p for p in files if not any(part=='__MACOSX' or part.startswith('._') for part in p.parts)]
     if not files:parser.error('No .dspreset files found')
-    report={'inspected_files':len(files),'presets':[inspect(p) for p in files]}
+    presets=[]
+    for path in files:
+        try:presets.append(inspect(path))
+        except (ET.ParseError,ValueError,OSError) as error:presets.append({'preset':path.name,'status':'rejected','error':str(error)})
+    report={'inspected_files':len(files),'presets':presets}
     a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n');print(f'Wrote {a.output}: {len(files)} preset(s)')
 if __name__=='__main__':main()

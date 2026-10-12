@@ -39,11 +39,12 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                     when(tab) {
                         0 -> state.preset?.let { preset ->
                             Text("マイク / グループ",style=MaterialTheme.typography.titleMedium)
-                            preset.groups.forEachIndexed { i,name->Parameter(name,state.groups.getOrElse(i){1f},0f..2f,state.ready){model.group(i,it)} }
+                            if(preset.controls.none { c->c.bindings.any { it.type=="group" } })preset.groups.forEachIndexed { i,name->Parameter(name,state.groups.getOrElse(i){1f},0f..2f,state.ready && !state.busy){model.group(i,it)} }
                             if(preset.controls.isNotEmpty())Text("プリセットの対応コントロール",style=MaterialTheme.typography.titleMedium)
-                            preset.controls.forEachIndexed { i,c->Parameter(c.name,c.value,c.min..c.max,state.ready){model.control(i,it)} }
+                            preset.controls.forEachIndexed { i,c->Parameter(c.name,c.value,c.min..c.max,state.ready && !state.busy){model.control(i,it)} }
+                            preset.menus.forEachIndexed { i,menu->IrMenuControl(menu,state.ready && !state.busy) { model.impulse(i,it) } }
                             preset.effects.forEachIndexed { index,fx ->
-                                Row { Text("${index+1}. ${fx.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium);Switch(checked=fx.params[4]>=.5f,onCheckedChange={model.fx(index,4,if(it)1f else 0f)},enabled=state.ready) }
+                                Row { Text("${index+1}. ${fx.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium);Switch(checked=fx.params[4]>=.5f,onCheckedChange={model.fx(index,4,if(it)1f else 0f)},enabled=state.ready && !state.busy) }
                                 val parameters=when(fx.type) {
                                     0 -> listOf(Triple(0,"Wet Level",0f..1f),Triple(1,"Room Size",0f..1f),Triple(2,"Damping",0f..1f))
                                     1 -> listOf(Triple(0,"Wet Level",0f..1f),Triple(1,"Delay Time (s)",0f..20f),Triple(2,"Feedback",0f..0.995f),Triple(3,"Stereo Offset (s)",-10f..10f))
@@ -52,9 +53,9 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                                     7 -> listOf(Triple(0,"IR Mix · 256 frame処理遅延",0f..1f))
                                     else -> listOf(Triple(1,"Frequency (Hz)",20f..22000f),Triple(2,"Q",.01f..5f))+(if(fx.type>=8 && fx.type!=9)listOf(Triple(3,"Gain",.01f..4f))else emptyList())
                                 }
-                                parameters.forEach { (slot,name,range)->Parameter(name,fx.params[slot],range,state.ready){model.fx(index,slot,it)} }
+                                parameters.forEach { (slot,name,range)->Parameter(name,fx.params[slot],range,state.ready && !state.busy){model.fx(index,slot,it)} }
                             }
-                            Parameter("Master",state.volume,0f..1f,state.ready,model::volume)
+                            Parameter("Output",state.volume,0f..1f,state.ready && !state.busy,model::volume)
                             Text("ボイス ${state.stats[6].toInt()}/${state.voices} · DSP ${"%.1f".format(state.stats[5])}% · キャッシュミス ${state.stats[8].toLong()}",style=MaterialTheme.typography.bodySmall)
                             if(preset.warnings.isNotEmpty()) { Text("互換性レポート",style=MaterialTheme.typography.titleMedium);preset.warnings.forEach { Text("• $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary) } }
                         } ?: Text("ライブラリから音源を選択してください。")
@@ -90,7 +91,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            Text("PianoPocket 0.1.0 alpha · Dark theme\nHelsinki v1.6 / Galaxy S26は実ファイル・実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.2.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -106,6 +107,10 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit) {
 @Composable private fun BufferControl(state: PocketState,model: PocketViewModel) {
     var pending by remember(state.bursts) { mutableFloatStateOf(state.bursts.toFloat()) }
     Column { Text("バッファ (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
+}
+@Composable private fun IrMenuControl(menu: dev.pianopocket.library.IrMenu,enabled: Boolean,onSelect:(Int)->Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box { OutlinedButton(onClick={expanded=true},enabled=enabled){Text("${menu.name}: ${menu.options[menu.selected].name}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { menu.options.forEachIndexed { index,choice->DropdownMenuItem(text={Text(choice.name)},onClick={expanded=false;onSelect(index)}) } } }
 }
 @Composable private fun DeviceMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };Box { OutlinedButton(onClick={expanded=true},enabled=!state.busy){Text(state.outputs.firstOrNull { it.id==state.device }?.label ?: "システム既定")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { state.outputs.forEach { d->DropdownMenuItem(text={Text(d.label)},onClick={expanded=false;model.audio(device=d.id)}) } } } }
 @Composable private fun ChannelMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };Box { OutlinedButton(onClick={expanded=true}){Text(if(state.channel<0)"全チャンネル" else "Channel ${state.channel+1}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { (-1..15).forEach { ch->DropdownMenuItem(text={Text(if(ch<0)"全チャンネル" else "Channel ${ch+1}")},onClick={expanded=false;model.channel(ch)}) } } } }

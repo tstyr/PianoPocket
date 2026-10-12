@@ -26,6 +26,8 @@
 
 Audio callbackではnew/delete、vector resizing、XML、file I/O、JNI、UI更新、ログ、mutex、worker waitを実行しない。コールバック時間測定はsteady_clock、カウンターはatomic。ARM64のatomicはlock-freeな型を使用。
 
-Convolutionは独自のradix-2 FFT、256 frame uniform partitions、512 point FFT。IRスペクトル・履歴・overlap bufferは事前確保。最大IRでもCPU負荷が大きいため、設定のDSP予算率で評価する。ドライ経路は追加遅延を補償しないので、mix中の位相関係は純正と一致しない場合がある。
+Convolutionは独自のradix-2 FFT。IRの最初2048 framesを256 frame partition / 512 point FFTで処理し、後期部分を2048 frame partition / 4096 point FFTで処理。後期出力を256 frames遅らせて早期成分に合わせ、全体の追加遅延は256 frames。ゼロ入力の履歴はFFT／積和を省略し、dry mix=0時も安定した負荷で処理する。IRスペクトル・履歴・overlap bufferは事前確保。最大IRでもCPU負荷が大きいため、設定のDSP予算率で評価する。ドライ経路は追加遅延を補償しないので、mix中の位相関係は純正と一致しない場合がある。
 
 グローバルDSPは無発音時も実行してtailを保持。Reverb、Delay、Chorusは独自の近似実装。BiquadはRBJ型の式。パラメータとバイパスを15msでスムージングする。XML順序は保持するが、グループDSPと高度な制御は未対応で警告する。
+
+voice-scope MIDI velocityのXML tableはKotlin parserで128値のカーブに準備し、native Instrumentのimmutable groupVelocityへ転送。Note On時のvoice gainだけに乗算し、他の音のvelocityやtagのマイク音量を変更しない。CC64トリガーはloNote / hiNoteから独立したlookupへ登録。IR menu変更は新DSPをworkerで準備してからstreamを短時間停止し、effectを交換して再開する。切替時に旧IRのtailは引き継がない。

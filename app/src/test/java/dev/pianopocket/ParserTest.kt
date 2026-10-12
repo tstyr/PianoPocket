@@ -18,7 +18,7 @@ class ParserTest {
         val p=parse("""<DecentSampler><ui><tab><control label="Wet" value="0.3"><binding type="effect" level="instrument" effectIndex="1" parameter="FX_REVERB_WET_LEVEL" translation="linear" /></control></tab></ui><groups><group><sample path="a.wav" rootNote="60" /></group></groups><effects><effect type="gain" level="0.5" /><effect type="reverb" roomSize="0.8" damping="0.2" wetLevel="0.4" enabled="false" /></effects></DecentSampler>""")
         assertEquals(listOf(6,0),p.effects.map { it.type });assertEquals(.8f,p.effects[1].params[1]);assertEquals(0f,p.effects[1].params[4]);assertEquals(1,p.controls.single().bindings.single().index)
     }
-    @Test fun unknownFeaturesWarn() { val p=parse("""<DecentSampler><groups><group seqMode="round_robin"><sample path="a.wav" rootNote="60" mystery="x" /></group></groups><modulators /></DecentSampler>""");assertTrue(p.warnings.any { "mystery" in it });assertTrue(p.warnings.any { "modulators" in it }) }
+    @Test fun unknownFeaturesWarn() { val p=parse("""<DecentSampler><groups><group seqMode="round_robin"><sample path="a.wav" rootNote="60" mystery="x" /></group></groups><modulators><lfo /></modulators></DecentSampler>""");assertTrue(p.warnings.any { "mystery" in it });assertTrue(p.warnings.any { "lfo" in it }) }
     @Test(expected=IllegalArgumentException::class) fun traversalRejected(){DspresetParser.safeRelative("Samples/../../secret.wav")}
     @Test(expected=IllegalArgumentException::class) fun absoluteRejected(){DspresetParser.safeRelative("C:\\samples\\a.wav")}
     @Test(expected=IllegalStateException::class) fun doctypeRejected(){parse("""<!DOCTYPE DecentSampler [<!ENTITY e SYSTEM "file:///etc/passwd">]><DecentSampler><groups /></DecentSampler>""")}

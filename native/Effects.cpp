@@ -3,24 +3,35 @@
 #include <stdexcept>
 namespace pocket {
 constexpr float Pi=3.14159265358979323846f;
-void Convolver::fft(std::array<Complex,N>& x,bool inv) noexcept {
+template<size_t Block> void PartitionedConvolver<Block>::fft(std::array<Complex,N>& x,bool inv) noexcept {
     for(size_t i=1,j=0;i<N;++i){size_t bit=N>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j)std::swap(x[i],x[j]);}
     for(size_t len=2;len<=N;len<<=1){float angle=(inv?2:-2)*Pi/len;Complex step(cosf(angle),sinf(angle));for(size_t i=0;i<N;i+=len){Complex w(1,0);for(size_t j=0;j<len/2;++j){auto u=x[i+j],v=x[i+j+len/2]*w;x[i+j]=u+v;x[i+j+len/2]=u-v;w*=step;}}}
     if(inv)for(auto& v:x)v/=float(N);
 }
-Convolver::Convolver(const std::vector<float>& ir){
-    if(ir.empty() || ir.size()/2>262144)throw std::runtime_error("IR must contain 1..262144 stereo frames");
+template<size_t Block> PartitionedConvolver<Block>::PartitionedConvolver(const std::vector<float>& ir){
     partitions=(ir.size()/2+Block-1)/Block;
-    for(int c=0;c<2;++c){kernels[c].resize(partitions);history[c].resize(partitions);for(size_t p=0;p<partitions;++p){auto& k=kernels[c][p];for(size_t j=0;j<Block && p*Block+j<ir.size()/2;++j)k[j]=ir[(p*Block+j)*2+c];fft(k,false);}}
+    for(int c=0;c<2;++c){kernels[c].resize(partitions);history[c].resize(partitions);active[c].resize(partitions);for(size_t p=0;p<partitions;++p){auto& k=kernels[c][p];for(size_t j=0;j<Block && p*Block+j<ir.size()/2;++j)k[j]=ir[(p*Block+j)*2+c];fft(k,false);}}
 }
-void Convolver::process(float& l,float& r) noexcept {
+template<size_t Block> void PartitionedConvolver<Block>::process(float& l,float& r) noexcept {
     input[0][position]=l;input[1][position]=r;l=output[0][position];r=output[1][position];
     if(++position<Block)return;
     position=0;
-    for(int c=0;c<2;++c){scratch.fill({});for(size_t i=0;i<Block;++i)scratch[i]=input[c][i];fft(scratch,false);history[c][ring]=scratch;sum.fill({});
-        for(size_t p=0;p<partitions;++p){auto& h=history[c][(ring+partitions-p)%partitions];auto& k=kernels[c][p];for(size_t i=0;i<N;++i)sum[i]+=h[i]*k[i];}
-        fft(sum,true);for(size_t i=0;i<Block;++i){output[c][i]=sum[i].real()+overlap[c][i];overlap[c][i]=sum[i+Block].real();}
+    for(int c=0;c<2;++c){scratch.fill({});bool nonzero=false;for(size_t i=0;i<Block;++i){scratch[i]=input[c][i];nonzero=nonzero || std::abs(input[c][i])>1e-12f;}
+        active[c][ring]=nonzero;if(nonzero)fft(scratch,false);history[c][ring]=scratch;sum.fill({});bool contributions=false;
+        for(size_t p=0;p<partitions;++p){auto slot=(ring+partitions-p)%partitions;if(!active[c][slot])continue;contributions=true;auto& h=history[c][slot];auto& k=kernels[c][p];for(size_t i=0;i<N;++i)sum[i]+=h[i]*k[i];}
+        if(contributions)fft(sum,true);
+        for(size_t i=0;i<Block;++i){output[c][i]=sum[i].real()+overlap[c][i];overlap[c][i]=sum[i+Block].real();}
     }ring=(ring+1)%partitions;
+}
+Convolver::Convolver(const std::vector<float>& ir){
+    if(ir.empty() || ir.size()/2>1048576)throw std::runtime_error("IR must contain 1..1048576 stereo frames");
+    constexpr size_t split=2048*2;auto earlyEnd=ir.begin()+std::min(split,ir.size());
+    early=std::make_unique<PartitionedConvolver<256>>(std::vector<float>(ir.begin(),earlyEnd));
+    if(ir.size()>split)late=std::make_unique<PartitionedConvolver<2048>>(std::vector<float>(earlyEnd,ir.end()));
+}
+void Convolver::process(float& l,float& r) noexcept {
+    float lateL=l,lateR=r;early->process(l,r);
+    if(late){late->process(lateL,lateR);l+=lateDelay[0][position];r+=lateDelay[1][position];lateDelay[0][position]=lateL;lateDelay[1][position]=lateR;position=(position+1)%256;}
 }
 Effect::Effect(const EffectSpec& s,float sr):type(s.type),rate(sr),smoothing(1-std::exp(-1.f/(sr*.015f))),current(s.p),target(s.p){
     if(type==EffectType::Delay)delay.resize(size_t(rate*25+4)*2);
@@ -58,7 +69,7 @@ void Effect::process(float& l,float& r) noexcept {
     for(int i=0;i<5;++i)current[i]+=(target[i]-current[i])*smoothing;
     float dryL=l,dryR=r,wetL=l,wetR=r;
     if(type==EffectType::Gain){wetL*=current[1];wetR*=current[1];}
-    else if(type==EffectType::Convolution){convolution->process(wetL,wetR);wetL=dryL*(1-current[0])+wetL*current[0];wetR=dryR*(1-current[0])+wetR*current[0];}
+    else if(type==EffectType::Convolution){if(current[0]<1e-6f && target[0]==0)wetL=wetR=0;convolution->process(wetL,wetR);wetL=dryL*(1-current[0])+wetL*current[0];wetR=dryR*(1-current[0])+wetR*current[0];}
     else if(type==EffectType::Reverb){
         wetL=wetR=0;float feed=(dryL+dryR)*.015f,feedback=.7f+current[1]*.27f,damp=current[2]*.9f;
         for(int i=0;i<8;++i){auto& buf=comb[i];auto& pos=combPos[i];auto x=buf[pos];damped[i]=x*(1-damp)+damped[i]*damp;buf[pos]=feed+damped[i]*feedback;pos=(pos+1)%buf.size();(i<4?wetL:wetR)+=x;}
@@ -77,4 +88,5 @@ void Effect::process(float& l,float& r) noexcept {
 }
 void Effects::prepare(const std::vector<EffectSpec>& specs,float rate){chain.clear();for(auto& s:specs)chain.push_back(std::make_unique<Effect>(s,rate));}
 void Effects::parameter(int effect,int slot,float value) noexcept {if(effect>=0 && size_t(effect)<chain.size())chain[effect]->parameter(slot,value);}
+void Effects::replace(int index,std::unique_ptr<Effect> effect){if(index<0 || size_t(index)>=chain.size())throw std::runtime_error("Invalid effect index");chain[index]=std::move(effect);}
 }

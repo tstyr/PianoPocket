@@ -15,13 +15,18 @@ struct Region {
     bool enabled=true;
 };
 struct Instrument {
+    std::array<std::array<float,128>,256> velocityGains;
     std::vector<Sample> samples;
     std::vector<Region> regions;
     std::array<std::array<std::vector<unsigned>,128>,4> lookup;
     std::unique_ptr<SampleCache> cache;
     size_t residentBytes=0;
+    Instrument(){for(auto& curve:velocityGains)curve.fill(1);}
     void prepare(){
-        for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);}
+        for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];
+            if(r.trigger==Trigger::PedalDown || r.trigger==Trigger::PedalUp)lookup[int(r.trigger)][60].push_back(i);
+            else for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);
+        }
         cache=std::make_unique<SampleCache>(samples);
         residentBytes=SampleCache::PageCount*(SampleCache::PageFrames+1)*2*sizeof(float);
         for(auto& s:samples)residentBytes+=s.head.size()*sizeof(float);

@@ -29,6 +29,7 @@ class SamplerEngine {
     std::mutex producer; // producers ONLY; never taken by render
     std::atomic<bool> panic{false};
     float rate=48000,volume=.7f,targetVolume=.7f;
+    float instrumentVolume=1,targetInstrumentVolume=1;
     int limit=80;
     uint64_t nextId=0;
     void dispatch(const Event&) noexcept;
@@ -40,6 +41,7 @@ public:
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
     bool send(Event event); // outside callback; multiple producers serialized
     void render(float* stereo,int frames) noexcept;
+    void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}
     uint64_t misses() const {return instrument?instrument->cache->misses.load():0;}
     uint64_t errors() const {return instrument?instrument->cache->readErrors.load():0;}
     size_t memory() const {return instrument?instrument->residentBytes:0;}

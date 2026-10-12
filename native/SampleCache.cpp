@@ -6,6 +6,7 @@ SampleCache::SampleCache(const std::vector<Sample>& s):samples(s),pages(new Page
 SampleCache::~SampleCache(){running.store(false);worker.join();}
 void SampleCache::prefetch(unsigned s,uint64_t f) noexcept {
     if(s>=samples.size() || f>=samples[s].frames) return;
+    if(f<samples[s].head.size()/2-1)return;
     requests.push((uint64_t(s)<<32)|(f/PageFrames));
 }
 void SampleCache::view(unsigned s,uint64_t f,View& out) noexcept {

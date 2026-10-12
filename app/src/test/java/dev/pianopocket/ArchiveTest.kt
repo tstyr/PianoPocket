@@ -1,5 +1,6 @@
 package dev.pianopocket
 import dev.pianopocket.library.SafeArchive
+import dev.pianopocket.library.LibraryFilePolicy
 import org.junit.Test
 import org.junit.Assert.*
 import java.io.ByteArrayOutputStream
@@ -8,6 +9,7 @@ import java.util.zip.ZipOutputStream
 import java.util.zip.ZipEntry
 
 class ArchiveTest {
+    @Test fun macosSidecarsAreNotInstruments(){assertTrue(LibraryFilePolicy.isPreset("Piano.dspreset"));assertFalse(LibraryFilePolicy.isPreset("__MACOSX/._Piano.dspreset"));assertFalse(LibraryFilePolicy.isPreset("Nested/._Piano.dspreset"))}
     private fun archive(vararg entries: Pair<String,ByteArray>): ByteArray {
         val out=ByteArrayOutputStream();ZipOutputStream(out).use { zip->entries.forEach { (name,data)->zip.putNextEntry(ZipEntry(name));zip.write(data);zip.closeEntry() } };return out.toByteArray()
     }

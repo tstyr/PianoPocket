@@ -4,18 +4,29 @@
 #include <complex>
 #include <memory>
 #include <cmath>
+#include <cstdint>
 namespace pocket {
 enum class EffectType:int {Reverb,Delay,Chorus,Lowpass,Highpass,Bandpass,Gain,Convolution,Peak,Notch,LowShelf,HighShelf};
 // Public parameter slots: wet/mix, room/time/depth/frequency/gain, damping/feedback/rate/Q, stereoOffset/EQ gain, enabled.
 struct EffectSpec {EffectType type=EffectType::Reverb;std::array<float,5> p{0,.7f,.3f,0,1};std::vector<float> ir;};
-class Convolver {
-    static constexpr size_t Block=256,N=512;
+template<size_t Block> class PartitionedConvolver {
+    static constexpr size_t N=Block*2;
     using Complex=std::complex<float>;
     std::vector<std::array<Complex,N>> kernels[2],history[2];
+    std::vector<uint8_t> active[2];
     std::array<std::array<float,Block>,2> input{},output{},overlap{};
     std::array<Complex,N> scratch{},sum{};
     size_t partitions=0,position=0,ring=0;
     static void fft(std::array<Complex,N>& x,bool inverse) noexcept;
+public:
+    explicit PartitionedConvolver(const std::vector<float>& stereoIr);
+    void process(float& left,float& right) noexcept;
+};
+class Convolver {
+    std::unique_ptr<PartitionedConvolver<256>> early;
+    std::unique_ptr<PartitionedConvolver<2048>> late;
+    std::array<std::array<float,256>,2> lateDelay{};
+    size_t position=0;
 public:
     explicit Convolver(const std::vector<float>& stereoIr);
     void process(float& left,float& right) noexcept;
@@ -47,6 +58,7 @@ class Effects {
 public:
     void prepare(const std::vector<EffectSpec>& specs,float rate);
     void parameter(int effect,int slot,float value) noexcept;
+    void replace(int index,std::unique_ptr<Effect> effect);
     void process(float& l,float& r) noexcept {for(auto& fx:chain)fx->process(l,r);}
 };
 }

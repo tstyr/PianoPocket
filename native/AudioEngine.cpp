@@ -28,6 +28,10 @@ oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream*,void* outp
     float used=std::chrono::duration<float>(std::chrono::steady_clock::now()-begin).count();
     load.store(used*sampleRate()/frames,std::memory_order_relaxed);return oboe::DataCallbackResult::Continue;
 }
+void AudioEngine::replaceEffect(int index,std::unique_ptr<Effect> effect){
+    stop();sampler.replaceEffect(index,std::move(effect));
+    if(!start(device,bursts))throw std::runtime_error("Audio restart failed after IR change");
+}
 std::array<double,12> AudioEngine::stats(){
     double latency=-1;int xruns=-1,buffer=0,burst=0,state=0,sharing=0;
     if(stream){auto l=stream->calculateLatencyMillis();if(l)latency=l.value();auto x=stream->getXRunCount();if(x)xruns=x.value();buffer=stream->getBufferSizeInFrames();burst=stream->getFramesPerBurst();state=int(stream->getState());sharing=int(stream->getSharingMode());}

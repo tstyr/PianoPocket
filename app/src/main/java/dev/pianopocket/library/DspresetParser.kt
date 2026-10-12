@@ -9,13 +9,15 @@ data class Region(val path: String, val ints: IntArray, val floats: FloatArray)
 data class Effect(val type: Int, val name: String, val params: FloatArray, val ir: String = "", val gainDecibels: Boolean = false)
 data class Binding(val type: String, val index: Int, val slot: Int, val outMin: Float, val outMax: Float, val decibels: Boolean = false)
 data class Control(val name: String, val min: Float, val max: Float, var value: Float, val bindings: List<Binding>)
-data class Preset(val name: String, val regions: List<Region>, val groups: List<String>, val effects: List<Effect>, val controls: List<Control>, val warnings: List<String>, val groupVolumes: List<Float>)
+data class IrChoice(val name: String, val effectIndex: Int, val path: String)
+data class IrMenu(val name: String, val options: List<IrChoice>, val selected: Int)
+data class Preset(val name: String, val regions: List<Region>, val groups: List<String>, val effects: List<Effect>, val controls: List<Control>, val warnings: List<String>, val groupVolumes: List<Float>, val velocityCurves: Map<Int,FloatArray> = emptyMap(), val menus: List<IrMenu> = emptyList(), val voiceLimit: Int? = null)
 
 /** Portable XML mapping parser. Rendering never invokes this class. */
 class DspresetParser {
     private data class Node(val name: String, val a: Map<String, String>, val children: MutableList<Node> = mutableListOf())
     private val warnings = linkedSetOf<String>()
-    private val mappingAttrs = setOf("path", "name", "rootNote", "loNote", "hiNote", "loVel", "hiVel", "volume", "pan", "globalVolume", "groupVolume", "globalPan", "groupPan", "tuning", "groupTuning", "globalTuning", "attack", "decay", "sustain", "release", "ampVelTrack", "pitchKeyTrack", "trigger", "start", "end", "loopStart", "loopEnd", "loopEnabled", "loopDuringRelease", "enabled", "onLoCC64", "onHiCC64", "loCC64", "hiCC64")
+    private val mappingAttrs = setOf("path", "name", "tags", "rootNote", "loNote", "hiNote", "loVel", "hiVel", "volume", "pan", "globalVolume", "groupVolume", "globalPan", "groupPan", "tuning", "groupTuning", "globalTuning", "attack", "decay", "sustain", "release", "ampVelTrack", "pitchKeyTrack", "trigger", "start", "end", "loopStart", "loopEnd", "loopEnabled", "loopDuringRelease", "enabled", "onLoCC64", "onHiCC64", "loCC64", "hiCC64")
     fun parse(input: InputStream, fallbackName: String): Preset {
         warnings.clear()
         val parser = XmlPullParserFactory.newInstance().newPullParser()
@@ -42,6 +44,23 @@ class DspresetParser {
         val regions = mutableListOf<Region>()
         val labels = groupNodes.mapIndexed { i, n -> n.a["name"] ?: "Group ${i + 1}" }
         val groupVolumes = groupNodes.map { gain(it.a["groupVolume"] ?: it.a["volume"] ?: "1") }
+        val tags=groupNodes.map { ((groupsNode.a["tags"] ?: "")+","+(it.a["tags"] ?: "")).split(',').map(String::trim).filter(String::isNotEmpty).toSet() }
+        val velocityCurves=mutableMapOf<Int,FloatArray>()
+        doc.children.filter { it.name=="modulators" }.flatMap { it.children }.forEach { mod ->
+            if(mod.name!="midiVelocity" || mod.a["scope"]!="voice" || number(mod.a["modAmount"],1f)!=1f || mod.a["enabled"]=="false") { warnings+="Unsupported modulator: <${mod.name}> ${mod.a}";return@forEach }
+            checkAttrs(mod,setOf("scope","modAmount","enabled"))
+            mod.children.forEach { binding ->
+                val a=binding.a;val group=(a["groupIndex"] ?: a["position"])?.toIntOrNull()
+                if(binding.name!="binding" || a["type"]!="amp" || a["level"]!="group" || a["parameter"]!="AMP_VOLUME" || a["modBehavior"]!="multiply" || a["translation"]!="table" || group==null || group !in groupNodes.indices) { warnings+="Unsupported velocity binding: $a";return@forEach }
+                checkAttrs(binding,setOf("type","level","groupIndex","position","parameter","modBehavior","translation","translationTable"))
+                val points=(a["translationTable"] ?: error("Missing velocity table")).split(';').map { pair ->
+                    val values=pair.split(',');require(values.size==2) { "Invalid velocity table" };number(values[0],0f) to number(values[1],0f)
+                }
+                require(points.size in 2..256 && points.zipWithNext().all { it.first.first<it.second.first } && points.all { it.second in 0f..8f }) { "Invalid velocity table range/order" }
+                val curve=velocityCurves.getOrPut(group){FloatArray(128){1f}}
+                for(v in 0..127){val x=v/127f;val upper=points.indexOfFirst { it.first>=x };val y=when { upper==0 -> points.first().second;upper<0 -> points.last().second;else -> {val lo=points[upper-1];val hi=points[upper];lo.second+(x-lo.first)/(hi.first-lo.first)*(hi.second-lo.second)} };curve[v]*=y}
+            }
+        }
         val globalGain = gain(groupsNode.a["globalVolume"] ?: groupsNode.a["volume"] ?: "1")
         checkAttrs(groupsNode, mappingAttrs)
         groupNodes.forEachIndexed { index, group ->
@@ -51,13 +70,14 @@ class DspresetParser {
                 checkAttrs(sample, mappingAttrs)
                 val a = groupsNode.a + group.a + sample.a
                 fun num(key: String, default: Float) = number(a[key], default)
-                fun integer(key: String, default: Int) = a[key]?.toIntOrNull() ?: if (a.containsKey(key)) error("Invalid integer $key") else default
+                fun integer(key: String, default: Int) = a[key]?.let { integerNumber(it,key) } ?: default
                 fun note(key: String, default: Int) = a[key]?.let(::noteNumber) ?: default
                 val trigger = when (a["trigger"] ?: "attack") { "attack" -> 0; "release" -> 1; else -> { warnings += "Unsupported trigger '${a["trigger"]}': sample ${sample.a["path"]} skipped"; return@forEach } }
                 val pedalLow = a["onLoCC64"]?.toIntOrNull(); val pedalHigh = a["onHiCC64"]?.toIntOrNull()
                 val resolvedTrigger = if (pedalLow != null && pedalHigh != null) {
                     if (pedalLow >= 64 && pedalHigh == 127) 2 else if (pedalLow == 0 && pedalHigh <= 63) 3 else { warnings += "CC64 trigger range $pedalLow..$pedalHigh unsupported; region skipped"; return@forEach }
                 } else trigger
+                if(resolvedTrigger>=2)warnings+="CC64 sample triggers are debounced at the 64 boundary; continuous pedal messages do not repeatedly retrigger noise."
                 val low = note("loNote", 0); val high = note("hiNote", 127); val rootNote = note("rootNote", 60)
                 val loVel = integer("loVel", 0); val hiVel = integer("hiVel", 127)
                 require(low in 0..127 && high in low..127 && rootNote in 0..127 && loVel in 0..127 && hiVel in loVel..127) { "Invalid zone range" }
@@ -82,25 +102,55 @@ class DspresetParser {
         val effects = effectsNode?.children?.filter { it.name == "effect" }?.map { parseEffect(it) }.orEmpty()
         require(effects.size <= 8) { "Maximum 8 global effects" }
         val controls = mutableListOf<Control>()
+        val menus=mutableListOf<IrMenu>()
         fun scan(n: Node) {
             if (n.name in setOf("control", "labeled-knob")) {
                 val min = number(n.a["minValue"], 0f); val max = number(n.a["maxValue"], 1f)
-                val bs = n.children.filter { it.name == "binding" }.mapNotNull { parseBinding(it, effects, groupNodes.size) }
+                val bs = n.children.filter { it.name == "binding" }.flatMap { binding ->
+                    if(binding.a["type"]=="amp" && binding.a["level"]=="tag" && binding.a["parameter"]=="AMP_VOLUME") {
+                        val target=binding.a["identifier"];val matches=tags.indices.filter { target in tags[it] }
+                        if(matches.isEmpty())warnings+="Binding tag not found: $target"
+                        matches.mapNotNull { i->parseBinding(Node("binding",binding.a-"identifier"+mapOf("level" to "group","groupIndex" to "$i")),effects,groupNodes.size) }
+                    }else listOfNotNull(parseBinding(binding,effects,groupNodes.size))
+                }
                 if (bs.isNotEmpty() && max > min) controls += Control(n.a["label"] ?: n.a["name"] ?: "Control ${controls.size+1}", min, max, number(n.a["value"], min).coerceIn(min,max), bs)
+            }
+            if(n.name=="menu") {
+                val options=n.children.filter { it.name=="option" }.mapNotNull { option ->
+                    val bindings=option.children.filter { it.name=="binding" }
+                    val b=bindings.singleOrNull();val a=b?.a.orEmpty();val index=(a["effectIndex"] ?: a["position"])?.toIntOrNull() ?: -1
+                    if(b==null || a["type"]!="effect" || a["level"]!="instrument" || a["parameter"]!="FX_IR_FILE" || a["translation"]!="fixed_value" || index !in effects.indices || effects[index].type!=7) { warnings+="Unsupported menu option: ${option.a}";null }
+                    else {val path=a["translationValue"] ?: error("Missing IR menu path");safeRelative(path);IrChoice(option.a["name"] ?: path,index,path)}
+                }
+                if(options.size==n.children.count { it.name=="option" } && options.isNotEmpty()) {
+                    val selection=(n.a["value"]?.let { integerNumber(it,"menu value") } ?: 1)-1
+                    require(selection in options.indices) { "IR menu selection out of range" }
+                    menus+=IrMenu(n.a["label"] ?: n.a["tooltip"] ?: "Impulse response",options,selection)
+                }
             }
             n.children.forEach(::scan)
         }
         doc.children.filter { it.name == "ui" }.forEach(::scan)
-        val structural = setOf("DecentSampler", "groups", "group", "sample", "effects", "effect", "ui", "tab", "control", "labeled-knob", "binding")
+        val structural = setOf("DecentSampler", "groups", "group", "sample", "effects", "effect", "ui", "tab", "control", "labeled-knob", "binding","menu","option","tags","tag","modulators","midiVelocity")
         fun unknown(n: Node) { if (n.name !in structural) warnings += "Unsupported XML element <${n.name}>"; n.children.forEach(::unknown) }
         unknown(doc)
         checkAttrs(doc, setOf("minVersion", "pluginVersion", "name"))
         require(regions.isNotEmpty()) { "No supported sample regions" }
-        return Preset(doc.a["name"] ?: fallbackName, regions, labels, effects, controls, warnings.toList(), groupVolumes)
+        val polyphony=doc.children.filter { it.name=="ui" }.flatMap { it.children }.filter { it.name=="tags" }.flatMap { it.children }.mapNotNull { tag ->
+            val value=tag.a["polyphony"]?.let { integerNumber(it,"polyphony") }
+            if(value!=null && tag.a["name"] in tags.flatten().toSet())value else null
+        }.minOrNull()
+        if(polyphony!=null)warnings+="XML tag polyphony=$polyphony is applied as a sample-voice cap; tag-specific voice pools are not reproduced."
+        return Preset(doc.a["name"] ?: fallbackName, regions, labels, effects, controls, warnings.toList(), groupVolumes,velocityCurves,menus,polyphony)
     }
     private fun checkAttrs(n: Node, known: Set<String>) { n.a.keys.filter { it !in known }.forEach { warnings += "Unsupported ${n.name} attribute '$it' = '${n.a[it]}'" } }
     private fun number(s: String?, default: Float): Float = if (s == null) default else s.toFloatOrNull()?.takeIf { it.isFinite() } ?: error("Invalid number: $s")
     private fun gain(s: String): Float = if (s.endsWith("dB", true)) 10f.pow(number(s.dropLast(2), 0f) / 20f).coerceIn(0f, 8f) else number(s, 1f).coerceIn(0f, 8f)
+    private fun integerNumber(value: String,key: String):Int {
+        val number=value.toDoubleOrNull() ?: error("Invalid integer $key")
+        require(number.isFinite() && number>=Int.MIN_VALUE && number<=Int.MAX_VALUE && number==kotlin.math.floor(number)) { "Non-integral/out-of-range $key" }
+        return number.toInt()
+    }
     private fun noteNumber(s: String): Int {
         s.toIntOrNull()?.let { return it }
         val m = Regex("([A-Ga-g])([#b]?)(-?\\d+)").matchEntire(s) ?: error("Invalid MIDI note: $s")
@@ -131,16 +181,17 @@ class DspresetParser {
     private fun parseBinding(n: Node, effects: List<Effect>, groups: Int): Binding? {
         val a=n.a; val translation=a["translation"] ?: "linear"
         val group=a["level"]=="group" && a["type"]=="amp"
+        val master=a["level"]=="instrument" && a["type"]=="amp" && a["parameter"]=="AMP_VOLUME"
         val index=(a[if(group)"groupIndex" else "effectIndex"] ?: a["position"])?.toIntOrNull() ?: 0
         val parameter=a["parameter"] ?: ""
         val slots=mapOf("FX_REVERB_WET_LEVEL" to 0,"FX_REVERB_ROOM_SIZE" to 1,"FX_REVERB_DAMPING" to 2,"FX_DELAY_WET_LEVEL" to 0,"FX_DELAY_TIME" to 1,"FX_DELAY_FEEDBACK" to 2,"FX_DELAY_STEREO_OFFSET" to 3,"FX_CHORUS_MIX" to 0,"FX_CHORUS_MOD_DEPTH" to 1,"FX_CHORUS_MOD_RATE" to 2,"FX_FILTER_FREQUENCY" to 1,"FX_FILTER_RESONANCE" to 2,"FX_FILTER_Q" to 2,"FX_FILTER_GAIN" to 3,"FX_GAIN" to 1,"FX_CONVOLUTION_MIX" to 0,"ENABLED" to 4)
         val official=mapOf("FX_MIX" to 0,"FX_WET_LEVEL" to 0,"FX_MOD_DEPTH" to 1,"FX_MOD_RATE" to 2,"FX_FEEDBACK" to 2,"FX_STEREO_OFFSET" to 3,"LEVEL" to 1)
-        val slot=if(group && parameter=="AMP_VOLUME")0 else (official+slots)[parameter]
-        if(translation!="linear" || a.containsKey("tags") || a.containsKey("translationTable") || slot==null || (group && index !in 0 until groups) || (!group && (a["type"]!="effect" || a["level"]!="instrument" || index !in effects.indices))) {
+        val slot=if((group || master) && parameter=="AMP_VOLUME")0 else (official+slots)[parameter]
+        if(translation!="linear" || a.containsKey("tags") || a.containsKey("translationTable") || slot==null || (group && index !in 0 until groups) || (!group && !master && (a["type"]!="effect" || a["level"]!="instrument" || index !in effects.indices))) {
             warnings += "Unsupported binding: $a";return null
         }
         checkAttrs(n,setOf("type","level","groupIndex","effectIndex","position","parameter","translation","translationOutputMin","translationOutputMax"))
-        return Binding(if(group)"group" else "effect",index,slot,number(a["translationOutputMin"],Float.NaN),number(a["translationOutputMax"],Float.NaN),!group && parameter=="FX_FILTER_GAIN" && effects[index].gainDecibels)
+        return Binding(if(group)"group" else if(master)"master" else "effect",if(master)0 else index,slot,number(a["translationOutputMin"],Float.NaN),number(a["translationOutputMax"],Float.NaN),!group && !master && parameter=="FX_FILTER_GAIN" && effects[index].gainDecibels)
     }
     companion object {
         fun safeRelative(path: String): String {

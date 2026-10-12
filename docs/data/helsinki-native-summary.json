@@ -1,0 +1,102 @@
+[
+  {
+    "preset": "Helsinki 1967 XF NOPEDAL.dspreset",
+    "exit": 0,
+    "metrics": {
+      "status": "pass",
+      "regions": 336,
+      "mappedSamples": 336,
+      "decodedWavs": 344,
+      "noteVelocityCases": 1320,
+      "maxObservedVoices": 6,
+      "residentBytes": 30413440,
+      "energy": 354879,
+      "readErrors": 0,
+      "cacheMissesOfflineTotal": 92,
+      "pacedStreamingSeconds": 3,
+      "pacedStreamingCacheMisses": 0,
+      "androidDeviceVerified": false
+    },
+    "error": ""
+  },
+  {
+    "preset": "Helsinki 1967 XF.dspreset",
+    "exit": 0,
+    "metrics": {
+      "status": "pass",
+      "regions": 338,
+      "mappedSamples": 338,
+      "decodedWavs": 344,
+      "noteVelocityCases": 1320,
+      "maxObservedVoices": 6,
+      "residentBytes": 30544528,
+      "energy": 354879,
+      "readErrors": 0,
+      "cacheMissesOfflineTotal": 436,
+      "pacedStreamingSeconds": 3,
+      "pacedStreamingCacheMisses": 0,
+      "androidDeviceVerified": false
+    },
+    "error": ""
+  },
+  {
+    "preset": "Helsinki1967 Multi Out.dspreset",
+    "exit": 0,
+    "metrics": {
+      "status": "pass",
+      "regions": 338,
+      "mappedSamples": 338,
+      "decodedWavs": 344,
+      "noteVelocityCases": 1320,
+      "maxObservedVoices": 3,
+      "residentBytes": 30544528,
+      "energy": 414504,
+      "readErrors": 0,
+      "cacheMissesOfflineTotal": 160,
+      "pacedStreamingSeconds": 3,
+      "pacedStreamingCacheMisses": 0,
+      "androidDeviceVerified": false
+    },
+    "error": ""
+  },
+  {
+    "preset": "Helsinki1967 NOPEDAL.dspreset",
+    "exit": 0,
+    "metrics": {
+      "status": "pass",
+      "regions": 336,
+      "mappedSamples": 336,
+      "decodedWavs": 344,
+      "noteVelocityCases": 1320,
+      "maxObservedVoices": 3,
+      "residentBytes": 30413440,
+      "energy": 414504,
+      "readErrors": 0,
+      "cacheMissesOfflineTotal": 99,
+      "pacedStreamingSeconds": 3,
+      "pacedStreamingCacheMisses": 0,
+      "androidDeviceVerified": false
+    },
+    "error": ""
+  },
+  {
+    "preset": "Helsinki1967.dspreset",
+    "exit": 0,
+    "metrics": {
+      "status": "pass",
+      "regions": 338,
+      "mappedSamples": 338,
+      "decodedWavs": 344,
+      "noteVelocityCases": 1320,
+      "maxObservedVoices": 3,
+      "residentBytes": 30544528,
+      "energy": 414504,
+      "readErrors": 0,
+      "cacheMissesOfflineTotal": 142,
+      "pacedStreamingSeconds": 3,
+      "pacedStreamingCacheMisses": 0,
+      "androidDeviceVerified": false
+    },
+    "error": ""
+  }
+]

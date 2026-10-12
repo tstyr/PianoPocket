@@ -1,13 +1,16 @@
-# PianoPocket 0.1.0-alpha — native sampler preview
+# PianoPocket 0.2.0-alpha — Helsinki v1.6 native compatibility
 
-ユーザー所有のDecent SamplerプリセットとWAVを、Androidのネイティブ音声エンジンで演奏する初期alphaです。
+ユーザー提供のHelsinki 1967 Pro Decent Sampler版v1.6を実際に解析し、通常版／XF版をネイティブエンジンでホスト検証しました。
 
-- Kotlin / Compose、ARM64、Android 16 target、Oboe低遅延経路。
-- ステレオWAV、velocity mapping、ADSR、sustain、release、マルチタッチ鍵盤、USB / BLE MIDI処理。
-- SAF / bounded ZIP import、永続ライブラリ、サンプル先頭preload＋非同期LRU streaming。
-- instrument effect chain: 近似Reverb / Delay / Chorus、Filter / EQ / Gain、分割FFT Convolution。
-- 独立したWindows VST調査・probe。Windows VST実行は未検証。
+- voice-scope velocity tableによるXF、タグ単位のマイクミキサー、Release / Pedal Noise、instrument Master。
+- CC64をkey rangeから独立させ、連続ペダルCCによるノイズ再発音を抑制。
+- 5種の純正IR選択、Convolution→+12dB Gain、初期Reverb Mix=0をXMLから反映。
+- 6秒IRを切り詰めず読込。256 / 2048 frame分割FFT、追加遅延256 frames。
+- macOS sidecarを音源として登録しない。Multi Out NOPEDALの配布XMLエラーを明示。
+- 344 WAV、5プリセット×1320発音ケース、5 IRの完全delta response、paced streaming、回帰・メモリ検査。
 
-**Helsinki v1.6の実配布ファイルとGalaxy S26実機は未検証。XF、純正IR設定、純正エフェクト音の完全再現を主張しません。** 未対応XMLは警告またはロードエラーとして表示します。
+**Galaxy S26 / Android 16の起動・タッチ・USB / BLE MIDI・レイテンシは実機未検証。純正プラグインとの音響的同一性は保証しません。** Multi Outはステレオ混合のみ、Windows VSTは独立した調査・実験手順までです。
 
-添付予定: デバッグ署名ARM64 APK、ソースアーカイブ、自作検証fixture、SHA-256一覧。Pianobook音源を含みません。テストの具体的な結果は [VALIDATION.md](VALIDATION.md) を参照。
+Pianobookのサンプル・IR・画像・実XMLはAPK／ソース／Releaseに含めません。利用者が正規に取得してインポートしてください。デバッグ署名ARM64 APK、ソースZIP、自作fixture、検証概要、SHA-256を添付します。
+
+詳細: [README](https://github.com/tstyr/PianoPocket#readme)、[実ファイル検証](https://github.com/tstyr/PianoPocket/blob/main/docs/HELSINKI.md)、[検証結果](https://github.com/tstyr/PianoPocket/blob/main/docs/VALIDATION.md)。

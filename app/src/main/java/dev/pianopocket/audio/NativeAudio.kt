@@ -7,7 +7,9 @@ object NativeAudio {
     external fun begin(memoryMiB: Int)
     external fun abort()
     external fun region(path: String, ints: IntArray, floats: FloatArray)
+    external fun velocityCurve(group: Int, curve: FloatArray)
     external fun effect(type: Int, params: FloatArray, ir: String)
+    external fun replaceImpulse(index: Int, path: String, params: FloatArray)
     external fun commit()
     external fun event(type: Int, channel: Int, a: Int, b: Int, value: Float)
     external fun stats(): DoubleArray

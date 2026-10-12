@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-alpha"
+        versionCode = 2
+        versionName = "0.2.0-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -30,4 +30,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
     testImplementation("net.sf.kxml:kxml2:2.3.0")
+}
+tasks.register<JavaExec>("inspectOwnedPresets") {
+    dependsOn("compileDebugUnitTestKotlin")
+    classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter { it.extension=="jar" }
+    mainClass.set("dev.pianopocket.tools.PresetProbeKt")
+    doFirst { args(project.property("instrumentDir").toString(),project.property("reportDir").toString());project.findProperty("ownedArchive")?.let { args(it.toString()) } }
 }

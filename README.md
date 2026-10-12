@@ -1,8 +1,8 @@
 # PianoPocket
 
-Android向けのオフライン・ネイティブサンプラー、**0.1.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
+Android向けのオフライン・ネイティブサンプラー、**0.2.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
 
-**Helsinki 1967 Pro v1.6の配布ファイルは未取得で、互換性は未検証です。Galaxy S26 / Android 16の実機も未接続です。** 本リリースはHelsinki対応完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
+**ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。Galaxy S26 / Android 16の実機は未接続です。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
 
 ## 使い方
 
@@ -24,25 +24,26 @@ Android向けのオフライン・ネイティブサンプラー、**0.1.0 alpha
 | サンプラー | キー・velocity範囲、rootNote、チューニング、線形補間、pitchKeyTrack、音量・パン、近似の線形ADSR、クリック抑制 |
 | 演奏 | Note On / Off、CC64、CC7、CC11、CC120 / 123 / 121、All Notes Off、±2半音Pitch Bend |
 | サステイン / リリース | チャンネル別、同音の重複押下、キー状態を音声ボイスと独立管理。`trigger="release"` 対応。releaseTriggerDecay未対応 |
+| velocity XF | 実XMLのmidiVelocity scope=voice・table・multiplyを128 MIDI velocityのカーブに事前変換。タグミキサーの音量とは独立 |
 | ペダルノイズ | `onLoCC64 / onHiCC64` の0..63側・64..127側を状態の変化時に発音。ハーフペダルや任意CCトリガーは未対応 |
 | ループ | 明示的loopStart / loopEnd、loopEnabled。リリース時にループを終了。WAV内蔵マーカー、ループクロスフェード未対応 |
-| 発音数 | 32〜128 sample voices、既定80。最小エンベロープ値／古いボイスからスティーリング。マイク・velocityレイヤーも1 voiceずつ消費 |
+| 発音数 | 32〜128 sample voices、既定80、Helsinki XMLのpolyphonyタグは70を初期上限に適用（tag個別poolではなくsample voicesとして近似）。最小エンベロープ値／古いボイスからスティーリング。マイク・velocityレイヤーも1 voiceずつ消費 |
 | 大容量サンプル | WAVごとの先頭8192 frames事前読込＋4096 frameページの256ページLRU、専用ワーカーストリーミング。ミス時はフェード付き無音で継続し、ミス数とI/Oエラーを表示 |
 | メモリ | WAV先頭＋ページキャッシュの予算32〜512 MiB、既定256。超過時ロードを中断して旧音源を保持。DSP・UI・一時ロード領域は別途メモリを消費 |
-| マイク / グループ | XMLにある実グループを表示し、個別音量を調整。Helsinkiの5系統という名称や構造は固定していない |
+| マイク / グループ | XMLタグを解決し、XFの12レイヤーを3マイクにまとめて制御。通常版はgroup indexで制御。Release / Pedal Noiseを含む実UIの5系統を表示 |
 | Reverb / Delay / Chorus | 公式XMLパラメータを解析し、独自の近似DSP。純正と同じ音やアルゴリズムは保証しない |
-| Convolution | WAV IR、stereoまたはmonoから展開、256 frame均等分割FFT。最大262144出力frames。超過は拒否、切り詰めない。追加遅延256 frames |
+| Convolution | WAV IR、stereoまたはmonoから展開、256 frame早期＋2048 frame後期の分割FFT。最大1048576出力frames。超過は拒否、切り詰めない。追加遅延256 frames |
 | Filter / EQ / Gain | lowpass / highpass / bandpass / peak / notch / low_shelf / high_shelf、2-pole biquad。GainのdB / linear単位に対応 |
 | エフェクトチェーン | instrument階層のXML順、最大8段、バイパスと15msパラメータスムージング、ノート後の残響を保持 |
-| UIバインディング | instrumentエフェクトおよびグループAMP_VOLUMEへの数値index・linearバインディングの部分対応 |
+| UIバインディング | instrument / group / tagのAMP_VOLUME、effectのlinear数値binding、voice-scope midiVelocity table×multiply、FX_IR_FILEのfixed_valueメニューに対応 |
 | ライブラリ | ローカルコピー、原子的index更新、容量・最終使用時刻・選択・削除・再スキャン。再起動時に前回音源をロード |
 | ZIP保護 | 絶対パス・親移動・重複パス拒否、20000 entries / 512 MiB per file / 8 GiB総展開サイズ、圧縮比制限、空き容量確認、失敗時ロールバック |
 | メトリクス | sample resident bytes、DSPコールバックの時間予算率、XRun、キャッシュミス、イベントキュー欠落、出力遅延推定 |
 
 ## 制限と未対応
 
-- Helsinki v1.6 XFのvelocityクロスフェード、マイク構成、ペダル処理、純正IRの選択と初期値は**実XMLの解析待ち**です。一般的なvelocity switchingの実装を、Helsinki XF検証済みとは扱いません。
-- グループ・サンプル階層のeffects、modulators、velocity_binding、任意のMIDIバインディング、tags、table / fixed_value翻訳、menu / button / UI画像などは警告付きで未対応。未対応のグループDSPがあるプリセットは純正の音にはなりません。
+- Helsinki v1.6の通常版／XF版／NOPEDAL版／Multi Out版を解析。5プリセットの合計6600鍵盤・velocityケースに発音を確認しました。Multi Outはステレオへ混合し、AUX分離には非対応です。Multi Out NOPEDAL版は配布XMLの83行目に余分な終了タグがあり、エラーとして拒否します。詳細は[実ファイル検証報告](docs/HELSINKI.md)。
+- グループ・サンプル階層のeffects、LFO等の一般的modulators、velocity_binding、任意のMIDIバインディング、汎用table / fixed_value翻訳、IR選択以外のmenu / button / UI画像などは警告付きで未対応。未対応のグループDSPがあるプリセットは純正の音にはなりません。
 - ADSRの曲線形状、再打鍵・サステイン共鳴、リリース速度／経過時間による減衰、ハーフペダルは純正と一致しません。
 - 一部の新しいエフェクト属性（例：delay feedbackCutoff）は警告付きで未対応です。公式に存在する全属性の互換実装ではありません。
 - `.dslibrary` はZIPベースの平文アーカイブだけに対応。暗号化ライブラリは非対応。`.sfz` / `.sf2` はまだ非対応です。
@@ -51,7 +52,7 @@ Android向けのオフライン・ネイティブサンプラー、**0.1.0 alpha
 - MIDIの入力timestampに合わせたサンプル単位スケジュールは未実装。入力を次の音声ブロックで処理します。
 - アプリはバックグラウンドで停止します。音声経路が切断された場合は設定の「オーディオを再開」を使用します。自動再接続・バックグラウンド演奏サービスは未実装。
 - UIテーマはダークのみ。設定の永続化は前回音源、発音数、バッファ、メモリ予算。エフェクト／マイクのユーザープリセット保存は未実装。
-- Android実機での起動・タッチ・USB / BLE MIDI・Helsinki演奏は未検証です。APK生成やJVMテストはこれらの成功を意味しません。
+- Android実機での起動・タッチ・USB / BLE MIDI・Helsinki演奏は未検証です。APK生成・JVMテスト・実サンプルのホスト検証はこれらの成功を意味しません。
 
 ## ビルド
 
@@ -103,4 +104,4 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 ## リリースとGitHub
 
-GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。`docs/RELEASE_NOTES.md` にalphaリリース文面を準備しました。本作業時点では `tstyr/PianoPocket` の新規作成をGitHub連携権限が拒否したため、プッシュ・GitHub Releaseは未実施です。リポジトリ作成または既存のプッシュ先指定が必要です。
+[GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。

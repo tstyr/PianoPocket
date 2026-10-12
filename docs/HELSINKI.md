@@ -1,54 +1,83 @@
-# Helsinki 1967 Pro v1.6 verification
+# Helsinki 1967 Pro v1.6 — actual-file compatibility report
 
-## 現時点の事実
+2026-10-12、利用者が提供した **Helsinki1967 DecentSampler v.1.6.zip** を取得・解析し、本番KotlinパーサーとC++エンジンで検証しました。音源・IR・画像・実XMLはソース／APK／GitHub Releaseに含めません。
 
-2026-10-11に[Pianobook配布ページ](https://www.pianobook.co.uk/packs/helsinki-1967-pro/)の公開説明を確認しました。4 velocity layers、release、pedal noise、SM57 / OM1 / Roomの収録説明、Decent Sampler向けIRを確認しています。2026-09-04のv1.6更新には「Helsinki 1967 XF」と旧クロスフェードなし版の選択肢、切替点で小さな位相問題の可能性が記載されています。
+- Archive: 885,711,602 bytes、2073 entries、展開1,533,399,826 bytes。
+- SHA-256: `23d97066addc749e00a293995bcb581fa79a955197f28aef1537f4273768fe49`。
+- 実WAV: 344。うちIR 5、音源WAV 339。プリセットが参照する音源は338、NOPEDALは336。
+- 341 WAVが48kHz stereo PCM24、残りはIRの44.1kHz PCM24、48kHz PCM16、96kHz PCM24。
+- 6プリセットのうち5つはパース・ホスト発音検証PASS。1つは配布XMLの構文エラー。
 
-これらは**公開説明の確認**であり、実配布XMLの解析ではありません。ダウンロードボタンはログインを要求しました。この環境にはユーザー所有の `.dspreset` / `.dslibrary` / WAV / IRはなく、Pianobookへのログインも行っていません。従って、v1.6のXFやペダル仕様を仮定で固定していません。
+**Android端末は未接続です。Galaxy S26の起動、USB / BLE MIDI、エンドツーエンドレイテンシ、純正Decent Samplerとの録音比較は未検証です。** この報告は構造・デコード・ホスト音声処理の検証です。
 
-## 必要な実ファイル
+## 配布プリセット
 
-- 正規に取得・展開した**Decent Sampler版v1.6**の全フォルダー。
-- 通常版とXF版の `.dspreset`、参照する全WAV。
-- IRフォルダー、ライセンス・credits・README。
-- 可能ならv1.6配布アーカイブのSHA-256と入手日。音源の再配布は不要です。
-- 比較用Decent Sampler実行環境とMIDI入力または同一MIDIシーケンス。
+| ファイル | Regions / groups | 結果 |
+| --- | --- | --- |
+| Helsinki1967.dspreset | 338 / 5 | パース・ホスト発音PASS |
+| Helsinki1967 NOPEDAL.dspreset | 336 / 4 | パース・ホスト発音PASS |
+| Helsinki 1967 XF.dspreset | 338 / 14 | パース・XF table・ホスト発音PASS |
+| Helsinki 1967 XF NOPEDAL.dspreset | 336 / 13 | パース・XF table・ホスト発音PASS |
+| Helsinki1967 Multi Out.dspreset | 338 / 5 | PASS、AUXは非対応でステレオへ混合 |
+| Helsinki1967 Multi Out NOPEDAL.dspreset | — | **83行目の余分な `</effects>` で拒否**。原本を自動改変しない |
 
-## XML監査
+本番SafeArchiveでZIP全体を展開しました。`__MACOSX` と `._` を登録対象から除き、正しい6プリセットを表示します。
+
+## Velocityとマイク
+
+通常版のattack範囲は **1–33 / 34–77 / 78–110 / 111–127**。ファイル名の数字とは異なるため、実XMLを優先します。57 / OM / ROOMが各103 zones、RELOMが27、pedalが2。キー範囲は21–108（88鍵）。
+
+XF版は3マイク×4層の12 attack groups。範囲は **1–43 / 25–87 / 69–120 / 102–127**。`midiVelocity scope="voice" modAmount="1"` からgroup AMP_VOLUMEへの `multiply / table` bindingを12本使用します。
+
+テーブル座標をそのまま解析し、velocity / 127を入力として区分線形補間し、128値のカーブに準備します。Note On時にそのvoiceへ乗算し、他の音に影響させません。mic57 / micOM / micROOMタグで4層をまとめて調整し、release / pedalも実タグを解決します。純正の位相やラウドネスとの比較は未実施です。
+
+初期値はRoom=1、57=1、OM=1、Release=0.25、Pedal noise=0.25、Master=1、Reverb Mix=0。XMLのpolyphonyタグは **70** でした。配布READMEの80より実XMLを優先し、初期sample-voice capを70にします。タグごとのpoolや純正のvoice計数方式は完全再現していません。設定で変更できます。
+
+## ペダル
+
+- DOWNはrootNote / key rangeが1、onLoCC64=64 / onHiCC64=127。
+- UPはrootNote / key rangeが2、onLoCC64=0 / onHiCC64=63。
+- ampVelTrack=0で、ノイズ音量はnote velocityと独立。
+- CC専用lookupに登録してキー範囲から独立させ、原音ピッチで再生。
+- 64境界を越えたときだけ発音し、継続的な半踏みCCによる再発音を抑制。純正とは意図的な差があり、配布READMEにも連続ペダルによるグリッチとNOPEDAL版の説明があります。
+- release trigger、0.6秒release、sustain保持を実装。曲線形状、releaseTriggerDecay、共鳴、半踏み減衰は純正と同一の保証なし。
+- Multi Outの整数小数表記start / end（`0.000`等）に対応。endがWAV frame countならEOFとして扱います。
+
+## 純正リバーブ設定
+
+チェーンは **Convolution → Gain +12dB**。Gainの12は約3.981倍へ変換します。一般的なalgorithmic reverbではありません。
+
+IRメニューは1-based value=1、初期Lady Chapel。Reverb Mix=0をDSP初期値へ反映します。
+
+| 選択名 | 入力 | 48kHz frames / 長さ |
+| --- | --- | --- |
+| Lady Chapel | 44.1kHz stereo PCM24 | 288000 / 6.000秒 |
+| Usina del Arte | 48kHz stereo PCM16 | 93453 / 1.947秒 |
+| School Hall | 96kHz stereo PCM24 | 63199 / 1.317秒 |
+| Small Room | 48kHz stereo PCM24 | 129920 / 2.707秒 |
+| Plate | 48kHz stereo PCM24 | 157824 / 3.288秒 |
+
+IRを完全に読み込み、OS sample rateへ線形変換。256 frame早期／2048 frame後期の分割FFTで、追加遅延256 frames（48kHzで約5.33ms）。全5 IRのdelta responseを最後まで比較し、読み込んだIRに対して256 frame差・誤差0.0002以内を確認。IR正規化、dryの遅延補償、純正resampler／convolverとの同一性は未検証です。
+
+IR変更はworkerでDSP準備後、短時間streamを停止して交換。旧IRのtailは切替時に引き継ぎません。通常のnote-off後のtailは保持します。IRのCC BY 4.0／作者creditsは利用者の配布物に残し、アプリには同梱しません。
+
+## ホスト検証
+
+88鍵×15 velocities=1320ケースを各プリセットで実行し、5プリセット合計6600。最初4096 framesでfinite・full-scale以内・非無音を確認。XF最大6 attack sample voices、通常版最大3を観測。先頭＋cache residentは30,413,440〜30,544,528 bytes（約29MiB）で、DSP・UI・一時メモリは含みません。
+
+各3秒のpaced sustain / streamingでcache misses=0、read errors=0。高速offline matrix／tailではworkerが実時間に追いつかずmissが生じますが、実機の音切れ率とは扱いません。5マイク／70 voices／IR mix>0の長時間実機ストレスは未実施です。
+
+## 再検証
 
 ```sh
-python3 tools/inspect_instrument.py /path/to/user-owned/Helsinki1967Pro \
-  --output artifacts/helsinki-v1.6-audit.json
+python3 tools/inspect_instrument.py /path/to/Helsinki --output artifacts/xml-audit.json
+./gradlew inspectOwnedPresets -PinstrumentDir=/path/to/Helsinki \
+  -PreportDir=/path/to/private-report -PownedArchive=/path/to/Helsinki-v1.6.zip
+cmake -S native -B build/native -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native -j 4
+build/native/owned_preset_probe '/path/to/private-report/Helsinki 1967 XF.dspreset.mapping'
 ```
 
-このツールはグループの**実名**と属性、velocity範囲、グループ・global effect順序、全UI binding、MIDI設定、modulators、未対応mapping属性、欠落ファイル、XML hashを出力します。レポートにはXML設定が入るため、共有前にライブラリ利用条件を確認してください。サンプル音声はコピーしません。
+構造監査の出力には実XMLが入るため、共有前に利用条件を確認してください。production parser reportとnative metricsは設定の概要だけを含みます。実XML原本、音声、利用者のDrive URLは公開しません。
 
-通常版・XF版について次を照合します。
-
-1. 4層の切替値とloVel / hiVelの重複、ampVelTrack、各sample / group / global volume。レイヤー境界の値を推測しない。
-2. XFがmodulator、velocity_binding、translation table、その他どの機構で実現されているか。現在の未対応項目なら、必要な公式パラメータを追加してから比較する。
-3. SM57 / OM1 / Room / Release / Pedal Noiseの実グループ数、名前、UI knobのtarget index、初期値、ミュート処理。複数groupが1マイクに対応する場合はまとめ方を実XMLから決める。
-4. `trigger="release"`、releaseTriggerDecay、CC64トリガーの範囲、note / velocity条件、ampEnvEnabled、pitchKeyTrack。半踏み時のCC64反復と上昇／下降の挙動。
-5. IRの実パス・フォーマット・長さ、メニューによるIR切替、convolution mixと有効状態、ReverbのroomSize / damping / wetLevel、XMLチェーン順序。
-6. ループ、複数output / buses、マイクpurge / enabled等。未対応機能はすべてレポートに記録する。
-
-## 実機と比較
-
-| 検証 | 手順と判定 |
-| --- | --- |
-| 起動・インポート | Galaxy S26 Android 16にAPKを入れ、通常版をロード。全missing referencesゼロ、警告を保存 |
-| マッピング | 最低音・最高音・各ゾーン境界を弾く。無音・別音への誤配置がない |
-| Dynamics | 同一noteをvelocity 1..127で録音。実XMLの各層境界±2を重点比較。音量・音色・位相の不連続を確認 |
-| Release | 短音・2秒・長押しのnote-off、ペダル保持中のnote-off、sample自然終了後のnote-offを比較 |
-| Pedal | CC64: 0→63→64→80→127→80→64→63→0。ノイズの再発音回数・キー保持・ペダル解除時のreleaseを比較 |
-| Microphones | 各マイク単独と混合。名前ではなくXML target groupで確認 |
-| Reverb | 同一音・同一IR・同一mixを録音。tail、処理順序、追加遅延を比較。独自Reverbとの差は近似として記録 |
-| MIDI | USB hotplug、複数channel、note-on velocity0、CC7 / 11 / 64 / 123、pitch bend、BLEを別々に確認 |
-| Persistence | アプリ終了・再起動後、前回プリセットが同じサンプルで演奏可能。元のSAFファイルを移動しても動作 |
-| Performance | 32 / 64 / 80 sample voices、5マイク有効、IRなし／ありで各5分。XRun、cache miss、read errors、PSS、DSP予算率を記録 |
-
-## レイテンシの測定
-
-有線・USB・内蔵・Bluetooth出力を別に扱います。Oboeの推定出力値をエンドツーエンド実測値として報告しません。MIDI送信時刻を外部測定系で基準信号に記録し、端末からのアナログ出力を別チャンネルに録音して、発音開始までの差を複数回測定します。最小・中央値・p95、バッファ、sample rate、出力機器、MIDI機器、IR処理の有無を記録します。Convolutionは256 output framesの処理遅延が追加されます。
-
-公開ページにはIRの一部にCC BY 4.0のcreditsがありますが、PianoPocketにはいずれのIRも同梱しません。利用者は配布物内の実ライセンスに従ってください。
+実機では通常版→XF、各マイク単独／混合、CC64 0→63→64→127→80→63→0、長押し・再起動・USB hotplug・BLEを確認します。32 / 64 / 70 / 80 sample voices、IRなし／ありで各5分、XRun・cache miss・PSS・DSP予算率・熱状態を記録。外部基準信号と端末音声を同時録音してMIDI-to-audioの中央値・p95を測り、Oboe推定値と区別してください。

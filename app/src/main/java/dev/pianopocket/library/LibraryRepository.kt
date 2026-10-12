@@ -18,7 +18,7 @@ class LibraryRepository(private val context: Context) {
     fun entries(): List<LibraryEntry> = if (!index.exists()) emptyList() else {
         val a = JSONArray(index.readText())
         (0 until a.length()).map { a.getJSONObject(it) }.map { LibraryEntry(it.getString("id"), it.getString("root"), it.getString("preset"), it.getString("name"), it.getLong("bytes"), it.optLong("lastUsed")) }
-            .filter { File(home, "${it.root}/${it.preset}").isFile }
+            .filter { LibraryFilePolicy.isPreset(it.preset) && File(home, "${it.root}/${it.preset}").isFile }
     }
     private fun save(entries: List<LibraryEntry>) {
         val a=JSONArray(); entries.forEach { e -> a.put(JSONObject().put("id",e.id).put("root",e.root).put("preset",e.preset).put("name",e.name).put("bytes",e.bytes).put("lastUsed",e.lastUsed)) }
@@ -36,6 +36,7 @@ class LibraryRepository(private val context: Context) {
     fun parse(entry: LibraryEntry): Preset = presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }.also { preset ->
         preset.regions.map { it.path }.distinct().forEach { resolve(entry,it) }
         preset.effects.filter { it.ir.isNotEmpty() }.forEach { resolve(entry,it.ir) }
+        preset.menus.flatMap { it.options }.forEach { resolve(entry,it.path) }
         preset.warnings.forEach { Log.w("PianoPocket.XML",it) }
     }
     fun used(entry: LibraryEntry) { save(entries().map { if(it.id==entry.id) it.copy(lastUsed=System.currentTimeMillis()) else it }) }
@@ -44,7 +45,7 @@ class LibraryRepository(private val context: Context) {
         val old=runCatching { entries() }.getOrDefault(emptyList()).associateBy { "${it.root}/${it.preset}" }
         val list=home.listFiles().orEmpty().filter { it.isDirectory && !it.name.endsWith(".pending") }.flatMap { folder ->
             val bytes=folder.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-            folder.walkTopDown().filter { it.isFile && it.extension.equals("dspreset",true) }.map { file ->
+            folder.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(folder).invariantSeparatorsPath) }.map { file ->
                 val path=file.relativeTo(folder).invariantSeparatorsPath
                 old["${folder.name}/$path"] ?: LibraryEntry(UUID.randomUUID().toString(),folder.name,path,file.nameWithoutExtension,bytes)
             }.toList()
@@ -69,7 +70,7 @@ class LibraryRepository(private val context: Context) {
         val preset=DspresetParser().parse(presetBytes.inputStream(),"Imported instrument")
         val root=DocumentFile.fromTreeUri(context,tree) ?: error("Cannot open sample directory")
         File(dir,"Instrument.dspreset").writeBytes(presetBytes)
-        val refs=(preset.regions.map { it.path }+preset.effects.map { it.ir }.filter { it.isNotBlank() }).distinct()
+        val refs=(preset.regions.map { it.path }+preset.effects.map { it.ir }.filter { it.isNotBlank() }+preset.menus.flatMap { it.options }.map { it.path }).distinct()
         require(refs.size<=4096) { "Reference file count exceeded" }
         var total=0L
         refs.forEachIndexed { i,path ->
@@ -85,7 +86,7 @@ class LibraryRepository(private val context: Context) {
         val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending").apply { mkdirs() };val destination=File(home,id)
         try {
             copy(stage)
-            val presets=stage.walkTopDown().filter { it.isFile && it.extension.equals("dspreset",true) }.toList()
+            val presets=stage.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(stage).invariantSeparatorsPath) }.toList()
             require(presets.isNotEmpty() && presets.size<=128) { "No .dspreset found, or too many presets" }
             // Validate syntax now; unsupported variants remain visible with an error on selection.
             presets.forEach { require(it.length()<=4*1024*1024) { "Preset too large" } }

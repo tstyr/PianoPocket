@@ -15,3 +15,5 @@
 | [Wine](https://github.com/wine-mirror/wine) / [Box64](https://github.com/ptitSeb/box64) | ライセンス・実験環境の検討。実行は未実施 |
 
 XML形式のサポートは、自作パーサーと自作DSPによるものです。Decent Samplerのソース、独自アルゴリズム、商標画像、配布プラグインは使用していません。公式ドキュメントに記載されるパラメータを受け付けても、音響的同一性は保証しません。
+
+2026-10-12追記: 利用者提供のv1.6実ZIPを取得し、[midiVelocity modulators](https://decentsampler-developers-guide.readthedocs.io/en/latest/the-modulators-element.html)、table補間、tag AMP_VOLUME、menuの1-based valueとFX_IR_FILEを公式資料で再照合。配布物のREADMEとIR Creditsも確認。音源・IR・画像・XML原本は公開していません。
