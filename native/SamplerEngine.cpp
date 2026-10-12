@@ -9,7 +9,7 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
     for(auto& c:controllers){c.fill(0);c[7]=c[11]=127;}bends.fill(0);groupGains.fill(1);
-    effects=std::move(prepared);Event discard;while(events.pop(discard)){}panic.store(false);
+    effects=std::move(prepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
     playing=false;reportedPlaying.store(false);
 }
 bool SamplerEngine::send(Event e){std::lock_guard<std::mutex> lock(producer);if(events.push(e))return true;droppedEvents.fetch_add(1);panic.store(true);return false;}
@@ -97,6 +97,7 @@ void SamplerEngine::render(float* output,int count) noexcept {
         renderBlock(output+done*2,n);done+=n;if(playing)playFrame+=n;
     }
     reportedFrame.store(playFrame,std::memory_order_relaxed);
+    inputPeak.store(outputLimiter.peak(),std::memory_order_relaxed);gainReductionDb.store(outputLimiter.reductionDb(),std::memory_order_relaxed);
 }
 void SamplerEngine::renderBlock(float* output,int count) noexcept {
     std::fill(output,output+count*2,0.f);
@@ -123,8 +124,7 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
     }
     int active=0;for(auto& v:voices)if(v.active)++active;activeVoices.store(active,std::memory_order_relaxed);
     for(int i=0;i<count;++i){float& l=output[i*2];float& r=output[i*2+1];effects.process(l,r);volume+=(targetVolume-volume)*.001f;instrumentVolume+=(targetInstrumentVolume-instrumentVolume)*.001f;l*=volume*instrumentVolume;r*=volume*instrumentVolume;
-        // Transparent below 0.9, soft knee above; output always finite and below full scale.
-        auto protect=[](float x){if(!std::isfinite(x))return 0.f;auto a=std::abs(x);return a<=.9f?x:std::copysign(.9f+.1f*std::tanh((a-.9f)*10),x);};l=protect(l);r=protect(r);
+        outputLimiter.process(l,r);
     }
 }
 }

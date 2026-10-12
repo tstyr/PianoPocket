@@ -47,6 +47,7 @@ class Effect {
     std::array<double,2> z1{},z2{};
     double b0=1,b1=0,b2=0,a1=0,a2=0;
     std::unique_ptr<Convolver> convolution;
+    float irGain=1;
     void coefficients() noexcept;
 public:
     Effect(const EffectSpec& spec,float sampleRate);

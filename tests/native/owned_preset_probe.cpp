@@ -13,7 +13,7 @@ using namespace pocket;
 static std::vector<std::string> split(const std::string& line,char delimiter){std::vector<std::string> parts;std::stringstream s(line);std::string p;while(std::getline(s,p,delimiter))parts.push_back(p);return parts;}
 static void require(bool pass,const char* message){if(!pass)throw std::runtime_error(message);}
 int main(int argc,char** argv){try{
-    require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export"),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
+    require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export") || (argc==6 && std::string(argv[2])=="--reverb-stress"),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
     auto bank=std::make_unique<Instrument>();std::unordered_map<std::string,unsigned> paths;std::vector<EffectSpec> fx;
     std::vector<Event> setup;std::string line;std::set<std::string> impulses;
     while(std::getline(file,line)){
@@ -32,6 +32,21 @@ int main(int argc,char** argv){try{
         else if(t[0]=="F"){EffectSpec spec;spec.type=EffectType(std::stoi(t[1]));auto p=split(t[2],',');require(p.size()==5,"effect parameters");for(int i=0;i<5;++i)spec.p[i]=std::stof(p[i]);if(spec.type==EffectType::Convolution){spec.ir=loadImpulse(t.at(3),48000);impulses.insert(t.at(3));}fx.push_back(std::move(spec));}
     }
     require(!bank->regions.empty(),"no regions");auto regions=bank->regions.size(),samples=bank->samples.size();int noteTests=0;float data[1024];
+    if(argc==6){
+        auto mix=std::stof(argv[4]);require(mix>=0 && mix<=1,"mix range");
+        for(auto& effect:fx)if(effect.type==EffectType::Convolution){effect.ir=loadImpulse(argv[3],48000);effect.p[0]=mix;}
+        bank->prepare(true);SamplerEngine engine;engine.install(std::move(bank),fx,48000);setup.push_back({8,0,128});engine.initialControls(setup);
+        std::vector<int> notes=std::string(argv[5])=="solo"?std::vector<int>{71}:std::string(argv[5])=="chord"?std::vector<int>{71,75,78,83}:std::vector<int>{36,43,48,52,55,60,64,67,71,72,76,79};
+        for(auto n:notes)engine.send({0,0,n,127});
+        uint64_t hot=0,count=0;double energy=0,peak=0,prePeak=0,reduction=0;
+        for(int frame=0;frame<48000*6;frame+=96){
+            if(frame==24000)engine.send({2,0,64,127});
+            if(frame==72000)for(auto n:notes)engine.send({1,0,n,0});
+            if(frame==96000)engine.send({2,0,64,0});
+            engine.render(data,96);prePeak=std::max(prePeak,double(engine.inputPeak.load()));reduction=std::max(reduction,double(engine.gainReductionDb.load()));for(int i=0;i<192;++i){auto value=data[i];require(std::isfinite(value) && std::abs(value)<=1,"bounded stress audio");peak=std::max(peak,double(std::abs(value)));energy+=value*value;++count;if(std::abs(value)>.98f)++hot;}
+        }
+        std::cout<<"{\"ir\":\""<<std::filesystem::path(argv[3]).filename().string()<<"\",\"mix\":"<<mix<<",\"notes\":"<<notes.size()<<",\"velocity\":127,\"outputPeak\":"<<peak<<",\"rms\":"<<std::sqrt(energy/count)<<",\"nearFullScaleSamples\":"<<hot<<",\"samples\":"<<count<<",\"cacheMisses\":"<<engine.misses()<<",\"preLimiterPeak\":"<<prePeak<<",\"maxReductionDb\":"<<reduction<<",\"readErrors\":"<<engine.errors()<<"}"<<std::endl;return 0;
+    }
     if(argc==4){
         // Deliberately turn up the IR mix for this export test; the factory preset's mix is zero.
         for(auto& effect:fx)if(effect.type==EffectType::Convolution)effect.p[0]=.35f;

@@ -60,7 +60,11 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                     7 -> listOf(Triple(0,"IR Mix · 256 frame処理遅延",0f..1f))
                                     else -> listOf(Triple(1,"Frequency (Hz)",20f..22000f),Triple(2,"Q",.01f..5f))+(if(fx.type>=8 && fx.type!=9)listOf(Triple(3,"Gain",.01f..4f))else emptyList())
                                 }
-                                parameters.forEach { (slot,name,range)->Parameter(name,fx.params[slot],range,state.ready && !state.busy){model.fx(index,slot,it)} }
+                                parameters.forEach { (slot,name,range)->
+                                    val bound=preset.controls.firstOrNull { c->c.bindings.any { it.type=="effect" && it.index==index && it.slot==slot } }
+                                    if(bound==null)Parameter(name,fx.params[slot],range,state.ready && !state.busy){model.fx(index,slot,it)}
+                                    else Text("${bound.name}で調整",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
+                                }
                             }
                             Parameter("Output",state.volume,0f..1f,state.ready && !state.busy,model::volume)
                             Text("ボイス ${state.stats[6].toInt()}/${state.voices} · DSP ${"%.1f".format(state.stats[5])}% · キャッシュミス ${state.stats[8].toLong()}",style=MaterialTheme.typography.bodySmall)
@@ -96,6 +100,8 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             Text("推定出力遅延: ${if(state.stats[4]<0)"取得不可" else "%.2f ms".format(state.stats[4])}（Oboe timestamp。鍵盤から音までの実測ではありません）",style=MaterialTheme.typography.bodySmall)
                             Text("XRun: ${state.stats[3].toInt()} · DSPコールバック予算: ${"%.1f".format(state.stats[5])}%")
                             Text("サンプル常駐: ${"%.1f".format(state.stats[7]/1048576)} MiB · イベント欠落: ${state.stats[9].toLong()} · 読み込みエラー: ${state.stats[11].toLong()}",style=MaterialTheme.typography.bodySmall)
+                            Text("出力保護: ${"%.2f".format(state.stats[13])} dB減衰 · ${"%.2f".format(state.stats[14])} ms先読み",style=MaterialTheme.typography.bodySmall)
+                            Text("保護前ピーク: ${if(state.stats[12]<=0)"−∞" else "%.1f".format(20*kotlin.math.log10(state.stats[12]))} dBFS。減衰が大きい場合はOutputを下げてください。",style=MaterialTheme.typography.bodySmall)
                             Text("プロセスPSS: ${"%.1f".format(state.processMiB)} MiB（UI・DSPを含む）",style=MaterialTheme.typography.bodySmall)
                             if(state.stats[10]>0)Text("オーディオ切断を検出しました。経路を再開してください。")
                             OutlinedButton(onClick={model.audio()},enabled=!state.busy){Text("オーディオを再開")}
@@ -106,7 +112,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            Text("PianoPocket 0.3.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.3.1 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                         }
                     }
                 }

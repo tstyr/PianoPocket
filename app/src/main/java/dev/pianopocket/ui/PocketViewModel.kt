@@ -22,7 +22,7 @@ data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
     val busy: Boolean = false, val message: String = "準備中", val midi: String = "MIDI未接続",
-    val stats: List<Double> = List(12){0.0}, val groups: List<Float> = emptyList(), val volume: Float = .7f,
+    val stats: List<Double> = List(15){0.0}, val groups: List<Float> = emptyList(), val volume: Float = .7f,
     val voices: Int = 80, val memoryMiB: Int = 256, val bursts: Int = 2,
     val ble: List<BleMidiDevice> = emptyList(), val outputs: List<OutputDevice> = emptyList(), val device: Int = 0,
     val channel: Int = -1, val ready: Boolean = false, val processMiB: Float = 0f,

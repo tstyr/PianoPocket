@@ -1,8 +1,10 @@
 # PianoPocket
 
-Android向けのオフライン・ネイティブサンプラー、**0.3.0 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
+Android向けのオフライン・ネイティブサンプラー、**0.3.1 alpha**。Kotlin / Composeで操作画面を、C++17 / Oboeで音声処理を実装しています。無料・広告なし・課金なし・アカウントなし。INTERNET権限もありません。ユーザー所有のサンプルをアプリの専用領域にインポートします。
 
-**ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。Galaxy S26 / Android 16の実機は未接続です。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
+**ユーザー提供のHelsinki 1967 Pro v1.6実ファイルを解析し、通常版・XF版をホスト上で検証しました。開発環境にはGalaxy S26 / Android 16の実機が未接続です。利用者のAndroidでのHelsinki演奏・リバーブ時の音割れ報告を受け、0.3.1で修正しました。** 純正プラグインとの音響比較や実機成功を主張する完成版ではありません。Pianobookの音源、画像、ロゴやDecent Samplerの実装・プラグインは同梱していません。
+
+**0.3.1: Reverb Mixを上げた際の音割れ対策。** IRの音量補正と、波形をつぶすtanh処理から先読みリミッターへの変更を実装。School Hall・Mix 0.71で再現し、実IR5種の60ケースで検証しました。[修正内容と実機での再確認](docs/REVERB_FIX.md)。
 
 ## 使い方
 
@@ -45,13 +47,14 @@ Android向けのオフライン・ネイティブサンプラー、**0.3.0 alpha
 | メモリ | WAV先頭＋ページキャッシュの予算32〜512 MiB、既定256。超過時ロードを中断して旧音源を保持。DSP・UI・一時ロード領域は別途メモリを消費 |
 | マイク / グループ | XMLタグを解決し、XFの12レイヤーを3マイクにまとめて制御。通常版はgroup indexで制御。Release / Pedal Noiseを含む実UIの5系統を表示 |
 | Reverb / Delay / Chorus | 公式XMLパラメータを解析し、独自の近似DSP。純正と同じ音やアルゴリズムは保証しない |
-| Convolution | WAV IR、stereoまたはmonoから展開、256 frame早期＋2048 frame後期の分割FFT。最大1048576出力frames。超過は拒否、切り詰めない。追加遅延256 frames |
+| Convolution | WAV IR、stereoまたはmonoから展開、256 frame早期＋2048 frame後期の分割FFT。最大1048576出力frames。超過は拒否、切り詰めない。追加遅延256 frames。Wet音量はstereo-linked L2上限0.125で補正（純正の正規化方式とは未比較） |
 | Filter / EQ / Gain | lowpass / highpass / bandpass / peak / notch / low_shelf / high_shelf、2-pole biquad。GainのdB / linear単位に対応 |
 | エフェクトチェーン | instrument階層のXML順、最大8段、バイパスと15msパラメータスムージング、ノート後の残響を保持 |
 | UIバインディング | instrument / group / tagのAMP_VOLUME、effectのlinear数値binding、voice-scope midiVelocity table×multiply、FX_IR_FILEのfixed_valueメニューに対応 |
 | ライブラリ | ローカルコピー、原子的index更新、容量・最終使用時刻・選択・削除・再スキャン。再起動時に前回音源をロード |
 | ZIP保護 | 絶対パス・親移動・重複パス拒否、20000 entries / 512 MiB per file / 8 GiB総展開サイズ、圧縮比制限、空き容量確認、失敗時ロールバック |
-| メトリクス | sample resident bytes、DSPコールバックの時間予算率、XRun、キャッシュミス、イベントキュー欠落、出力遅延推定 |
+| 出力保護 | ステレオ連動sample-peak limiter、0.95 ceiling、約1ms先読み・30ms保持・80ms復帰。波形のtanh歪みを撤去。WAVは先読み分を補償 |
+| メトリクス | sample resident bytes、DSPコールバックの時間予算率、XRun、キャッシュミス、イベントキュー欠落、出力遅延推定、保護前peak / limiter減衰 / 先読み時間 |
 
 ## 制限と未対応
 
@@ -117,7 +120,7 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 ## リリースとGitHub
 
-最新: [v0.3.0-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.3.0-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-arm64-debug.apk)。
+最新: [v0.3.1-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.3.1-alpha) / [ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.1-alpha-arm64-debug.apk)。
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 

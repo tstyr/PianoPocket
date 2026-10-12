@@ -175,7 +175,10 @@ class DspresetParser {
         checkAttrs(n, known + setOf("type","enabled"))
         if(t=="delay" && (p[1] !in 0f..20f || p[2] !in 0f..1f || p[3] !in -10f..10f)) error("Delay parameters outside documented range")
         if(t=="delay" && p[2]>=.995f){p[2]=.995f;warnings += "Delay feedback capped at 0.995 for stability"}
-        if(t=="convolution") safeRelative(n.a["irFile"] ?: error("Missing IR file"))
+        if(t=="convolution") {
+            safeRelative(n.a["irFile"] ?: error("Missing IR file"))
+            warnings += "Convolution IRの音量をPianoPocket用に補正します。純正のIR正規化とは未比較です。"
+        }
         return Effect(types.indexOf(t), t, p, n.a["irFile"] ?: "", n.a["gainUnit"]=="decibels")
     }
     private fun parseBinding(n: Node, effects: List<Effect>, groups: Int): Binding? {

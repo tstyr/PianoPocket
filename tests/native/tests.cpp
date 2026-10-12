@@ -69,6 +69,27 @@ int main(){try{
         decoded.decode(12000,10,data);check(energy(data,10)>0,"offline export streams beyond resident sample head");decoded.decode(rate-1000,10,data);check(energy(data,10)<.000001,"export includes note release and silence tail");
         check(offline.misses()==0 && offline.errors()==0 && progress.load()==1,"offline cache is deterministic");cancel.store(true);bool failed=false;try{renderWav(offline,target,rate,bits,rate,cancel,progress);}catch(...){failed=true;}check(failed && !std::ifstream(target).good(),"cancelled WAV is removed");
     }
+    {
+        OutputLimiter limiter;limiter.prepare(48000);check(limiter.delayFrames()==48,"one millisecond limiter lookahead");
+        for(int i=0;i<2000;++i){float l=.4f*std::sin(i*.03),r=l*.5f;audioThread=true;limiter.process(l,r);audioThread=false;float expected=i>=48?.4f*std::sin((i-48)*.03):0;check(std::abs(l-expected)<1e-7 && std::abs(r-expected*.5f)<1e-7,"limiter preserves sub-ceiling stereo waveform");}
+        check(limiter.reductionDb()==0,"no unnecessary volume reduction below ceiling");
+        for(int frequency:{55,1000}){
+            limiter.prepare(48000);double fundamental=0,third=0,oldFundamental=0,oldThird=0;
+            for(int i=0;i<144000;++i){float raw=4*std::sin(2*3.141592653589793*frequency*i/48000.);float l=raw,r=raw*.5f;audioThread=true;limiter.process(l,r);audioThread=false;check(std::isfinite(l) && std::abs(l)<=OutputLimiter::Ceiling+1e-6 && std::abs(r-l*.5f)<1e-6,"hot transient ceiling and linked stereo balance");
+                if(i>=96000){double phase=2*3.141592653589793*frequency*(i-48)/48000.;fundamental+=l*std::sin(phase);third+=l*std::sin(phase*3);double old=std::copysign(.9+.1*std::tanh((std::abs(raw)-.9)*10),raw);if(std::abs(raw)<=.9)old=raw;oldFundamental+=old*std::sin(phase);oldThird+=old*std::sin(phase*3);}
+            }
+            double distortion=std::abs(third/fundamental);check(distortion<.001,"limiter does not flatten sustained piano-frequency sine waves");if(frequency==1000)check(std::abs(oldThird/oldFundamental)>.1,"regression reproduces old saturator harmonic distortion");
+        }
+        limiter.prepare(48000);for(int i=0;i<100;++i){float l=1000,r=-500;limiter.process(l,r);check(std::abs(l)<=OutputLimiter::Ceiling+1e-6,"first extreme transient is bounded");}
+        for(int i=0;i<48000;++i){float l=0,r=0;limiter.process(l,r);}check(limiter.reductionDb()<.001,"limiter gain recovers after overload");
+    }
+    {
+        for(float scale:{.0625f,1.f,8.f}){
+            EffectSpec spec;spec.type=EffectType::Convolution;spec.p={1,0,0,0,1};spec.ir={scale,scale*.5f};Effect effect(spec,48000);
+            for(int i=0;i<400;++i){float l=i==0?1:0,r=l;audioThread=true;effect.process(l,r);audioThread=false;float expected=i==256?std::min(scale,.125f):0;check(std::abs(l-expected)<.00001 && std::abs(r-expected*.5f)<.00001,"IR energy gain preserves stereo ratio and never boosts quiet IR");}
+        }
+        EffectSpec spec;spec.type=EffectType::Convolution;spec.p={0,0,0,0,1};spec.ir={8,4};Effect dry(spec,48000);for(int i=0;i<500;++i){float l=.3,r=-.2;dry.process(l,r);check(l==.3f && r==-.2f,"zero reverb mix leaves dry audio unchanged");}
+    }
     check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

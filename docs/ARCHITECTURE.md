@@ -20,7 +20,7 @@
 
 ## Render
 
-`bounded event drain → fixed voices → pitch / interpolation / envelope / per-channel & group gain → XML-order global effects → smooth master → soft clipping protection`
+`bounded event drain → fixed voices → pitch / interpolation / envelope / per-channel & group gain → XML-order global effects → smooth master → linked stereo lookahead limiter`
 
 固定128 voices。channelは外部MIDI 0..15、タッチ鍵盤は内部channel16、ファイル再生は内部channel17..32（ファイル内MIDI 0..15に対応）。キー状態はボイスとは別で保持し、WAVが自然終了した後もnote-offのrelease triggerを発音できる。同音の重複押下はchannel / noteにつき最大4個のFIFO状態で管理。
 
@@ -41,3 +41,10 @@ SMF parsing、tempo integration、NoteIndex構築、library persistence、record
 timelineの交換・シークはstreamをstop / closeしてからワーカーで行います。callbackではprepared timelineから発音イベントをdispatchし、その時刻までの区間だけrenderします。Liveイベントは次のblockで処理します。2048 live events＋2048 timeline eventsまでの有界処理。高密度timelineはfail-safe pause＋file channel All Sound Off、UIへ警告。シークは過去CC / bendをワーカー上で走査して復元し、過去ノートのサンプル中間位置再構築は行いません。ファイルのpause / seek / endは外部MIDI・画面鍵盤のチャンネルに影響しません。
 
 WAVは別のInstrument / SamplerEngineを同じmapping・選択IR・現在のgroup gain / master / output / voice limitで準備します。offlineフラグのSampleCacheはworkerを起動せず、renderするバックグラウンドスレッド自身がページを同期decodeします。これはOboe経路に渡しません。従って書き出し速度による非同期cache missは発生せず、I/Oエラー時は失敗して一時WAVを消します。Float内部処理後、RIFF WAV PCM16 / PCM24 / Float32をストリーム書込みします。export状態、キャンセル、進行度はatomic。SAFへのcopyでもキャンセルを確認し、不完全な保存先は可能なら削除します。
+
+
+## 0.3.1 reverb gain and output protection
+
+The Effect preparation worker computes a single stereo-linked IR-energy gain, `min(1, .125 / max(channel L2))`, applied only to convolution wet output. Raw IR decode and mathematical Convolver are unchanged. This gain policy is an approximation; the official format does not publish the original algorithm, so import warns.
+
+OutputLimiter uses fixed 513-frame stereo storage and a fixed monotonic-deque peak buffer, a ~1ms sample-peak lookahead, 0.1ms attack / 30ms hold / 80ms release. The hold avoids sub-cycle gain modulation of bass tones. Stereo uses the same gain. No heap allocation or lock occurs during process. Ceiling is .95, and quiet audio is identical after the delay when no recent overload is releasing. Atomic peak/reduction meters are read outside the callback. The stream's timestamp estimate excludes the added internal lookahead; Settings lists it separately. OfflineRenderer processes the corresponding extra frames and discards preroll, keeping the requested file length and MIDI alignment. [Diagnosis and validation](REVERB_FIX.md).

@@ -2,6 +2,7 @@
 #include "InstrumentMapping.h"
 #include "Envelope.h"
 #include "Effects.h"
+#include "OutputLimiter.h"
 #include "SpscQueue.h"
 #include <mutex>
 namespace pocket {
@@ -21,6 +22,7 @@ class SamplerEngine {
     struct Key { uint64_t id=0; int velocity=0; bool down=false,pending=false; };
     std::unique_ptr<Instrument> instrument;
     Effects effects;
+    OutputLimiter outputLimiter;
     std::array<Voice,128> voices{};
     std::array<std::array<std::array<Key,4>,128>,33> keys{};
     std::array<std::array<int,128>,33> controllers{};
@@ -49,6 +51,8 @@ class SamplerEngine {
 public:
     std::atomic<int> activeVoices{0};
     std::atomic<uint64_t> droppedEvents{0};
+    std::atomic<float> inputPeak{0},gainReductionDb{0};
+    int outputDelayFrames() const noexcept {return outputLimiter.delayFrames();}
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
     bool send(Event event); // outside callback; multiple producers serialized
     void render(float* stereo,int frames) noexcept;

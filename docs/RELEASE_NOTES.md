@@ -1,29 +1,15 @@
-# PianoPocket 0.3.0-alpha — MIDI library, falling notes, recording and export
+# PianoPocket 0.3.1-alpha — Helsinki reverb clipping fix
 
-MIDIを選んで、読み込んだピアノ音源で演奏・録音・書き出しできる機能を追加しました。
+Helsinki1967のSchool Hall / Reverb Mix 0.71で発生した音割れを実IRで再現し、修正しました。IRの大きい増幅と後段の+12dB Gainで、旧tanh出力保護が波形をつぶしていたことが原因です。
 
-- MIDI Type 0 / 1インポート、BPM・日付付きカードライブラリ、再起動後の再利用。
-- 上から降るロール、トラック色・velocity・ペダル残音、88鍵／2オクターブ、設定からカタカナのドレミをオン／オフ。
-- USB / BLEの入力ポート選択、リアルタイムの鍵盤／履歴表示、MIDI録音と保存。
-- C++のサンプル時計によるMIDI再生、一時停止・シーク。ファイルとライブ入力のチャンネルを分離。
-- MIDI Type 0 / 1、WAV PCM16 / PCM24 / Float32を選択して保存。音声は44.1 / 48 kHz stereo、現在の音源・マイク・IR・エフェクト・音量を反映。
-- 書き出し専用サンプラーと同期LRUキャッシュ、追加残響時間、進捗・キャンセル。音源はMIDIファイル自体には含まれません。
+- IRのWet音量をステレオのバランスを保って補正。マスター全体を下げる代わりに、IR側の過大な増幅を抑制します。
+- 波形を変形するtanh方式を、ステレオ連動の先読みリミッターへ変更。低音の周期内で音量が揺れないよう保持処理を追加。
+- Settingsに保護前ピーク・減衰dB・先読み時間を表示。内部の追加遅延は約1msです。
+- Reverb Mixと重複するIR Mixスライダーを整理し、1つのコントロールで調整。
+- WAV書き出しでは先読み遅延を補償し、ノートの開始位置・ファイル長を維持。
 
-Androidビルド・Lint・36 JVM tests・native / ASan / UBSanはPASS。Helsinki v1.6 XFの実ファイルで、ペダル・リリース・IRを含む10秒の音声生成を検証（試験時IR mix=0.35、cache miss / I/O error=0）。ユーザー指定のopenthesia-androidは操作の参考として確認し、GPLコードや素材は取り込んでいません。
+実IR5種 × Mix 0 / 0.3 / 0.71 / 1 × 単音 / 4音 / 12音の60ケースで検証。School Hall / Mix 0.71は単音で出力保護にかからず、4音は最大約2.52dBの音量調整で保護。native / ASan / UBSan、36 JVM tests、Androidビルド・LintはPASS。修正版のユーザー端末での聴感確認・実測レイテンシは未検証です。
 
-**Galaxy S26 / Android 16のUI・USB / BLE録音・SAF保存・レイテンシは実機未検証です。** MIDI編集・Learning Mode・MP3/AAC/FLAC書き出し・MIDI 2.0・GM音色切替は未対応。Windows VSTは別の実験資料のままです。
+IR正規化はPianoPocketの近似方式です。Decent Sampler純正の内部方式との一致は未確認で、インポート時に警告します。MIDIライブラリ・ロール・録音・各種書き出しは0.3から維持しています。Helsinki音源・IR・原本XML、ユーザーMIDIは同梱していません。
 
-Pianobookのサンプル・IR・画像・実XML、ユーザーのMIDIは配布しません。Helsinkiは正規に取得した音源をインポートしてください。自作PocketStudy.midとPocketFixture.zipをテスト用に用意しています。
-
-[使い方](https://github.com/tstyr/PianoPocket#readme) / [検証と実機手順](https://github.com/tstyr/PianoPocket/blob/main/docs/SEQUENCER.md)。
-
-## ダウンロード
-
-Assetsへの直接添付は、この環境のアップロード認証エラーで完了していません。配布用release-artifactsブランチから、以下のファイルを取得できます。
-
-- [Android ARM64 APK](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-arm64-debug.apk)
-- [ソースZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-source.zip)
-- [検証結果ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.3.0-alpha-validation.zip)
-- [自作テストMIDI](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketStudy.mid)
-- [自作テスト音源](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PocketFixture.zip)
-- [SHA-256一覧](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.3.0.txt)
+[修正内容・検証・実機での比較手順](https://github.com/tstyr/PianoPocket/blob/main/docs/REVERB_FIX.md)

@@ -37,7 +37,14 @@ Effect::Effect(const EffectSpec& s,float sr):type(s.type),rate(sr),smoothing(1-s
     if(type==EffectType::Delay)delay.resize(size_t(rate*25+4)*2);
     if(type==EffectType::Chorus)delay.resize(size_t(rate*.1+4)*2);
     if(type==EffectType::Reverb){int lengths[8]={1116,1188,1277,1356,1139,1211,1300,1379};for(int i=0;i<8;++i)comb[i].resize(size_t(lengths[i]*rate/44100));int ap[4]={225,556,248,579};for(int i=0;i<4;++i)allpass[i].resize(size_t(ap[i]*rate/44100));}
-    if(type==EffectType::Convolution)convolution=std::make_unique<Convolver>(s.ir);
+    if(type==EffectType::Convolution){
+        // Reverb IR files have different recorded gains. One stereo-linked energy
+        // factor avoids raw IR amplification; no quiet-IR boost or channel imbalance.
+        double energy[2]={0,0};for(size_t i=0;i<s.ir.size();++i){if(!std::isfinite(s.ir[i]))throw std::runtime_error("IR contains non-finite audio");energy[i%2]+=double(s.ir[i])*s.ir[i];}
+        auto norm=std::sqrt(std::max(energy[0],energy[1]));
+        if(norm>.125)irGain=float(.125/norm);
+        convolution=std::make_unique<Convolver>(s.ir);
+    }
     coefficients();
 }
 void Effect::parameter(int slot,float value) noexcept {
@@ -69,7 +76,7 @@ void Effect::process(float& l,float& r) noexcept {
     for(int i=0;i<5;++i)current[i]+=(target[i]-current[i])*smoothing;
     float dryL=l,dryR=r,wetL=l,wetR=r;
     if(type==EffectType::Gain){wetL*=current[1];wetR*=current[1];}
-    else if(type==EffectType::Convolution){if(current[0]<1e-6f && target[0]==0)wetL=wetR=0;convolution->process(wetL,wetR);wetL=dryL*(1-current[0])+wetL*current[0];wetR=dryR*(1-current[0])+wetR*current[0];}
+    else if(type==EffectType::Convolution){if(current[0]<1e-6f && target[0]==0)wetL=wetR=0;convolution->process(wetL,wetR);wetL=dryL*(1-current[0])+wetL*irGain*current[0];wetR=dryR*(1-current[0])+wetR*irGain*current[0];}
     else if(type==EffectType::Reverb){
         wetL=wetR=0;float feed=(dryL+dryR)*.015f,feedback=.7f+current[1]*.27f,damp=current[2]*.9f;
         for(int i=0;i<8;++i){auto& buf=comb[i];auto& pos=combPos[i];auto x=buf[pos];damped[i]=x*(1-damp)+damped[i]*damp;buf[pos]=feed+damped[i]*feedback;pos=(pos+1)%buf.size();(i<4?wetL:wetR)+=x;}
