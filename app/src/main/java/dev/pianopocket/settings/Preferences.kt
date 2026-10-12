@@ -4,6 +4,9 @@ import android.content.Context
 
 class Preferences(context: Context) {
     private val store=context.getSharedPreferences("pianopocket",Context.MODE_PRIVATE)
+    var showFps: Boolean
+        get()=store.getBoolean("showFps",false)
+        set(value){store.edit().putBoolean("showFps",value).apply()}
     var landscapePerformance: Boolean
         get()=store.getBoolean("landscapePerformance",true)
         set(value){store.edit().putBoolean("landscapePerformance",value).apply()}

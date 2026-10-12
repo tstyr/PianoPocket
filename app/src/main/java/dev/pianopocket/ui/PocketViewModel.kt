@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val showFps: Boolean = false,
     val aacAvailable: Boolean = false,
     val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
@@ -43,7 +44,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     @Volatile private var encodingProgress=0f
     @Volatile private var compressedExport=false
     private fun exportProgress(): Float=when(exportStage){1->.7f+NativeAudio.exportProgress()*.25f;2->.7f+encodingProgress*.25f;3->.98f;else->NativeAudio.exportProgress()*(if(compressedExport).7f else .98f)}
-    private val mutable=MutableStateFlow(PocketState(landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -168,6 +169,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         live.event(if(velocity>0)0x90 else 0x80,note,velocity,16)
         if(state.value.midiInput in listOf("all","screen"))recorder.capture(if(velocity>0)0x9f else 0x8f,note,velocity)
     }
+    fun showFps(value: Boolean){preferences.showFps=value;mutable.update { it.copy(showFps=value) }}
     fun landscapePerformance(value: Boolean){preferences.landscapePerformance=value;mutable.update { it.copy(landscapePerformance=value) }}
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
     fun panic(){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}

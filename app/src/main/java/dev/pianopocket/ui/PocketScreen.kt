@@ -77,6 +77,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             }
                             PianoKeyboard(state,model,Modifier.fillMaxWidth().height(keyboardHeight))
                         }
+                        if(state.showFps)FpsOverlay(activity?.window,Modifier.align(Alignment.BottomStart).padding(start=4.dp,bottom=3.dp))
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -105,6 +106,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             }
                             }
                             3 -> {
+                            Row { Text("FPSを左下に表示",Modifier.weight(1f));Switch(checked=state.showFps,onCheckedChange=model::showFps) }
                             Text("表示",style=MaterialTheme.typography.titleMedium)
                             Row { Text("演奏画面は横向きを優先",Modifier.weight(1f));Switch(checked=state.landscapePerformance,onCheckedChange=model::landscapePerformance) }
                             Text("オフにすると端末の向きに従います。設定・ライブラリ・ファイル選択は回転を制限しません。",style=MaterialTheme.typography.bodySmall)
@@ -134,7 +136,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket 0.4.4 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.4.5 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
