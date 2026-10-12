@@ -151,4 +151,4 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開準備（2026-10-12）: 0.4.4のノート名追従と連動ピンチズームを実装。45 JVM tests・Androidビルド・Lint・署名／16KiB整列を通過。新ジェスチャー・表示は実機未検証。既存の音声処理・エンコーダーを変更していません。
+公開状態（2026-10-12）: main / v0.4.4-alpha / release-artifactsとプリリリースを公開。ノート名追従と連動ピンチズームを実装し、公開APK・対応ソース・検証ZIP・fixtureを再取得してSHA-256一致を確認。Assets直接添付はHTTP 401が継続し未完了。45 JVM tests・Androidビルド・Lint・署名／16KiB整列を通過。新ジェスチャー・表示は実機未検証。既存の音声処理・エンコーダーを変更していません。
