@@ -23,15 +23,14 @@ fun PianoRoll(state: PocketState,modifier: Modifier=Modifier) {
     val liveMode=seq.recording || !seq.playing && seq.live.notes.isNotEmpty()
     val position=if(liveMode)seq.live.now else seq.position
     val span=(seq.lookAhead*1000000).toLong()
-    Column(modifier) {
-        Text(if(liveMode)"リアルタイム入力 · 演奏履歴（未来の音は予測しません）"else "Falling notes · ${seq.title}",Modifier.padding(horizontal=20.dp,vertical=4.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary,maxLines=1)
-        Canvas(Modifier.fillMaxWidth().weight(1f).padding(horizontal=12.dp).background(Color(0xff12161b))) {
-            layout.shapes.filter { !it.black }.forEach { key -> drawLine(Color(0xff252b32),Offset(key.left*size.width,0f),Offset(key.left*size.width,size.height)) }
+    Box(modifier) {
+        Canvas(Modifier.fillMaxSize().background(Color(0xff1d2732))) {
+            layout.shapes.filter { !it.black }.forEach { key -> drawLine(Color(0xff2b3540),Offset(key.left*size.width,0f),Offset(key.left*size.width,size.height)) }
             fun y(t: Long):Float = if(liveMode)size.height-((position-t).toDouble()/span*size.height).toFloat() else size.height-((t-position).toDouble()/span*size.height).toFloat()
             val begin=if(liveMode)position-span else position
             val end=if(liveMode)position else position+span
             val seconds=(begin/1000000)..(end/1000000)
-            seconds.forEach { s->val yy=y(s*1000000);drawLine(Color(0xff2a313a),Offset(0f,yy),Offset(size.width,yy),1f) }
+            seconds.forEach { s->val yy=y(s*1000000);drawLine(Color(0xff2a3540),Offset(0f,yy),Offset(size.width,yy),1f) }
             clipRect {
                 fun note(n: RollNote,live: Boolean=false){
                     val key=layout.shapes.firstOrNull { it.note==n.key } ?: return

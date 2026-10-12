@@ -1,6 +1,8 @@
 package dev.pianopocket.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -11,35 +13,11 @@ import java.text.DateFormat
 import java.util.Date
 
 fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLeast(0);return "%d:%02d".format(seconds/60,seconds%60)}
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun SequenceTransport(state: PocketState,model: PocketViewModel,export: (ExportFormat,Int,Int)->Unit) {
-    val seq=state.sequence
-    var exporting by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(horizontal=12.dp)) {
-        FlowRow(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-            Button(onClick=model::play,enabled=seq.song!=null && state.ready && !state.busy && !seq.recording){Text(if(seq.playing)"一時停止"else "再生")}
-            OutlinedButton(onClick={if(seq.recording)model.stopRecording()else model.startRecording()},enabled=state.ready && !state.busy){Text(if(seq.recording)"録音保存"else "● 録音")}
-            TextButton(onClick={exporting=true},enabled=seq.song!=null && !state.busy && !seq.recording){Text("書き出し")}
-            TextButton(onClick={model.rollVisible(!seq.rollVisible)}){Text(if(seq.rollVisible)"音色"else "ロール")}
-        }
-        if(seq.recording)Text("REC ${durationLabel(seq.recordingMicros)} · 入力: ${inputLabel(state)}",style=MaterialTheme.typography.labelMedium,color=Color(0xffd49b91))
-        else seq.song?.let { song ->
-            var seeking by remember(seq.selected){mutableStateOf<Float?>(null)}
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("${durationLabel(seq.position)} / ${durationLabel(song.duration)}",Modifier.padding(top=13.dp),style=MaterialTheme.typography.labelSmall)
-                Slider(value=seeking ?: (seq.position/1000000f).coerceIn(0f,(song.duration/1000000f).coerceAtLeast(.001f)),onValueChange={seeking=it},valueRange=0f..(song.duration/1000000f).coerceAtLeast(.001f),enabled=!state.busy && !seq.recording,modifier=Modifier.weight(1f).height(32.dp),onValueChangeFinished={seeking?.let { model.seek((it*1000000).toLong()) };seeking=null})
-            }
-        }
-        if(seq.exporting){LinearProgressIndicator(progress={seq.exportProgress},modifier=Modifier.fillMaxWidth());TextButton(onClick=model::cancelExport){Text("書き出しをキャンセル")}}
-    }
-    if(exporting)ExportDialog(seq.title,state.ready,onDismiss={exporting=false}){f,r,t->exporting=false;export(f,r,t)}
-}
-@Composable private fun ExportDialog(name: String,audioReady: Boolean,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int)->Unit) {
+@Composable internal fun ExportDialog(name: String,audioReady: Boolean,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int)->Unit) {
     var format by remember { mutableStateOf(ExportFormat.WAV24) }
     var rate by remember { mutableIntStateOf(48000) }
     var tail by remember { mutableFloatStateOf(8f) }
-    AlertDialog(onDismissRequest=onDismiss,title={Text("書き出し形式")},text={Column {
+    AlertDialog(onDismissRequest=onDismiss,title={Text("書き出し形式")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(name,maxLines=2)
         ExportFormat.entries.forEach { f->Row { RadioButton(selected=format==f,onClick={format=f});TextButton(onClick={format=f}){Text(f.label)} } }
         if(format.bits>0){

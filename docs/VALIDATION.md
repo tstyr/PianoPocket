@@ -80,3 +80,11 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 利用者のSchool Hall / Mix 0.71の音割れを実データで再現。IR音量補正と固定メモリの先読みリミッターを実装し、実IR5種×4 mix×3発音密度の60ケース、低周波／1kHzの高調波検査、native / ASan / UBSan、36 JVM tests、ビルド／Lintを通過。[原因・検査・実機確認手順](REVERB_FIX.md)。利用者端末での起動と演奏の報告・画面は得ていますが、修正版の聴感・実測レイテンシは開発環境で実機確認していません。
 
 0.3.1のmain / tag / release-artifactsブランチとリリースを公開済み。Assets直接添付はHTTP 401が継続し未完了。公開ブランチから修正版APKを再取得してSHA-256一致を確認しました。新しいActions実行は行っていません。
+
+## 0.4 performance UI
+
+横画面優先・全画面ロール、48dpアイコン操作と長押し説明、3本ずつ並ぶ実XMLマイクフェーダー、鍵盤を保持する音源パネルを実装。MIDI選択済みのライブラリで回転時に勝手に戻る可能性を修正。ドレミ設定・録音・WAV/MIDI書き出しを維持。[操作と実機検証項目](PERFORMANCE_UI.md)。
+
+`assembleDebug testDebugUnitTest lintDebug` PASS、JUnit 36 / failures 0 / errors 0 / skipped 0、Lint errors 0。native suite PASS。今回はUI変更で、DSPコードに変更はなく、0.3.1の60ケース・ASan / UBSan実音源検証を再実行したとは扱いません。
+
+APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署名PASS、zipalign 16KiB PASS、3つのELFのLOAD整列が16384。旧版と同じ証明書SHA-256 `d2b4e0c9de24c4a5ec51e6e05651e526aee3da3e3a720f756c2027789b132761`。APK SHA-256 `b0e177b3b0f209e717b66a2ed59060dca7337f43ca16a31de0ea3a9bd5eef027`、27481758 bytes。開発環境の実機・エミュレーターは未接続で、スクリーンショット・UI操作・Galaxy S26での更新成功を検証済みとは主張しません。

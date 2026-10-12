@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
     val busy: Boolean = false, val message: String = "準備中", val midi: String = "MIDI未接続",
     val stats: List<Double> = List(15){0.0}, val groups: List<Float> = emptyList(), val volume: Float = .7f,
@@ -37,7 +38,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val recorder=MidiRecorder()
     private val live=LiveNotes()
     private val exportCancelled=AtomicBoolean(false)
-    private val mutable=MutableStateFlow(PocketState(voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -142,7 +143,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     }
     fun memory(value: Int){preferences.memoryMiB=value;mutable.update { it.copy(memoryMiB=value,message="メモリ上限は次回の音源読み込みから適用されます") }}
     fun audio(device: Int=state.value.device,bursts: Int=state.value.bursts)=work { preferences.bursts=bursts;mutable.update { it.copy(device=device,bursts=bursts) };NativeAudio.panic();check(NativeAudio.start(device,bursts)) { "オーディオ経路を開けません" };state.value.library.firstOrNull { it.id==state.value.selected }?.let { loadInternal(it) } }
-    fun channel(value: Int){if(state.value.sequence.recording)stopRecording();live.clear();NativeAudio.panic();midi.channel=value;mutable.update { it.copy(channel=value) }}
+    fun channel(value: Int){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();live.clear();NativeAudio.panic();midi.channel=value;mutable.update { it.copy(channel=value) }}
     fun scanBluetooth()=midi.scanBluetooth()
     fun bluetooth(address: String)=midi.connectBluetooth(address)
     private fun receiveMidi(status: Int,a: Int,b: Int,timestamp: Long) {
@@ -161,9 +162,10 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         live.event(if(velocity>0)0x90 else 0x80,note,velocity,16)
         if(state.value.midiInput in listOf("all","screen"))recorder.capture(if(velocity>0)0x9f else 0x8f,note,velocity)
     }
-    fun pedal(down: Boolean){val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
-    fun panic(){if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
-    fun input(id: String){if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
+    fun landscapePerformance(value: Boolean){preferences.landscapePerformance=value;mutable.update { it.copy(landscapePerformance=value) }}
+    fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
+    fun panic(){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
+    fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
     fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(fullKeyboard=value)) }}
     fun octave(value: Int){mutable.update { it.copy(sequence=it.sequence.copy(octave=value)) }}
     fun noteLabels(value: Boolean){preferences.noteLabels=value;mutable.update { it.copy(sequence=it.sequence.copy(noteLabels=value)) }}
@@ -192,12 +194,12 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(state.value.sequence.exporting || !state.value.ready || state.value.busy)return
         if(state.value.midiInput=="none"){message("録音するMIDI入力または画面鍵盤を選択してください。");return}
         NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear();recorder.start()
-        mutable.update { it.copy(sequence=it.sequence.copy(recording=true,recordingMicros=0),message="録音中。停止するとMIDIライブラリへ保存します。") }
+        mutable.update { it.copy(uiPedal=false,sequence=it.sequence.copy(recording=true,recordingMicros=0),message="録音中。停止するとMIDIライブラリへ保存します。") }
     }
     fun stopRecording(){
         if(!state.value.sequence.recording)return
         val take=recorder.stop();NativeAudio.panic();live.clear()
-        mutable.update { it.copy(sequence=it.sequence.copy(recording=false)) }
+        mutable.update { it.copy(uiPedal=false,sequence=it.sequence.copy(recording=false)) }
         work {val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date());val entry=midiLibrary.save(name,song);selectSong(entry,song);mutable.update { it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。") }}
     }
     fun cancelExport(){exportCancelled.set(true);NativeAudio.cancelExport()}

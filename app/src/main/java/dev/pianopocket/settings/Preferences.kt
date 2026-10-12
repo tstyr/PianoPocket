@@ -4,6 +4,9 @@ import android.content.Context
 
 class Preferences(context: Context) {
     private val store=context.getSharedPreferences("pianopocket",Context.MODE_PRIVATE)
+    var landscapePerformance: Boolean
+        get()=store.getBoolean("landscapePerformance",true)
+        set(value){store.edit().putBoolean("landscapePerformance",value).apply()}
     var lastInstrument: String
         get()=store.getString("lastInstrument","")!!
         set(value){store.edit().putString("lastInstrument",value).apply()}

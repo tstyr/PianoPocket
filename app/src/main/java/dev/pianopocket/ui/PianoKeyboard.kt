@@ -25,28 +25,16 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
     val low=if(seq.fullKeyboard)21 else (seq.octave+1)*12
     val high=if(seq.fullKeyboard)108 else low+23
     val layout=remember(low,high){KeyLayout(low,high)}
-    var sustain by remember { mutableStateOf(false) }
     var held by remember { mutableStateOf(setOf<Int>()) }
     val paint=remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER } }
-    DisposableEffect(enabled,low) { onDispose { model.pedal(false);sustain=false;held=emptySet() } }
+    DisposableEffect(enabled,low) { onDispose { model.pedal(false);held=emptySet() } }
     val external=remember(seq.position,seq.playing,seq.song,seq.live){
         val active=seq.live.held.toMutableSet();val tails=seq.live.sustained.toMutableSet()
         if(seq.playing)seq.song?.noteIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd)active+=it.key else tails+=it.key}
         active to tails
     }
-    Column(modifier.background(Color(0xff20242a)).padding(horizontal=12.dp,vertical=6.dp)) {
-        Row(horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-            FilterChip(selected=seq.fullKeyboard,onClick={model.fullKeyboard(!seq.fullKeyboard)},label={Text("88鍵")})
-            if(!seq.fullKeyboard){
-                TextButton(onClick={model.octave((seq.octave-1).coerceAtLeast(1))},enabled=seq.octave>1){Text("−")}
-                Text("C${seq.octave}",Modifier.padding(top=15.dp),style=MaterialTheme.typography.labelMedium)
-                TextButton(onClick={model.octave((seq.octave+1).coerceAtMost(7))},enabled=seq.octave<7){Text("＋")}
-            }
-            Spacer(Modifier.weight(1f))
-            FilterChip(selected=sustain,onClick={sustain=!sustain;model.pedal(sustain)},enabled=enabled,label={Text("ペダル")})
-            TextButton(onClick={sustain=false;model.panic()}){Text("停止")}
-        }
-        Canvas(Modifier.fillMaxWidth().weight(1f).semantics { contentDescription="マルチタッチのピアノ鍵盤。下側ほど強いベロシティ。" }.pointerInput(layout,enabled) {
+    Box(modifier.background(Color(0xff20242a))) {
+        Canvas(Modifier.fillMaxSize().semantics { contentDescription="マルチタッチのピアノ鍵盤。下側ほど強いベロシティ。" }.pointerInput(layout,enabled) {
             if(!enabled)return@pointerInput
             val touches=mutableMapOf<PointerId,Int>()
             try {

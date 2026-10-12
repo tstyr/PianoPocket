@@ -1,14 +1,22 @@
 package dev.pianopocket.ui
 
+import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import dev.pianopocket.library.LibraryEntry
 import java.text.DateFormat
 import java.util.Date
@@ -17,62 +25,69 @@ private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0x
 @Composable
 fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int)->Unit) {
     val state by model.state.collectAsState()
-    var tab by remember { mutableIntStateOf(0) }
-    LaunchedEffect(state.sequence.selected){if(tab==1 && state.sequence.selected.isNotBlank())tab=0}
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var instrument by rememberSaveable { mutableStateOf(false) }
+    var notice by remember { mutableStateOf(true) }
+    LaunchedEffect(state.message){notice=true;kotlinx.coroutines.delay(5000);notice=false}
     var deleting by remember { mutableStateOf<LibraryEntry?>(null) }
+    val activity=LocalActivity.current
     val window=LocalWindowInfo.current.containerSize
     val landscape=window.width>window.height
+    DisposableEffect(activity,tab,state.landscapePerformance) {
+        if(activity==null)return@DisposableEffect onDispose {}
+        activity.requestedOrientation=if(tab==0 && state.landscapePerformance)ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
+        bars.systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if(tab==0)bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
+        onDispose { bars.show(WindowInsetsCompat.Type.systemBars());activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+    BackHandler(tab!=0 || instrument){if(instrument)instrument=false else tab=0}
+    var lastMidi by rememberSaveable { mutableStateOf(state.sequence.selected) }
+    LaunchedEffect(state.sequence.selected){
+        if(state.sequence.selected!=lastMidi && tab==1 && state.sequence.selected.isNotBlank())tab=0
+        lastMidi=state.sequence.selected
+    }
     MaterialTheme(colorScheme=colors) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=if(landscape)4.dp else 12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f)) {
-                        if(!landscape)Text("PIANOPOCKET",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
-                        Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.titleLarge,maxLines=1)
-                    }
-                    Text(state.midi,style=MaterialTheme.typography.labelMedium,modifier=Modifier.padding(top=10.dp).widthIn(max=120.dp),maxLines=1)
-                    TextButton(onClick={tab=3},modifier=Modifier.height(32.dp)){Text("設定")}
-                }
-                TabRow(selectedTabIndex=tab) { listOf("演奏","MIDI","音源","設定").forEachIndexed { i,label->Tab(selected=tab==i,onClick={tab=i},text={Text(label)}) } }
-                if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(state.message,Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary,maxLines=2)
-                if(tab==0 && state.sequence.rollVisible) {
-                    SequenceTransport(state,model,export)
-                    PianoRoll(state,Modifier.fillMaxWidth().weight(1f))
-                } else {
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    when(tab) {
-                        0 -> {
-                            SequenceTransport(state,model,export)
-                            state.preset?.let { preset ->
-                            Text("マイク / グループ",style=MaterialTheme.typography.titleMedium)
-                            if(preset.controls.none { c->c.bindings.any { it.type=="group" } })preset.groups.forEachIndexed { i,name->Parameter(name,state.groups.getOrElse(i){1f},0f..2f,state.ready && !state.busy){model.group(i,it)} }
-                            if(preset.controls.isNotEmpty())Text("プリセットの対応コントロール",style=MaterialTheme.typography.titleMedium)
-                            preset.controls.forEachIndexed { i,c->Parameter(c.name,c.value,c.min..c.max,state.ready && !state.busy){model.control(i,it)} }
-                            preset.menus.forEachIndexed { i,menu->IrMenuControl(menu,state.ready && !state.busy) { model.impulse(i,it) } }
-                            preset.effects.forEachIndexed { index,fx ->
-                                Row { Text("${index+1}. ${fx.name}",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium);Switch(checked=fx.params[4]>=.5f,onCheckedChange={model.fx(index,4,if(it)1f else 0f)},enabled=state.ready && !state.busy) }
-                                val parameters=when(fx.type) {
-                                    0 -> listOf(Triple(0,"Wet Level",0f..1f),Triple(1,"Room Size",0f..1f),Triple(2,"Damping",0f..1f))
-                                    1 -> listOf(Triple(0,"Wet Level",0f..1f),Triple(1,"Delay Time (s)",0f..20f),Triple(2,"Feedback",0f..0.995f),Triple(3,"Stereo Offset (s)",-10f..10f))
-                                    2 -> listOf(Triple(0,"Mix",0f..1f),Triple(1,"Mod Depth",0f..1f),Triple(2,"Mod Rate (Hz)",0f..10f))
-                                    6 -> listOf(Triple(1,"Level",0f..4f))
-                                    7 -> listOf(Triple(0,"IR Mix · 256 frame処理遅延",0f..1f))
-                                    else -> listOf(Triple(1,"Frequency (Hz)",20f..22000f),Triple(2,"Q",.01f..5f))+(if(fx.type>=8 && fx.type!=9)listOf(Triple(3,"Gain",.01f..4f))else emptyList())
+                if(tab==0) {
+                    BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                        val panelWidth=if(landscape) minOf(420.dp,maxWidth*.6f) else maxWidth
+                        val keyboardHeight=(maxHeight*.29f).coerceIn(96.dp,180.dp)
+                        Column(Modifier.fillMaxSize()) {
+                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                                if(state.sequence.rollVisible)PianoRoll(state,Modifier.fillMaxSize())
+                                else Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
+                                Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
+                                    PerformanceToolbar(state,model,export,{tab=1},{instrument=!instrument},{tab=3})
                                 }
-                                parameters.forEach { (slot,name,range)->
-                                    val bound=preset.controls.firstOrNull { c->c.bindings.any { it.type=="effect" && it.index==index && it.slot==slot } }
-                                    if(bound==null)Parameter(name,fx.params[slot],range,state.ready && !state.busy){model.fx(index,slot,it)}
-                                    else Text("${bound.name}で調整",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary)
+                                if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter))
+                                Column(Modifier.align(Alignment.TopStart).padding(start=12.dp,top=if(state.sequence.song!=null && !state.sequence.recording)78.dp else 54.dp).widthIn(max=340.dp)) {
+                                    Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.playing)state.sequence.title else if(state.sequence.live.held.isNotEmpty())"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
+                                    if(notice || state.busy || !state.ready)Text(state.message,style=MaterialTheme.typography.bodySmall,maxLines=2)
+                                }
+                                KeyboardTools(state,model,Modifier.align(Alignment.BottomEnd).padding(4.dp))
+                                if(instrument)Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelWidth),tonalElevation=4.dp,shadowElevation=8.dp) {
+                                    InstrumentPanel(state,model,{instrument=false},{instrument=false;tab=2})
                                 }
                             }
-                            Parameter("Output",state.volume,0f..1f,state.ready && !state.busy,model::volume)
-                            Text("ボイス ${state.stats[6].toInt()}/${state.voices} · DSP ${"%.1f".format(state.stats[5])}% · キャッシュミス ${state.stats[8].toLong()}",style=MaterialTheme.typography.bodySmall)
-                            if(preset.warnings.isNotEmpty()) { Text("互換性レポート",style=MaterialTheme.typography.titleMedium);preset.warnings.forEach { Text("• $it",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary) } }
-                        } ?: Text("音源タブから音源を選択してください。")
+                            PianoKeyboard(state,model,Modifier.fillMaxWidth().height(keyboardHeight))
                         }
-                        1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
-                        2 -> {
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                        PocketIconButton(PocketIcon.Back,"演奏に戻る",onClick={tab=0})
+                        Text(listOf("演奏","MIDIライブラリ","音源ライブラリ","設定")[tab],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                        PocketIconButton(PocketIcon.Midi,"MIDIライブラリ",selected=tab==1,onClick={tab=1})
+                        PocketIconButton(PocketIcon.Library,"音源ライブラリ",selected=tab==2,onClick={tab=2})
+                        PocketIconButton(PocketIcon.Settings,"設定",selected=tab==3,onClick={tab=3})
+                    }
+                    if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(state.message,Modifier.padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary,maxLines=3)
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        when(tab) {
+                            1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
+                            2 -> {
                             Button(onClick=import,enabled=!state.busy){Text("音源をインポート")}
                             Text("ZIP / ZIP形式のdslibrary、またはdspreset＋サンプルフォルダー。利用者が正規に取得した音源を選択してください。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick=model::rescan,enabled=!state.busy){Text("再スキャン")}
@@ -84,13 +99,15 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                     Row { TextButton(onClick={model.load(entry);tab=0},enabled=!state.busy){Text("選択")};TextButton(onClick={deleting=entry},enabled=!state.busy){Text("削除") } }
                                 } }
                             }
-                        }
-                        3 -> {
+                            }
+                            3 -> {
                             Text("表示",style=MaterialTheme.typography.titleMedium)
+                            Row { Text("演奏画面は横向きを優先",Modifier.weight(1f));Switch(checked=state.landscapePerformance,onCheckedChange=model::landscapePerformance) }
+                            Text("オフにすると端末の向きに従います。設定・ライブラリ・ファイル選択は回転を制限しません。",style=MaterialTheme.typography.bodySmall)
                             Row { Text("カタカナのドレミ",Modifier.weight(1f));Switch(checked=state.sequence.noteLabels,onCheckedChange=model::noteLabels) }
                             Row { Text("ロールビュー",Modifier.weight(1f));Switch(checked=state.sequence.rollVisible,onCheckedChange=model::rollVisible) }
                             Parameter("ロール表示時間 (${state.sequence.lookAhead.toInt()} 秒)",state.sequence.lookAhead,2f..10f,true,model::lookAhead)
-                            Text("88鍵は全体表示。鍵盤の88鍵ボタンをオフにすると2オクターブに拡大します。",style=MaterialTheme.typography.bodySmall)
+                            Text("鍵盤の拡大アイコンで88鍵／2オクターブを切り替えます。矢印でオクターブを移動。",style=MaterialTheme.typography.bodySmall)
                             Text("オーディオ",style=MaterialTheme.typography.titleMedium)
                             DeviceMenu(state,model)
                             BufferControl(state,model)
@@ -112,25 +129,24 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            Text("PianoPocket 0.3.1 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。Galaxy S26の起動・MIDI・レイテンシは実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            Text("PianoPocket 0.4.0 alpha · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
-                }
-                if(tab==0)PianoKeyboard(state,model,Modifier.fillMaxWidth().height(if(landscape)120.dp else 210.dp))
             }
             deleting?.let { entry -> AlertDialog(onDismissRequest={deleting=null},title={Text("音源フォルダーを削除")},text={Text("${entry.name} と同じインポートに含まれる全プリセット・サンプルを削除します。")},confirmButton={TextButton(onClick={model.delete(entry);deleting=null}){Text("削除")}},dismissButton={TextButton(onClick={deleting=null}){Text("キャンセル")}}) }
         }
     }
 }
-@Composable private fun Parameter(label: String,value: Float,range: ClosedFloatingPointRange<Float>,enabled: Boolean,onChange:(Float)->Unit) {
+@Composable internal fun Parameter(label: String,value: Float,range: ClosedFloatingPointRange<Float>,enabled: Boolean,onChange:(Float)->Unit) {
     Column { Row { Text(label,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge);Text("%.2f".format(value),style=MaterialTheme.typography.labelMedium) };Slider(value=value.coerceIn(range.start,range.endInclusive),onValueChange=onChange,valueRange=range,enabled=enabled) }
 }
 @Composable private fun BufferControl(state: PocketState,model: PocketViewModel) {
     var pending by remember(state.bursts) { mutableFloatStateOf(state.bursts.toFloat()) }
     Column { Text("バッファ (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
 }
-@Composable private fun IrMenuControl(menu: dev.pianopocket.library.IrMenu,enabled: Boolean,onSelect:(Int)->Unit) {
+@Composable internal fun IrMenuControl(menu: dev.pianopocket.library.IrMenu,enabled: Boolean,onSelect:(Int)->Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box { OutlinedButton(onClick={expanded=true},enabled=enabled){Text("${menu.name}: ${menu.options[menu.selected].name}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { menu.options.forEachIndexed { index,choice->DropdownMenuItem(text={Text(choice.name)},onClick={expanded=false;onSelect(index)}) } } }
 }
