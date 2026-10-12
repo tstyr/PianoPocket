@@ -60,3 +60,7 @@ zipalign -c -P 16 4 app/build/outputs/apk/debug/app-debug.apk
 ## 0.2.0の追加検証
 
 voice-scope table、tagミキサー、CC64のnote 1 / 2マッピング、整数小数frame、IRメニュー、+12dB gain、256/2048 hybrid FFTを追加。ASan/UBSanのnative suiteと実XFマッピングprobeを通過。実サンプルはCIに置かず、利用者が指定するprivateディレクトリから検証します。詳細と再現コマンドは[HELSINKI.md](HELSINKI.md)。
+
+## GitHub公開後のCI状態
+
+main / v0.2.0-alphaのプッシュは成功しました。GitHub Actionsの初回実行は `The job was not started because your account is locked due to a billing issue.` というGitHub側の理由でジョブ開始前に停止しています。ローカルのビルド・テスト成功をホステッドCI成功とは扱いません。[実行記録](https://github.com/tstyr/PianoPocket/actions/runs/38220736938)。本体の不具合ではなく、GitHubアカウント側で解消が必要です。

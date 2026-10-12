@@ -106,4 +106,4 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開状態（2026-10-12）: 対象リポジトリは確認済みですが、Git HTTPS pushは403、GitHubプラグインの書き込みも `Resource not accessible by integration` で拒否されました。ローカルコード・APK・タグは完成しており、GitHub側の連携アプリにPianoPocketへの書き込み権限が付いた後に公開を再試行します。
+公開状態（2026-10-12）: 連携アプリの認証更新後、mainとv0.2.0-alphaタグをGitHubへプッシュしました。ローカルのビルド・22件のJVMテスト・native / ASan / UBSan・実音源検証は通過しています。GitHub Actionsの初回実行はアカウントのbilling lockによりジョブ開始前に停止しました。ホステッドCIの成功として扱いません。配布状況は上記Releasesページで確認できます。
