@@ -78,3 +78,5 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 ## 0.3.1 reverb clipping
 
 利用者のSchool Hall / Mix 0.71の音割れを実データで再現。IR音量補正と固定メモリの先読みリミッターを実装し、実IR5種×4 mix×3発音密度の60ケース、低周波／1kHzの高調波検査、native / ASan / UBSan、36 JVM tests、ビルド／Lintを通過。[原因・検査・実機確認手順](REVERB_FIX.md)。利用者端末での起動と演奏の報告・画面は得ていますが、修正版の聴感・実測レイテンシは開発環境で実機確認していません。
+
+0.3.1のmain / tag / release-artifactsブランチとリリースを公開済み。Assets直接添付はHTTP 401が継続し未完了。公開ブランチから修正版APKを再取得してSHA-256一致を確認しました。新しいActions実行は行っていません。
