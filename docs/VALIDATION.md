@@ -101,3 +101,5 @@ APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署�
 - Helsinki XFの実サンプル・IRによる10秒、480000frames、PCM24書き出し。FLACは全PCM一致、MP3は各480000framesを復号。音声・原XML・IRは公開しない。前段のSampler/Effectsのアルゴリズムは変更していません。
 - APK versionCode6 / versionName0.4.1-alpha / ARM64 / min29 / target36。署名v2・zipalign16KiB PASS。4 ELFのLOAD alignment>=16384、新しいlibmp3lame.soと実ライセンス本文assetを確認。旧版と同じ証明書。APK 28589208 bytes / SHA-256 `1605ef1417621c60c563632d55b40afa08596ecd5d3ed65a0e14a34e67dd6bf7`。
 - `AacExporterDeviceTest` 2 testsとAndroid test APKを用意しビルド。端末未接続なので実行せず、M4Aの出力成功を検証済みとは主張しない。新ドレミ・SUSの表示、SAF保存、USB/BLE連動の実機試験も未実施。
+
+0.4.1をmain / tag / release-artifactsとプリリリースに公開。Assetsへの通常添付はHTTP 401で未完了。公開先のAPK・対応ソースZIP・検証ZIP・自作fixture/MIDIを再取得し、SHA-256一覧との一致を確認。新しいActions実行や実機M4A・UI試験の成功は主張しません。
