@@ -111,3 +111,5 @@ MIDI SAFのワイルドカードを削除し、streamを開く前に拡張子を
 `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS。JUnit42 / failures0 / errors0 / skipped0、Lint errors0。MIDI拡張子の受入／拒否・ワイルドカードなしを検査し、既存のファ一行回帰テストを更新。今回はUI・ファイル選択の変更で、C++・codec・ASan/UBSanの再実行とは扱いません。Android test APKはビルドのみで端末未接続のため未実行。新しい表示・SAFピッカーは実機未検証です。
 
 versionCode7 / 0.4.2-alpha / ARM64、旧版と同じdebug v2署名。zipalign16KiB・4 ELF LOAD>=16384 PASS。APK 27686877bytes / SHA-256 `f77301301575998d26700bdb95d49323dcfc72c010b223d7ce79f43804fc66d4`。
+
+0.4.2のmain / tag / release-artifactsとプリリリースを公開。Assets添付は今回もHTTP 401で未完了。公開されたAPK・対応ソース・検証ZIP・自作fixture/MIDIを取得し、checksum一覧とSHA-256一致を確認しました。ホステッドCI／実機UI／M4Aの新しい成功は報告しません。
