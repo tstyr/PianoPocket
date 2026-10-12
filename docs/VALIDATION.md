@@ -88,3 +88,5 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 `assembleDebug testDebugUnitTest lintDebug` PASS、JUnit 36 / failures 0 / errors 0 / skipped 0、Lint errors 0。native suite PASS。今回はUI変更で、DSPコードに変更はなく、0.3.1の60ケース・ASan / UBSan実音源検証を再実行したとは扱いません。
 
 APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署名PASS、zipalign 16KiB PASS、3つのELFのLOAD整列が16384。旧版と同じ証明書SHA-256 `d2b4e0c9de24c4a5ec51e6e05651e526aee3da3e3a720f756c2027789b132761`。APK SHA-256 `b0e177b3b0f209e717b66a2ed59060dca7337f43ca16a31de0ea3a9bd5eef027`、27481758 bytes。開発環境の実機・エミュレーターは未接続で、スクリーンショット・UI操作・Galaxy S26での更新成功を検証済みとは主張しません。
+
+0.4.0のmain / tag / release-artifactsとプリリリースを公開済み。Assets直接添付は今回もHTTP 401で未完了。公開先から27481758 bytesのAPKを再取得し、上記SHA-256と一致しました。ソース・検証ZIP・checksum一覧も公開先から取得可能と確認。新しいActions実行は行っておらず、既存billing lockの解消やホステッドCI成功を主張しません。

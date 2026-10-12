@@ -130,4 +130,4 @@ PianoPocketの自作コード・合成fixtureはMIT。[LICENSE](LICENSE)を参�
 
 [GitHub repository](https://github.com/tstyr/PianoPocket) / [alpha releases](https://github.com/tstyr/PianoPocket/releases)。GitHub Actionsはネイティブテスト、JVMテスト、Lint、デバッグAPK生成を実行します。実サンプルは公開リポジトリにもActionsにも含めません。実音源を用いた検証は利用者所有のローカルファイルを明示的に指定して実行します。
 
-公開準備（2026-10-12）: 0.4.0の画面再構成を実装。36 JVM tests・native・Androidビルド・Lintを通過。APKの署名と16KiB整列を確認し、0.3.1と同じdebug署名で上書き更新できます。0.3.1で検証したリバーブ対策を維持しています。新画面の実機UI試験と修正後の聴感確認は未完了です。GitHub Actionsには先のbilling lock、Assetsアップロード先にはHTTP 401があり、配布用release-artifactsブランチからAPKを提供する方式を継続予定です。ホステッドCI成功やAssets添付成功とは扱いません。
+公開状態（2026-10-12）: main / v0.4.0-alpha / release-artifactsをプッシュし、0.4.0のリリースを公開しました。36 JVM tests・native・Androidビルド・Lintを通過。APKの署名と16KiB整列を確認し、0.3.1と同じdebug署名で上書き更新できます。0.3.1で検証したリバーブ対策を維持しています。新画面の実機UI試験と修正後の聴感確認は未完了です。GitHub Actionsには先のbilling lock、Assetsアップロード先にはHTTP 401があり、配布用release-artifactsブランチからAPKを提供しています。公開先のAPKを再取得し、ローカルのSHA-256との一致を確認済みです。ホステッドCI成功やAssets添付成功とは扱いません。
