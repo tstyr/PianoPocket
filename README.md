@@ -1,10 +1,10 @@
 # PianoPocket distribution files
 
-Latest: [v0.6.1-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.6.1-alpha).
+Latest: [v0.6.2-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.6.2-alpha).
 
-- [Android ARM64 APK](PianoPocket-0.6.1-alpha-arm64-debug.apk)
-- [対応ソースZIP](PianoPocket-0.6.1-alpha-source.zip)
-- [検証結果ZIP](PianoPocket-0.6.1-alpha-validation.zip)
-- [SHA-256一覧](SHA256SUMS-0.6.1.txt)
+- [Android ARM64 APK](PianoPocket-0.6.2-alpha-arm64-debug.apk)
+- [対応ソースZIP](PianoPocket-0.6.2-alpha-source.zip)
+- [検証結果ZIP](PianoPocket-0.6.2-alpha-validation.zip)
+- [SHA-256一覧](SHA256SUMS-0.6.2.txt)
 
 Older packages remain available. No user-owned samples / IRs / original presets / performance media are distributed. Encoder licenses and corresponding sources are included in every source ZIP. Hardware checks remain pending.
