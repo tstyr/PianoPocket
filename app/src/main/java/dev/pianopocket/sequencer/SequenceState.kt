@@ -7,6 +7,8 @@ data class SequenceState(
     val live: LiveSnapshot = LiveSnapshot(emptyList(),emptySet(),emptySet(),0),
     val rollVisible: Boolean = true, val noteLabels: Boolean = true, val lookAhead: Float = 5f,
     val viewport: KeyboardViewport = KeyboardViewport(),
+    val speed: Float=1f,val loopA: Long=0,val loopB: Long=0,val looping: Boolean=false,
+    val hiddenTracks: Set<Int> = emptySet(),val mutedTracks: Set<Int> = emptySet(),
     val exporting: Boolean = false, val exportProgress: Float = 0f
 ) { val fullKeyboard: Boolean get()=viewport.full }
 enum class ExportFormat(val label: String,val extension: String,val mime: String,val bits: Int) {

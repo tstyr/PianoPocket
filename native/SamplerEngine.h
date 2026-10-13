@@ -41,7 +41,13 @@ class SamplerEngine {
     uint64_t nextId=0;
     std::vector<TimedEvent> timeline;
     size_t cursor=0;
-    int64_t playFrame=0,totalFrames=0;
+    double playFrame=0;
+    int64_t totalFrames=0,loopStartFrame=0,loopEndFrame=0;
+    float playbackSpeed=1;
+    bool looping=false;
+    size_t loopCursor=0;
+    std::array<std::array<int,128>,16> loopControllers{};
+    std::array<float,16> loopBends{};
     bool playing=false;
     std::atomic<int64_t> reportedFrame{0};
     std::atomic<bool> reportedPlaying{false};
@@ -49,6 +55,7 @@ class SamplerEngine {
     std::atomic<float> reportedRate{48000};
     void renderBlock(float*,int) noexcept;
     void seekTimeline(int64_t frame) noexcept;
+    void rewindLoop() noexcept;
     void dispatch(const Event&) noexcept;
     void trigger(Trigger,int channel,int note,int velocity,uint64_t id) noexcept;
     void releaseId(int channel,int note,uint64_t id,int velocity) noexcept;
@@ -62,6 +69,7 @@ public:
     void render(float* stereo,int frames) noexcept;
     void initialControls(const std::vector<Event>& values){for(const auto& e:values)dispatch(e);volume=targetVolume;instrumentVolume=targetInstrumentVolume;}
     void setTimeline(std::vector<TimedEvent> events,int64_t duration); // callback stopped
+    void configureLoop(int64_t begin,int64_t end,bool enabled); // callback stopped; snapshots prepared here
     void seek(int64_t frame){playing=false;transportOverload.store(false);reportedPlaying.store(false);seekTimeline(frame);}
     std::array<double,3> transport() const {return {double(reportedFrame.load())/reportedRate.load(),reportedPlaying.load()?1.:0.,transportOverload.load()?1.:0.};}
     void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}

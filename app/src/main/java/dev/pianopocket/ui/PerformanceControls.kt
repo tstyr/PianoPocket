@@ -23,6 +23,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
     var exporting by rememberSaveable { mutableStateOf(false) }
     var more by remember { mutableStateOf(false) }
     var info by remember { mutableStateOf(false) }
+    var practicing by remember {mutableStateOf(false)}
     Column {
         Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
             TextButton(onClick=instrument,modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=8.dp)) {
@@ -41,6 +42,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
                     DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
+                    DropdownMenuItem(text={Text("速度・リピート・トラック")},enabled=seq.song!=null && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
                     DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                     DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                     DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
@@ -59,6 +61,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)
         }
     }
+    if(practicing)PracticeDialog(state,model){practicing=false}
     if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,state.videoOptions,onDismiss={exporting=false}){f,r,t,b,v->exporting=false;export(f,r,t,b,v)}
     if(info)AlertDialog(onDismissRequest={info=false},title={Text("状態・互換性警告")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(state.message)

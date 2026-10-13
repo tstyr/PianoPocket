@@ -23,6 +23,7 @@ public:
     void replaceEffect(int index,std::unique_ptr<Effect> effect);
     void timeline(std::vector<TimedEvent> events,int64_t duration){stop();sampler.setTimeline(std::move(events),duration);if(!start(device,bursts))throw std::runtime_error("Audio restart failed");}
     void seek(int64_t frame){stop();sampler.seek(frame);if(!start(device,bursts))throw std::runtime_error("Audio restart failed");}
+    void loop(int64_t begin,int64_t end,bool enabled){stop();sampler.configureLoop(begin,end,enabled);if(!start(device,bursts))throw std::runtime_error("Audio restart failed");}
     oboe::DataCallbackResult onAudioReady(oboe::AudioStream*,void*,int32_t) override;
     void onErrorAfterClose(oboe::AudioStream*,oboe::Result) override {disconnected.store(true);}
     std::array<double,18> stats();

@@ -4,7 +4,7 @@
 namespace pocket {
 void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr){
     Effects prepared;prepared.prepare(fx,sr);
-    if(rate!=sr){for(auto& e:timeline)e.frame=int64_t(std::llround(e.frame*double(sr)/rate));playFrame=int64_t(std::llround(playFrame*double(sr)/rate));totalFrames=int64_t(std::llround(totalFrames*double(sr)/rate));}
+    if(rate!=sr){for(auto& e:timeline)e.frame=int64_t(std::llround(e.frame*double(sr)/rate));playFrame=playFrame*double(sr)/rate;totalFrames=int64_t(std::llround(totalFrames*double(sr)/rate));loopStartFrame=int64_t(std::llround(loopStartFrame*double(sr)/rate));loopEndFrame=int64_t(std::llround(loopEndFrame*double(sr)/rate));}
     instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
@@ -76,11 +76,30 @@ void SamplerEngine::dispatch(const Event& e) noexcept {
     else if(e.type==8){limit=std::clamp(e.a,32,MaxVoices);for(int i=limit;i<MaxVoices;++i)if(voices[i].active){voices[i].envelope.stage=Envelope::Release;voices[i].envelope.releaseStep=voices[i].envelope.value/(rate*.01f);voices[i].held=false;voices[i].pending=false;}}
     else if(e.type==9)targetInstrumentVolume=std::clamp(e.value,0.f,8.f);
     else if(e.type==10){playing=e.a!=0;reportedPlaying.store(playing);if(!playing)for(int channel=17;channel<33;++channel){dispatch({2,channel,120,0});dispatch({2,channel,64,0});}}
+    else if(e.type==11){if(std::isfinite(e.value))playbackSpeed=std::clamp(e.value,.25f,2.f);}
     else if(e.type==12){diagnosticMode=std::clamp(e.a,0,2);if(diagnosticMode==2){dispatch({10,0,0});dispatch({5});}}
 }
 void SamplerEngine::setTimeline(std::vector<TimedEvent> source,int64_t duration){
+    looping=false;playbackSpeed=1;
     timeline=std::move(source);std::stable_sort(timeline.begin(),timeline.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
     totalFrames=std::max<int64_t>(duration,timeline.empty()?0:timeline.back().frame);playing=false;transportOverload.store(false);seekTimeline(0);reportedPlaying.store(false);
+}
+void SamplerEngine::configureLoop(int64_t begin,int64_t end,bool enabled){
+    if(!enabled){looping=false;return;}
+    if(begin<0 || end>totalFrames || end-begin<int64_t(rate*.1))throw std::runtime_error("A-B loop must be within the song and at least 100ms");
+    loopStartFrame=begin;loopEndFrame=end;loopCursor=0;loopBends.fill(0);
+    for(auto& c:loopControllers){c.fill(0);c[7]=c[11]=127;}
+    // Only before A: events exactly at A are dispatched normally on every pass.
+    while(loopCursor<timeline.size() && timeline[loopCursor].frame<begin){const auto& e=timeline[loopCursor++].event;int ch=e.channel-17;if(ch<0 || ch>=16)continue;
+        if(e.type==2){int a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);loopControllers[ch][a]=b;if(a==120 || a==123)loopControllers[ch][64]=0;if(a==121){loopControllers[ch].fill(0);loopControllers[ch][7]=loopControllers[ch][11]=127;loopBends[ch]=0;}}
+        else if(e.type==3)loopBends[ch]=std::clamp(e.value,-2.f,2.f);
+    }
+    looping=true;if(playFrame<begin || playFrame>=end)rewindLoop();
+}
+void SamplerEngine::rewindLoop() noexcept {
+    for(int ch=17;ch<33;++ch){keys[ch]={};controllers[ch]=loopControllers[ch-17];bends[ch]=loopBends[ch-17];}
+    for(auto& v:voices)if(v.active && v.channel>=17){v.held=false;v.pending=false;v.envelope.stage=Envelope::Release;v.envelope.releaseStep=v.envelope.value/(rate*.005f);}
+    cursor=loopCursor;playFrame=loopStartFrame;reportedFrame.store(loopStartFrame);
 }
 void SamplerEngine::seekTimeline(int64_t frame) noexcept {
     // Seek restores controllers and pitch but intentionally starts only future notes.
@@ -96,16 +115,17 @@ void SamplerEngine::render(float* output,int count) noexcept {
     int done=0,timelineProcessed=0;
     while(done<count){
         if(playing){
+            if(looping && (playFrame>=loopEndFrame || playFrame<loopStartFrame))rewindLoop();
             while(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed<2048){dispatch(timeline[cursor++].event);++timelineProcessed;}
             if(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed==2048){
                 playing=false;reportedPlaying.store(false);transportOverload.store(true);droppedEvents.fetch_add(1);
                 for(int ch=17;ch<33;++ch)dispatch({2,ch,120,0});
             }
-            if(playFrame>=totalFrames && cursor==timeline.size()){playing=false;reportedPlaying.store(false);for(int ch=17;ch<33;++ch){dispatch({2,ch,123,0});dispatch({2,ch,64,0});}}
+            if(!looping && playFrame>=totalFrames && cursor==timeline.size()){playing=false;reportedPlaying.store(false);for(int ch=17;ch<33;++ch){dispatch({2,ch,123,0});dispatch({2,ch,64,0});}}
         }
         int n=count-done;
-        if(playing){auto next=cursor<timeline.size()?timeline[cursor].frame:totalFrames;n=int(std::min<int64_t>(n,std::max<int64_t>(1,next-playFrame)));}
-        renderBlock(output+done*2,n);done+=n;if(playing)playFrame+=n;
+        if(playing){auto next=cursor<timeline.size()?timeline[cursor].frame:totalFrames;if(looping)next=std::min(next,loopEndFrame);n=int(std::min<double>(n,std::max(1.,std::ceil((next-playFrame)/playbackSpeed))));}
+        renderBlock(output+done*2,n);done+=n;if(playing)playFrame+=n*double(playbackSpeed);
     }
     reportedFrame.store(playFrame,std::memory_order_relaxed);
     inputPeak.store(outputLimiter.peak(),std::memory_order_relaxed);gainReductionDb.store(outputLimiter.reductionDb(),std::memory_order_relaxed);

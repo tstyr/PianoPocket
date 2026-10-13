@@ -98,6 +98,11 @@ int main(){try{
         check(sum>1 && peak<.09f,"diagnostic tone is audible, bounded, allocation-free and independent of notes");e.send({12,0,0});for(int b=0;b<80;++b)render(e,out,256);check(energy(out,256)<1e-10,"diagnostic tone smoothly ends on normal mode");
     }
     {
+        SamplerEngine slow,fast;slow.install(bank(),{},48000);fast.install(bank(),{},48000);std::vector<TimedEvent> notes={ {0,{0,17,60,100}}, {9600,{1,17,60,0}} };slow.setTimeline(notes,12000);fast.setTimeline(notes,12000);slow.send({11,0,0,0,.5f});fast.send({11,0,0,0,2.f});slow.send({10,0,1});fast.send({10,0,1});float reference[512];render(slow,reference,256);render(fast,out,256);for(int i=0;i<512;++i)check(reference[i]==out[i],"speed changes MIDI timing but keeps sample pitch and onset waveform");
+        for(float speed:{.25f,.5f,1.f,1.5f,2.f}){e.install(bank(),{},48000);e.setTimeline({{0,{0,17,60,100}},{4800,{1,17,60,0}}},9600);e.send({11,0,0,0,speed});e.send({10,0,1});render(e,out,256);check(std::abs(e.transport()[0]-256*speed/48000.)<.000001,"practice speed follows source clock");}
+        e.install(bank(),{},48000);e.setTimeline({{0,{2,17,64,127}},{4800,{0,17,60,100}},{7200,{1,17,60,0}},{8500,{2,17,64,0}},{9600,{0,17,99,100}},{12000,{2,17,64,0}}},24000);e.configureLoop(4800,9600,true);e.send({0,0,48,100});e.send({10,0,1});for(int i=0;i<150;++i){render(e,out,256);const auto position=e.transport()[0];if(position>.165 && position<.175)check(e.noteVoiceCount(60,17)>0,"loop restores pedal down from before A on every pass");check(e.noteVoiceCount(99,17)==0,"loop end B is exclusive");}check(e.transport()[1]==1 && e.transport()[0]>=.1 && e.transport()[0]<=.2,"loop stays inside A-B without ending transport");check(e.noteVoiceCount(48,0)==1,"loop rewind leaves live MIDI voices alone");check(e.misses()==0,"loop has no sample misses");bool rejected=false;try{e.configureLoop(0,1,true);}catch(...){rejected=true;}check(rejected,"too short loop rejected off audio callback");e.configureLoop(0,0,false);for(int i=0;i<100;++i)render(e,out,256);check(e.transport()[1]==0,"disabling loop reaches normal end");
+    }
+    {
         auto layers=bank();layers->regions.resize(6,layers->regions.front());layers->prepare();
         e.install(std::move(layers),{},48000);e.send({8,0,32});
         for(int key=60;key<65;++key)e.send({0,0,key,100});render(e,out,256);

@@ -41,10 +41,11 @@ fun PianoRoll(state: PocketState,model: PocketViewModel,modifier: Modifier=Modif
             seconds.forEach { s->val yy=y(s*1000000);drawLine(Color(0xff2a3540),Offset(0f,yy),Offset(size.width,yy),1f) }
             clipRect {
                 fun note(n: RollNote,live: Boolean=false){
+                    if(!live && n.track in seq.hiddenTracks)return
                     val key=layout.shapes.firstOrNull { it.note==n.key } ?: return
                     val x=viewport.screen(key.left)*size.width+1;val w=(key.width*viewport.zoom*size.width-2).coerceAtLeast(2f)
                     if(x+w<0 || x>=size.width)return
-                    val color=if(live)noteColors[0]else noteColors[n.track%noteColors.size]
+                    val color=if(live)noteColors[0]else if(n.track in seq.mutedTracks)Color(0xff64717d)else noteColors[n.track%noteColors.size]
                     val start=y(n.start);val stop=y(n.keyEnd)
                     val top=minOf(start,stop);val height=kotlin.math.abs(start-stop).coerceAtLeast(3f)
                     drawRoundRect(color,Offset(x,top),Size(w,height),CornerRadius(minOf(4.dp.toPx(),w*.15f)))

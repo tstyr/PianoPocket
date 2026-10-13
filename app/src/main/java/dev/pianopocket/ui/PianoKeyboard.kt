@@ -28,9 +28,9 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
     var held by remember { mutableStateOf(setOf<Int>()) }
     val paint=remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER } }
     DisposableEffect(enabled) { onDispose { model.pedal(false);held=emptySet() } }
-    val external=remember(seq.position,seq.playing,seq.song,seq.live){
+    val external=remember(seq.position,seq.playing,seq.song,seq.live,seq.mutedTracks){
         val active=seq.live.held.toMutableSet()
-        if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd)active+=it.key}
+        if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd && it.track !in seq.mutedTracks)active+=it.key}
         active
     }
     Box(modifier.background(Color(0xff20242a))) {

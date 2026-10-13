@@ -59,3 +59,11 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 57 JVM tests PASS。詳しい保存範囲と手順はdocs/SAVED_SOUNDS.md。
 
 57 JVM tests・Androidビルド・Lint PASS。APK 28714263 bytes / SHA-256 `25fad5dd9a11437928fd3b2c0eff9890fd39334b5316dda9e8757b7d0e13aacf`。 再起動と設定復元の実機UI・聴感テストは未実施。お気に入り呼び出しは音源の再準備を伴います。 開発環境の実機／エミュレーター未接続。
+
+## 0.8.0-alpha — 速度・A–Bリピート・トラック練習
+
+音程を維持した0.25〜2倍のMIDI速度変更、音声時計に基づくA–Bリピート、トラック表示・ノートミュートを追加。区間のペダル・CC・Pitch Bendを復元し、ライブ演奏チャンネルを保ちます。
+
+59 JVM tests、Native tests、ASan/UBSan、実Helsinkiのホスト音声書き出し回帰PASS。詳しい操作・共有チャンネル・シーク・書き出しの制約はdocs/PRACTICE.md。
+
+59 JVM tests・Androidビルド・Lint PASS。APK 28056304 bytes / SHA-256 `690d9026ded1becf0d0af45033d63471cacb0ec28e8c527f282cbf50f2e83f7e`。 操作UIと切替時の聴感は実機未検証。区間前に始まったノートの途中波形は復元しません。練習設定は元MIDIの書き出しには適用しません。 開発環境の実機／エミュレーター未接続。

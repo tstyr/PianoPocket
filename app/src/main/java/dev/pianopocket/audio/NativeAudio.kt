@@ -17,6 +17,7 @@ object NativeAudio {
     external fun timeline(times: LongArray, messages: IntArray, duration: Long)
     external fun transport(): DoubleArray
     external fun seekTimeline(micros: Long)
+    external fun practiceLoop(begin: Long,end: Long,enabled: Boolean)
     external fun exportBegin(memoryMiB: Int, rate: Int)
     external fun exportControl(type: Int, a: Int, b: Int, value: Float)
     external fun exportWav(path: String, times: LongArray, messages: IntArray, duration: Long, bits: Int, tail: Int)
