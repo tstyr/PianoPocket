@@ -1,0 +1,28 @@
+{
+  "id": "pocket-upright-hq-v1",
+  "name": "Pocket Upright HQ",
+  "description": "23収録キー・3段階ベロシティ・24bitステレオ・元の残響を全収録",
+  "license": "CC0-1.0",
+  "source": "https://github.com/sgossner/VSCO-2-CE",
+  "revision": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+  "bytes": 110216571,
+  "sha256": "629b7856278242f939b48613b7d98f902094b291d7f1a562cb076acd60657a8a",
+  "expandedBytes": 110208025,
+  "parts": [
+    {
+      "name": "PocketUprightHQ-1.0.zip.part01",
+      "bytes": 41943040,
+      "sha256": "791ae9156e1d4cf93e09859d6892c0915ec488c7c2ea397175d49a96c2633f45"
+    },
+    {
+      "name": "PocketUprightHQ-1.0.zip.part02",
+      "bytes": 41943040,
+      "sha256": "7b1c56a501bff81d87f32b0a94f8ddef904d245f28e316cb2402ddfa35426d4b"
+    },
+    {
+      "name": "PocketUprightHQ-1.0.zip.part03",
+      "bytes": 26330491,
+      "sha256": "9f2a7fc46b8c24b68adb8ca55a98bb4a0857f787970190deaf92ce25d9addb22"
+    }
+  ]
+}
