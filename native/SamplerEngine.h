@@ -64,6 +64,7 @@ public:
     std::atomic<uint64_t> droppedEvents{0},stolenVoices{0};
     std::atomic<float> inputPeak{0},gainReductionDb{0};
     int outputDelayFrames() const noexcept {return outputLimiter.delayFrames();}
+    float currentRate() const noexcept {return reportedRate.load();}
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
     bool send(Event event); // outside callback; multiple producers serialized
     void render(float* stereo,int frames) noexcept;

@@ -17,10 +17,14 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.concurrent.Executors
+import dev.pianopocket.audio.AudioWorkQueue
 import dev.pianopocket.sequencer.*
 import dev.pianopocket.video.VideoOptions
 import dev.pianopocket.video.VideoExporter
+import dev.pianopocket.video.ExportCoordinator
+import dev.pianopocket.video.ExportRequest
+import dev.pianopocket.video.ExportRegion
+import dev.pianopocket.video.ExportEffect
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -42,7 +46,8 @@ data class PocketState(
     val inputs: List<MidiInput> = emptyList(), val midiInput: String = "all", val sequence: SequenceState = SequenceState()
 )
 class PocketViewModel(app: Application):AndroidViewModel(app) {
-    private val executor=Executors.newSingleThreadExecutor()
+    private val executor=AudioWorkQueue.executor
+    private val audioOwner=AudioWorkQueue.newUiOwner()
     private val worker=executor.asCoroutineDispatcher()
     private val repository=LibraryRepository(app)
     private val preferences=Preferences(app)
@@ -52,12 +57,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val recorder=MidiRecorder()
     private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
     private val live=LiveNotes()
-    private val exportCancelled=AtomicBoolean(false)
-    @Volatile private var exportStage=0
-    @Volatile private var encodingProgress=0f
-    @Volatile private var compressedExport=false
-    private fun exportProgress(): Float=when(exportStage){1->.7f+NativeAudio.exportProgress()*.25f;2->.7f+encodingProgress*.25f;3->.98f;else->NativeAudio.exportProgress()*(if(compressedExport).7f else .98f)}
-    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(exportSelection=preferences.exportSelection,noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -70,8 +70,18 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
             NativeAudio.stability(preferences.stableAudio)
             mutable.update { it.copy(aacAvailable=AacExporter.available(),videoOptions=VideoExporter.supportedOptions()) }
             val pid=android.os.Process.myPid().toString()
-            getApplication<Application>().cacheDir.listFiles().orEmpty().filter { it.name.startsWith("render-") && it.extension in listOf("wav","flac","mp3","m4a","mp4","mov") && it.name.split('-').getOrNull(1)!=pid }.forEach { it.delete() }
+            getApplication<Application>().cacheDir.listFiles().orEmpty().filter { it.name.startsWith("render-") && it.extension in listOf("wav","flac","mp3","m4a","mp4","mov") && it.name.split('-').getOrNull(1)!=pid && !ExportCoordinator.running }.forEach { it.delete() }
+            File(getApplication<Application>().cacheDir,"previews").listFiles().orEmpty().filter {it.name.startsWith("render-") && it.name.split('-').getOrNull(1)!=pid && !ExportCoordinator.running}.forEach {it.delete()}
             mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) }
+        }
+        viewModelScope.launch {
+            var previousRunning=false;var previousPreview: String?=null
+            ExportCoordinator.status.collect { result->
+                val resume=previousRunning && !result.running && result.previewPath==null || previousPreview!=null && result.previewPath==null && !result.running
+                mutable.update { it.copy(uiPedal=if(result.running)false else it.uiPedal,busy=if(result.running)true else if(previousRunning)false else it.busy,ready=if(result.running || result.previewPath!=null)false else it.ready,message=if(result.id>0)result.message else it.message,sequence=it.sequence.copy(exporting=result.running,exportProgress=result.progress,exportPhase=result.phase,exportEtaSeconds=result.etaSeconds,previewPath=result.previewPath,playing=if(result.running)false else it.sequence.playing)) }
+                previousRunning=result.running;previousPreview=result.previewPath
+                if(resume && foreground)work {openAudioWorker(true);mutable.update {it.copy(message=result.message)}}
+            }
         }
         viewModelScope.launch {
             while(isActive){delay(100);if(foreground && !displayFramesActive)displayFrame()}
@@ -85,7 +95,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun displayFrame() {
         if(!foreground)return
         val transport=NativeAudio.transport();val snapshot=live.snapshot()
-        mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)exportProgress()else s.sequence.exportProgress)) }
+        mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=!s.sequence.exporting && s.sequence.previewPath==null && transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)ExportCoordinator.status.value.progress else s.sequence.exportProgress)) }
         if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
     }
     private fun work(action: suspend () -> Unit) { viewModelScope.launch { withContext(worker) { try { action() } catch(e: Exception) { NativeAudio.abort();mutable.update { it.copy(busy=false,message=e.message ?: e.javaClass.simpleName) } } catch(e: OutOfMemoryError) { NativeAudio.abort();mutable.update { it.copy(busy=false,message="メモリ不足。音源を減らすかメモリ設定を下げて再試行してください。") } } } } }
@@ -93,14 +103,16 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(foreground==active)return
         foreground=active
         if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
-        work {
-            if(!active){soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(ready=false) };return@work}
-            check(NativeAudio.start(state.value.device,state.value.bursts)) { "オーディオ出力を開始できません" }
-            if(!initialized){var entries=repository.entries();if(entries.isEmpty())entries=repository.installDemo();mutable.update { it.copy(library=entries) };initialized=true}
-            val entry=state.value.library.firstOrNull { it.id==(state.value.selected.ifBlank { preferences.lastInstrument }) } ?: state.value.library.firstOrNull()
-            if(entry!=null && state.value.preset==null)loadInternal(entry) else mutable.update { it.copy(ready=true) }
-            if(state.value.sequence.song==null)state.value.sequence.library.firstOrNull { it.id==preferences.lastMidi }?.let { selectSong(it,midiLibrary.load(it)) }
-        }
+        if(active){if(!ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)work {openAudioWorker()} }
+        else work {soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
+    }
+    private fun openAudioWorker(forceReload: Boolean=false) {
+        if(!foreground || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
+        check(NativeAudio.start(state.value.device,state.value.bursts)){"オーディオ出力を開始できません"}
+        if(!initialized){var entries=repository.entries();if(entries.isEmpty())entries=repository.installDemo();mutable.update {it.copy(library=entries)};initialized=true}
+        val entry=state.value.library.firstOrNull {it.id==(state.value.selected.ifBlank {preferences.lastInstrument})} ?: state.value.library.firstOrNull()
+        if(entry!=null && (state.value.preset==null || forceReload || ExportCoordinator.performanceUnloaded))loadInternal(entry)else mutable.update {it.copy(ready=true)}
+        if(state.value.sequence.song==null)state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi}?.let {selectSong(it,midiLibrary.load(it))}
     }
     private fun refreshOutputs() {
         val devices=getApplication<Application>().getSystemService(AudioManager::class.java).getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -133,11 +145,13 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(saved!=null){initialGroups=saved.groups;configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->fx.copy(params=saved.effects[i].toFloatArray()) })}
         configured.effects.forEach { fx -> NativeAudio.effect(fx.type,fx.params,if(fx.ir.isBlank())"" else repository.resolve(entry,fx.ir).path) }
         NativeAudio.commit()
+        ExportCoordinator.performanceRestored()
         val voices=(saved?.voices ?: preferences.voiceLimit).coerceIn(32,1024)
         val output=saved?.output ?: .7f
         NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,output)
         initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) }
         configured.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
+        if(state.value.sequence.song!=null)NativeAudio.seekTimeline(state.value.sequence.position)
         repository.used(entry);preferences.lastInstrument=entry.id
         if(!foreground)NativeAudio.stop()
         mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=foreground,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
@@ -264,49 +278,22 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun startDiagnosis(){val s=state.value;diagnostics.start(System.nanoTime(),"${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.RELEASE}, app ${dev.pianopocket.BuildConfig.VERSION_NAME}\npreset=${s.preset?.name}, Output=${s.volume}, voices=${s.voices}, memoryMiB=${s.memoryMiB}, selectedOutputId=${s.device}, availableOutputs=${s.outputs.joinToString { it.label }}");mutable.update { it.copy(diagnosticRecording=true) }}
     fun stopDiagnosis(){diagnostics.stop();mutable.update { it.copy(diagnosticRecording=false) }}
     fun diagnosticReport()=diagnostics.report()
-    fun cancelExport(){exportCancelled.set(true);NativeAudio.cancelExport()}
-    fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions=VideoOptions())=work {
-        diagnosticMode(0)
-        val snapshot=state.value;val song=snapshot.sequence.song ?: error("MIDIを選択してください")
-        val context=getApplication<Application>();val temp=File(context.cacheDir,"render-${android.os.Process.myPid()}-${System.nanoTime()}.wav")
-        val encoded=File(context.cacheDir,temp.nameWithoutExtension+".${format.extension}")
-        exportCancelled.set(false);exportStage=0;encodingProgress=0f;compressedExport=format.compressed
-        mutable.update { it.copy(sequence=it.sequence.copy(exporting=true,exportProgress=0f),busy=true,message="${format.label}を書き出し中") }
-        NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()
-        try {
-            if(format.bits==0){context.contentResolver.openOutputStream(uri,"wt")?.use { MidiFileCodec.write(song,it,if(format==ExportFormat.MIDI0)0 else 1) } ?: error("保存先を開けません")}
-            else {
-                val preset=snapshot.preset ?: error("音源を読み込んでください")
-                val entry=snapshot.library.first { it.id==snapshot.selected }
-                val pcmBytes=(song.duration/1000000.0+tail)*rate*2*(format.bits/8)
-                val expected=if(format.video)pcmBytes+(song.duration/1000000.0+tail)*(video.bitrate+bitrate*1000)/8 else pcmBytes*(if(format.compressed)2 else 1)
-                require(context.cacheDir.usableSpace>expected+128*1048576){"書き出し用の空き容量が不足しています"}
-                NativeAudio.exportBegin(snapshot.memoryMiB,rate)
-                preset.regions.forEach { r->NativeAudio.region(repository.resolve(entry,r.path).path,r.ints,r.floats) }
-                preset.velocityCurves.forEach { (g,c)->NativeAudio.velocityCurve(g,c) }
-                preset.effects.forEach { fx->NativeAudio.effect(fx.type,fx.params,if(fx.ir.isBlank())""else repository.resolve(entry,fx.ir).path) }
-                NativeAudio.exportControl(4,0,0,snapshot.volume);NativeAudio.exportControl(8,snapshot.voices,0,0f)
-                snapshot.groups.forEachIndexed { g,v->NativeAudio.exportControl(6,g,0,v) }
-                preset.controls.forEach { c->c.bindings.filter { it.type=="master" }.forEach { b->NativeAudio.exportControl(9,0,0,bindingValue(b,c,c.value)) } }
-                check(!exportCancelled.get()){ "書き出しをキャンセルしました" };val (times,data)=arrays(song);NativeAudio.exportWav(temp.path,times,data,song.duration,format.bits,tail)
-                var rendered=temp
-                if(format.compressed){
-                    check(!exportCancelled.get()){ "書き出しをキャンセルしました" }
-                    mutable.update { it.copy(message="${format.label}へエンコード中") }
-                    if(format.video){exportStage=2;VideoExporter.encode(temp,encoded,song,format==ExportFormat.MOV,video,bitrate,snapshot.sequence.noteLabels,snapshot.sequence.viewport,snapshot.sequence.lookAhead,exportCancelled){encodingProgress=it}}
-                    else if(format==ExportFormat.M4A){exportStage=2;AacExporter.encode(temp,encoded,bitrate,exportCancelled){encodingProgress=it}}
-                    else {exportStage=1;NativeAudio.encodeCompressed(temp.path,encoded.path,if(format==ExportFormat.FLAC)1 else 2,bitrate)}
-                    rendered=encoded
-                }
-                exportStage=3
-                mutable.update { it.copy(message="保存先へファイルをコピー中") }
-                context.contentResolver.openOutputStream(uri,"wt")?.use { out->rendered.inputStream().use { input->
-                    val buffer=ByteArray(65536);while(true){check(!exportCancelled.get()){ "書き出しをキャンセルしました" };val n=input.read(buffer);if(n<0)break;out.write(buffer,0,n)}
-                } } ?: error("保存先を開けません")
-            }
-            mutable.update { it.copy(message="${format.label}を書き出しました。${if(format.bits==0)"音源はMIDIに含まれません。" else "現在の音源・ミキサー・エフェクトを反映しています。"}") }
-        }catch(e: Throwable){NativeAudio.abort();runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver,uri) };throw e}
-        finally{temp.delete();if(encoded!=temp)encoded.delete();mutable.update { it.copy(busy=false,sequence=it.sequence.copy(exporting=false)) }}
+    fun cancelExport()=ExportCoordinator.cancel()
+    private fun exportRequest(uri: Uri?,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions,preview: Boolean): ExportRequest {
+        val s=state.value;val source=s.sequence.song ?: error("MIDIを選択してください");val song=if(preview)PreviewSong.slice(source,s.sequence.position)else source
+        val preset=if(format.bits>0)s.preset ?: error("音源を読み込んでください")else null
+        val entry=if(preset!=null)s.library.first {it.id==s.selected}else null
+        return ExportRequest(uri,format,rate,tail,bitrate,video,song,s.sequence.title,s.memoryMiB,s.volume,s.voices,
+            preset?.regions?.map {r->ExportRegion(repository.resolve(checkNotNull(entry),r.path).path,r.ints.copyOf(),r.floats.copyOf())}.orEmpty(),
+            preset?.effects?.map {fx->ExportEffect(fx.type,fx.params.copyOf(),if(fx.ir.isBlank())""else repository.resolve(checkNotNull(entry),fx.ir).path)}.orEmpty(),
+            preset?.velocityCurves?.mapValues {it.value.copyOf()}.orEmpty(),s.groups.toList(),preset?.controls?.flatMap {c->c.bindings.filter {it.type=="master"}.map {b->bindingValue(b,c,c.value)}}.orEmpty(),s.sequence.noteLabels,s.sequence.viewport,s.sequence.lookAhead,preview)
     }
-    override fun onCleared() { cancelExport();midi.close();executor.execute { runCatching {saveCurrentSound()};NativeAudio.stop();NativeAudio.abort() };executor.shutdown();super.onCleared() }
+    fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions=VideoOptions())=work {
+        try{diagnosticMode(0);stopDiagnosis();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear();ExportCoordinator.submit(getApplication(),exportRequest(uri,format,rate,tail,bitrate,video,false))}
+        catch(e: Exception){runCatching {android.provider.DocumentsContract.deleteDocument(getApplication<Application>().contentResolver,uri)};throw e}
+    }
+    fun exportSelection(value: ExportSelection){preferences.exportSelection=value;mutable.update {it.copy(sequence=it.sequence.copy(exportSelection=value))}}
+    fun previewVideo(rate: Int,bitrate: Int,video: VideoOptions)=work {diagnosticMode(0);stopDiagnosis();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear();ExportCoordinator.submit(getApplication(),exportRequest(null,ExportFormat.MP4,rate,1,bitrate,video,true))}
+    fun closePreview()=ExportCoordinator.clearPreview()
+    override fun onCleared() { midi.close();val snapshot=state.value;executor.execute {runCatching {saveCurrentSound(snapshot)};if(AudioWorkQueue.isCurrentUi(audioOwner)){NativeAudio.stop();NativeAudio.abort()} };super.onCleared() }
 }

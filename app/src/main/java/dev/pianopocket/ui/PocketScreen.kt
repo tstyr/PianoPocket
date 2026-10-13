@@ -23,7 +23,7 @@ import java.util.Date
 
 private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0xff181b1f),surface=Color(0xff20242a),onSurface=Color(0xffe1e3e5),secondary=Color(0xffb5bec7))
 @Composable
-fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit) {
+fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit) {
     val state by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var uiHidden by rememberSaveable { mutableStateOf(false) }
@@ -53,6 +53,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         lastMidi=state.sequence.selected
     }
     MaterialTheme(colorScheme=colors) {
+        state.sequence.previewPath?.let {VideoPreview(it,model)}
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
                 if(tab==0) {
@@ -65,7 +66,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                 if(state.sequence.rollVisible)PianoRoll(state,model,Modifier.fillMaxSize())
                                 else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
                                 if(!uiHidden)Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                    PerformanceToolbar(state,model,export,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
+                                    PerformanceToolbar(state,model,export,preview,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
                                 }
                                 if(!uiHidden && state.busy)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter))
                                 if(!uiHidden)Column(Modifier.align(Alignment.TopStart).padding(start=12.dp,top=if(state.sequence.song!=null && !state.sequence.recording)78.dp else 54.dp).widthIn(max=340.dp)) {
@@ -140,6 +141,8 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             OutlinedButton(onClick={model.audio()},enabled=!state.busy){Text("オーディオを再開")}
                             Text("有線またはUSB出力を推奨します。Bluetoothイヤホンは大きく遅延する場合があります。10ms以下は保証しません。",style=MaterialTheme.typography.bodySmall)
                             DiagnosticsPanel(state,model)
+                            TextButton(onClick={runCatching {context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))}.onFailure {model.message("通知設定を開けません")}}){Text("書き出し通知の設定")}
+                            Text("通知を許可すると背景で進行・キャンセルを確認できます。通知なしでもアプリ内の書き出しは利用できます。",style=MaterialTheme.typography.bodySmall)
                             Text("MIDI入力",style=MaterialTheme.typography.titleMedium)
                             MidiInputMenu(state,model)
                             ChannelMenu(state,model)

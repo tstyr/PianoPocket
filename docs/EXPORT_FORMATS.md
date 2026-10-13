@@ -49,3 +49,7 @@ cmake --build build/lame-replacement --target mp3lame -j2
 ```
 
 生成した `libmp3lame.so` はAPK内 `lib/arm64-v8a/libmp3lame.so` の互換ABI共有ライブラリと差し替えられます。APKを再構成した後はAndroid build-toolsの`zipalign -P 16`と`apksigner`で自身のキーを使って署名してください。16KiB ELF整列を維持します。アプリ・ライブラリ全体をソースから再ビルドする方法を推奨します。
+
+## 0.9.0の背景処理
+
+音声／MIDI書き出しも動画と同じプロセス所有のExportServiceへ移行しました。通知の許可なしでもアプリ内で進行・キャンセルを確認できます。エンコーダー・各形式の設定とライセンスは変更しません。[実機確認](BACKGROUND_EXPORT.md)。

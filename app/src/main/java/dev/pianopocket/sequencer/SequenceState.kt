@@ -9,8 +9,13 @@ data class SequenceState(
     val viewport: KeyboardViewport = KeyboardViewport(),
     val speed: Float=1f,val loopA: Long=0,val loopB: Long=0,val looping: Boolean=false,
     val hiddenTracks: Set<Int> = emptySet(),val mutedTracks: Set<Int> = emptySet(),
-    val exporting: Boolean = false, val exportProgress: Float = 0f
+    val exportSelection: ExportSelection=ExportSelection(),
+    val exporting: Boolean = false, val exportProgress: Float = 0f,
+    val exportPhase: String="",val exportEtaSeconds: Long?=null,val previewPath: String?=null
 ) { val fullKeyboard: Boolean get()=viewport.full }
+data class ExportSelection(val format: ExportFormat=ExportFormat.WAV24,val rate: Int=48000,val tail: Int=8,val bitrate: Int=256,val video: dev.pianopocket.video.VideoOptions=dev.pianopocket.video.VideoOptions()) {
+    init {require(rate in listOf(44100,48000) && tail in 0..30 && bitrate in listOf(128,192,256,320))}
+}
 enum class ExportFormat(val label: String,val extension: String,val mime: String,val bits: Int) {
     MIDI0("MIDI Type 0", "mid", "audio/midi", 0), MIDI1("MIDI Type 1", "mid", "audio/midi", 0),
     WAV16("WAV · PCM 16-bit", "wav", "audio/wav", 16), WAV24("WAV · PCM 24-bit", "wav", "audio/wav", 24),

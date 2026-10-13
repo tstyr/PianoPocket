@@ -18,9 +18,11 @@ import androidx.compose.ui.unit.dp
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
+    var returnAfterPreview by rememberSaveable {mutableStateOf(false)}
+    LaunchedEffect(seq.exporting,seq.previewPath,state.ready){if(returnAfterPreview && !seq.exporting && seq.previewPath==null && state.ready){returnAfterPreview=false;exporting=true}}
     var more by remember { mutableStateOf(false) }
     var info by remember { mutableStateOf(false) }
     var practicing by remember {mutableStateOf(false)}
@@ -56,13 +58,14 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                 Slider(value=seeking ?: (seq.position/1000000f).coerceIn(0f,(seq.song.duration/1000000f).coerceAtLeast(.001f)),onValueChange={seeking=it},valueRange=0f..(seq.song.duration/1000000f).coerceAtLeast(.001f),enabled=!state.busy && !seq.recording && !seq.exporting,modifier=Modifier.weight(1f),onValueChangeFinished={seeking?.let { model.seek((it*1000000).toLong()) };seeking=null})
             }
         }
+        if(seq.exporting)Text("${seq.exportPhase}${seq.exportEtaSeconds?.let {" · 推定残り（この工程） ${durationLabel(it*1000000)}"} ?: ""}",style=MaterialTheme.typography.labelSmall)
         if(seq.exporting)Row(verticalAlignment=Alignment.CenterVertically) {
             LinearProgressIndicator(progress={seq.exportProgress},modifier=Modifier.weight(1f))
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)
         }
     }
     if(practicing)PracticeDialog(state,model){practicing=false}
-    if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,state.videoOptions,onDismiss={exporting=false}){f,r,t,b,v->exporting=false;export(f,r,t,b,v)}
+    if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,state.videoOptions,seq.exportSelection,model::exportSelection,onPreview={r,b,v->returnAfterPreview=true;exporting=false;preview(r,b,v)},onDismiss={exporting=false}){f,r,t,b,v->exporting=false;export(f,r,t,b,v)}
     if(info)AlertDialog(onDismissRequest={info=false},title={Text("状態・互換性警告")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(state.message)
         Text(state.midi)

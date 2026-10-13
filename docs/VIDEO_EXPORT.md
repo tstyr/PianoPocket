@@ -37,3 +37,7 @@ python3 tests/video/verify_movie.py verify build/video/probe60 --fps 60 --rate 4
 端末接続後に `./gradlew connectedDebugAndroidTest` を実行。自作Pocket Tone＋PocketStudy MIDIで720p30→60、1080p30→60、MP4／MOV、ドレミon/off、拡大表示、SUS、SAF保存・再生・残響・キャンセルを確認します。Helsinkiは利用者所有の実ファイルを読み込み、USB MIDI録音後の動画と音声同期を確認してください。
 
 AndroidのMediaCodec／EGL／GLES APIのみを使い、動画muxer・描画は自作MITです。外部VST・FFmpeg・商用専用ライセンスの依存を追加していません。
+
+## 0.9.0の追加
+
+通知付きサービス、工程ごとの残り時間目安、現在位置から5秒＋1秒tailのMP4プレビューを追加しました。[背景処理・プレビュー・端末テスト](BACKGROUND_EXPORT.md)。最大解像度、FPS、元MIDIを書き出す範囲は従来どおり。練習用の速度・A–B・ミュートは本番書き出しに適用しません。

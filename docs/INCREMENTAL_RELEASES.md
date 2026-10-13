@@ -67,3 +67,13 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 59 JVM tests、Native tests、ASan/UBSan、実Helsinkiのホスト音声書き出し回帰PASS。詳しい操作・共有チャンネル・シーク・書き出しの制約はdocs/PRACTICE.md。
 
 59 JVM tests・Androidビルド・Lint PASS。APK 28056304 bytes / SHA-256 `690d9026ded1becf0d0af45033d63471cacb0ec28e8c527f282cbf50f2e83f7e`。 操作UIと切替時の聴感は実機未検証。区間前に始まったノートの途中波形は復元しません。練習設定は元MIDIの書き出しには適用しません。 開発環境の実機／エミュレーター未接続。
+
+## 0.9.0-alpha — 背景書き出し・残り時間・5秒プレビュー
+
+書き出しをプロセス所有の通知付きサービスへ移行。画面／ViewModelから独立したジョブ、通知とアプリ内キャンセル、工程別ETA、5秒＋1秒tailのMP4プレビューを追加。形式・解像度などを保持して本番書き出しへ戻れます。演奏bankを解放してメモリを抑え、終了後に音源設定・曲内CCを復元します。
+
+62 JVM tests、Native tests・ASan/UBSan、Androidビルド・Lint・実機テストAPKビルドPASS。Activity破棄後の実動画生成とキャンセルを検査するAndroid testsは用意済み／未実行。詳細はdocs/BACKGROUND_EXPORT.md。
+
+今回選択された改善1・2・3・4・6を、0.6.1（診断）、0.6.2（安定優先）、0.7.0（音源設定）、0.8.0（練習）、0.9.0（書き出し）としてそれぞれコミット・プッシュ・公開しました。
+
+62 JVM tests・Androidビルド・Lint PASS。APK 29091090 bytes / SHA-256 `5adc7a57800d7264f1c9b7afb8042da82995efebb2d69c8c9755c83b31781e04`。 通知・画面オフ・タスク除去・実Codec・VideoViewの実機成功は未確認。OS／省電力による終了・強制停止を超えて継続を保証せず、プロセス死亡後の自動再開は未対応。プレビューの長音再構築は近似。 開発環境の実機／エミュレーター未接続。

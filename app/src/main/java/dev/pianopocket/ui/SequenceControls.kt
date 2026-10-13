@@ -14,18 +14,20 @@ import java.text.DateFormat
 import java.util.Date
 
 fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLeast(0);return "%d:%02d".format(seconds/60,seconds%60)}
-@Composable internal fun ExportDialog(name: String,audioReady: Boolean,aacAvailable: Boolean,videoOptions: List<VideoOptions>,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int,Int,VideoOptions)->Unit) {
-    var format by remember { mutableStateOf(ExportFormat.WAV24) }
-    var rate by remember { mutableIntStateOf(48000) }
-    var bitrate by remember { mutableIntStateOf(256) }
-    var tail by remember { mutableFloatStateOf(8f) }
-    var videoFps by remember { mutableIntStateOf(videoOptions.firstOrNull()?.fps ?: 30) };var videoHeight by remember { mutableIntStateOf(videoOptions.firstOrNull()?.height ?: 720) }
+@Composable internal fun ExportDialog(name: String,audioReady: Boolean,aacAvailable: Boolean,videoOptions: List<VideoOptions>,selection: ExportSelection,onSelection:(ExportSelection)->Unit,onPreview:(Int,Int,VideoOptions)->Unit,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int,Int,VideoOptions)->Unit) {
+    var format by remember { mutableStateOf(selection.format) }
+    var rate by remember { mutableIntStateOf(selection.rate) }
+    var bitrate by remember { mutableIntStateOf(selection.bitrate) }
+    var tail by remember { mutableFloatStateOf(selection.tail.toFloat()) }
+    var videoFps by remember { mutableIntStateOf(if(selection.video in videoOptions)selection.video.fps else videoOptions.firstOrNull()?.fps ?: 30) };var videoHeight by remember { mutableIntStateOf(if(selection.video in videoOptions)selection.video.height else videoOptions.firstOrNull()?.height ?: 720) }
     fun supported(f: ExportFormat)=if(f.video)videoOptions.isNotEmpty() else f!=ExportFormat.M4A || aacAvailable
     AlertDialog(onDismissRequest=onDismiss,title={Text("書き出し形式")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(name,maxLines=2)
+        Text("書き出しは通知から進行・キャンセルを確認できます。通知を許可しなくてもアプリ内で利用できます。",style=MaterialTheme.typography.bodySmall)
         ExportFormat.entries.forEach { f->Row { RadioButton(selected=format==f,onClick={format=f},enabled=supported(f));TextButton(onClick={format=f},enabled=supported(f)){Text(f.label)} } }
         if(videoOptions.isEmpty())Text("H.264 + AACエンコーダーを検出できないため動画保存は利用できません。",style=MaterialTheme.typography.bodySmall)
         if(format.video){
+            TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight)));onPreview(rate,bitrate,VideoOptions(videoFps,videoHeight))},enabled=audioReady && VideoOptions(videoFps,videoHeight) in videoOptions){Text("5秒プレビュー")}
             Row { listOf(720,1080).forEach { h->FilterChip(selected=videoHeight==h,onClick={videoHeight=h},enabled=VideoOptions(videoFps,h) in videoOptions,label={Text("${h}p")}) } }
             Row { listOf(30,60).forEach { f->FilterChip(selected=videoFps==f,onClick={videoFps=f},enabled=VideoOptions(f,videoHeight) in videoOptions,label={Text("${f} fps")}) } }
             Text("横16:9のロールと鍵盤＋現在の音源の音声。ドレミ・表示音域を反映します。サステイン延長はロールに含めず、音は維持します。表示用120fps設定とは独立です。端末によって選べる解像度・FPSに制限があります。",style=MaterialTheme.typography.bodySmall)
@@ -42,7 +44,7 @@ fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLe
             Slider(value=tail,onValueChange={tail=it},valueRange=0f..30f,steps=29)
             Text("現在の音源・マイク音量・エフェクトでステレオ音声を生成します。保存先を選ぶ時点の設定を使います。",style=MaterialTheme.typography.bodySmall)
         }else Text("MIDIにはノート・ペダル・テンポなどを保存します。サンプル音源やエフェクト音は含まれません。",style=MaterialTheme.typography.bodySmall)
-    }},confirmButton={TextButton(onClick={onExport(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight))},enabled=(format.bits==0 || audioReady) && supported(format)){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
+    }},confirmButton={TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight)));onExport(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight))},enabled=(format.bits==0 || audioReady) && supported(format)){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
 }
 @Composable
 fun MidiLibraryPanel(state: PocketState,model: PocketViewModel,importMidi:()->Unit,onOpen:()->Unit) {

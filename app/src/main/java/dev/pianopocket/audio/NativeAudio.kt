@@ -4,6 +4,7 @@ object NativeAudio {
     init { System.loadLibrary("pianopocket") }
     external fun start(device: Int, bursts: Int): Boolean
     external fun stop()
+    external fun suspendPerformance()
     external fun stability(enabled: Boolean)
     external fun begin(memoryMiB: Int)
     external fun abort()
@@ -24,6 +25,7 @@ object NativeAudio {
     external fun encodeCompressed(wav: String,output: String,format: Int,bitrate: Int)
     external fun cancelExport()
     external fun exportProgress(): Float
+    external fun resetExportProgress()
     fun noteOn(note: Int, velocity: Int, channel: Int = 16) = event(0, channel, note, velocity, 0f)
     fun noteOff(note: Int, channel: Int = 16) = event(1, channel, note, 0, 0f)
     fun cc(number: Int, value: Int, channel: Int = 16) = event(2, channel, number, value, 0f)

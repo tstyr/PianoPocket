@@ -52,3 +52,13 @@ OutputLimiter uses fixed 513-frame stereo storage and a fixed monotonic-deque pe
 ## Video export (0.6.0)
 
 `offline sampler → PCM16 WAV → Android AAC/M4A → AAC packets` + `MIDI keyIndex → opaque Bitmap → worker EGL surface → MediaCodec AVC` → `MovieMuxer (isom MP4 / qt QuickTime MOV)` → SAF。音声と映像は同じゼロ起点のサンプル／フレーム時計を使い、B framesなし。500000 packets/track・2時間＋30秒上限。エンコード、描画、コンテナ書き込みはaudio callback外。キャンセル・失敗は中間ファイルを削除。[形式・制約・端末確認](VIDEO_EXPORT.md)。
+
+## Background export ownership (0.9.0)
+
+AudioWorkQueueはプロセス単位のJNI transaction actor。UIワーカーとExportServiceは同じキューを使い、staged bank・effect vector・export controlsへの並行書込みを禁止。Activity/ViewModelの終了でexecutorやサービスのジョブを終了しません。UI所有者世代を確認し、旧ViewModelが新しいUIの音声を停止しないようにします。
+
+ExportCoordinatorが固定スナップショット・キャンセルatomic・進行StateFlowを所有。ServiceはmediaProcessing（35以降）／dataSync（旧OS）、期限付きpartial WakeLock、通知とキャンセルPendingIntent、6時間のOS timeout処理を担当。成功／失敗は文字列から推測せず結果フラグで区別。完了時に通知・監視ジョブ・WakeLockを片付けてから次のジョブを受け付けます。
+
+書き出し時にOboeを停止し、演奏bankとFXをオーディオ外で解放。元MIDIの位置・レートは保持し、音源の保存設定と現在位置のCCをワーカーで復元して演奏を再開可能にします。offline samplerは別bank。進行だけをatomicでポーリングし、コールバックやJNI transactionをUIスレッドで実行しません。
+
+短いプレビューはコントローラー・鳴っているノートを曲内位置から再構築。現在のサンプル波形の途中位置を復号し直す完全なseekではありません。cache/previewsにMP4を生成し、非公開のFileProviderを使ってアプリ内VideoViewへfdを渡します。Content URIを外部アプリへ自動共有しません。詳細はBACKGROUND_EXPORT.md。

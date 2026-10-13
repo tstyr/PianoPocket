@@ -19,6 +19,7 @@ static std::string string(JNIEnv* e,jstring s){auto p=e->GetStringUTFChars(s,nul
 static void fail(JNIEnv* e,const std::exception& x){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),x.what());}
 extern "C" JNIEXPORT jboolean JNICALL Java_dev_pianopocket_audio_NativeAudio_start(JNIEnv*,jobject,jint device,jint bursts){return engine.start(device,bursts);}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_stop(JNIEnv*,jobject){engine.stop();}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_suspendPerformance(JNIEnv* e,jobject){try{engine.stop();engine.sampler.install(nullptr,{},engine.sampler.currentRate());}catch(const std::exception& x){fail(e,x);}}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_stability(JNIEnv*,jobject,jboolean enabled){engine.stability(enabled);}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_begin(JNIEnv*,jobject,jint memoryMiB){staged=std::make_unique<Instrument>();effects.clear();paths.clear();exportRate=0;budget=size_t(std::clamp(memoryMiB,32,512))*1024*1024;staged->memoryBudget=budget;}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_abort(JNIEnv*,jobject){staged.reset();effects.clear();paths.clear();}
@@ -80,6 +81,7 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_exportW
 }catch(const std::exception& x){staged.reset();effects.clear();paths.clear();exportControls.clear();exportRate=0;fail(e,x);}}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_cancelExport(JNIEnv*,jobject){exportCancel.store(true);}
 extern "C" JNIEXPORT jfloat JNICALL Java_dev_pianopocket_audio_NativeAudio_exportProgress(JNIEnv*,jobject){return exportProgress.load();}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_resetExportProgress(JNIEnv*,jobject){exportProgress.store(0);}
 
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_encodeCompressed(JNIEnv* e,jobject,jstring wav,jstring output,jint format,jint bitrate) {
     try { encodeCompressed(string(e,wav),string(e,output),format,bitrate,exportCancel,exportProgress); }
