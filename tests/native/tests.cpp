@@ -1,4 +1,5 @@
 #include "SamplerEngine.h"
+#include "AdaptiveBuffer.h"
 #include "Effects.h"
 #include "OfflineRenderer.h"
 #include <fstream>
@@ -36,6 +37,7 @@ static std::unique_ptr<Instrument> bank(bool release=false){
 }
 static float energy(const float* b,int n){float sum=0;for(int i=0;i<n*2;++i)sum+=b[i]*b[i];return sum;}
 int main(){try{
+    {AdaptiveBuffer p;p.reset(4,0,0);check(p.observe(true,1,8,500)==4,"adaptive buffer cooldown");check(p.observe(true,1,8,2000)==5,"pending underrun increases by one burst");check(p.observe(true,1,8,9000)==5,"stable buffers do not shrink");check(p.observe(true,0,8,10000)==5,"counter restart is not an underrun");check(p.observe(false,20,8,15000)==5,"low latency leaves buffer manual");p.reset(4,-1,0);check(p.observe(true,10,8,3000)==4,"unknown xrun does not invent historical failures");check(p.observe(true,11,4,6000)==4,"hardware capacity is respected");p.reset(8,0,0);check(p.observe(true,100,16,9000)==8,"eight burst upper bound");}
     auto path=wav();auto sample=Sample::open(path,8192);check(sample.rate==44100 && sample.frames==50000,"WAV metadata");float data[20];sample.decode(100,10,data);check(std::abs(data[0])>std::abs(data[1]),"WAV stereo");
     {std::vector<Sample> samples;samples.push_back(std::move(sample));SampleCache cache(samples);cache.prefetch(0,20000);cache.prefetch(0,24000);cache.prefetch(0,28000);std::this_thread::sleep_for(std::chrono::milliseconds(40));SampleCache::View v;cache.view(0,20000,v);check(v.data!=nullptr,"stream cache worker / prefetch / LRU");check(std::abs(v.data[(20000-v.start)*2])>0,"stream decoded content");}
     float out[512];SamplerEngine e;e.install(bank(),{},48000);e.send({0,0,60,127,0});render(e,out,256);float loud=energy(out,256);check(loud>0,"note playback");check(e.activeVoices==1,"voice count");

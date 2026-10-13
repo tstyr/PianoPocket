@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val stableAudio: Boolean = false,
     val diagnosticMode: Int = 0, val diagnosticRecording: Boolean = false,
     val targetFps: Int = 60,
     val showFps: Boolean = false,
@@ -49,7 +50,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     @Volatile private var encodingProgress=0f
     @Volatile private var compressedExport=false
     private fun exportProgress(): Float=when(exportStage){1->.7f+NativeAudio.exportProgress()*.25f;2->.7f+encodingProgress*.25f;3->.98f;else->NativeAudio.exportProgress()*(if(compressedExport).7f else .98f)}
-    private val mutable=MutableStateFlow(PocketState(targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -59,6 +60,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     },::receiveMidi)
     init {
         work {
+            NativeAudio.stability(preferences.stableAudio)
             mutable.update { it.copy(aacAvailable=AacExporter.available(),videoOptions=VideoExporter.supportedOptions()) }
             val pid=android.os.Process.myPid().toString()
             getApplication<Application>().cacheDir.listFiles().orEmpty().filter { it.name.startsWith("render-") && it.extension in listOf("wav","flac","mp3","m4a","mp4","mov") && it.name.split('-').getOrNull(1)!=pid }.forEach { it.delete() }
@@ -155,6 +157,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         NativeAudio.replaceImpulse(choice.effectIndex,repository.resolve(entry,choice.path).path,fx.params)
         mutable.update { s->s.copy(busy=false,message="IR: ${choice.name}",preset=s.preset?.copy(effects=s.preset.effects.mapIndexed { i,e->if(i==choice.effectIndex)e.copy(ir=choice.path)else e },menus=s.preset.menus.mapIndexed { i,m->if(i==menuIndex)m.copy(selected=optionIndex)else m })) }
     }
+    fun stableAudio(value: Boolean)=work {preferences.stableAudio=value;NativeAudio.stability(value);mutable.update { it.copy(stableAudio=value,message=if(value)"安定優先: XRun増加時にバッファを増やします"else "低遅延: 手動のバッファ設定を使います") }}
     fun memory(value: Int){preferences.memoryMiB=value;mutable.update { it.copy(memoryMiB=value,message="メモリ上限は次回の音源読み込みから適用されます") }}
     fun audio(device: Int=state.value.device,bursts: Int=state.value.bursts)=work { preferences.bursts=bursts;mutable.update { it.copy(device=device,bursts=bursts) };NativeAudio.panic();check(NativeAudio.start(device,bursts)) { "オーディオ経路を開けません" };state.value.library.firstOrNull { it.id==state.value.selected }?.let { loadInternal(it) } }
     fun channel(value: Int){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();live.clear();NativeAudio.panic();midi.channel=value;mutable.update { it.copy(channel=value) }}

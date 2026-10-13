@@ -4,6 +4,7 @@ object NativeAudio {
     init { System.loadLibrary("pianopocket") }
     external fun start(device: Int, bursts: Int): Boolean
     external fun stop()
+    external fun stability(enabled: Boolean)
     external fun begin(memoryMiB: Int)
     external fun abort()
     external fun region(path: String, ints: IntArray, floats: FloatArray)

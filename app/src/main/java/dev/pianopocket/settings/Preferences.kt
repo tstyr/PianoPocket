@@ -4,6 +4,9 @@ import android.content.Context
 
 class Preferences(context: Context) {
     private val store=context.getSharedPreferences("pianopocket",Context.MODE_PRIVATE)
+    var stableAudio: Boolean
+        get()=store.getBoolean("stableAudio",false)
+        set(value){store.edit().putBoolean("stableAudio",value).apply()}
     var targetFps: Int
         get()=store.getInt("targetFps",60).let { if(it in listOf(30,60,90,120))it else 60 }
         set(value){store.edit().putInt("targetFps",value).apply()}

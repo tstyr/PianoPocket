@@ -43,3 +43,11 @@ MP4はisom、MOVはQuickTime qtコンテナ。独立したFFmpegによる30fps/4
 利用者から有線で0.6.0のノイズが残っていないとの報告を受けています。開発環境では実機未接続。詳細はdocs/AUDIO_DIAGNOSTICS.md。Native tests・ASan/UBSan PASS。
 
 53 JVM tests・Androidビルド・Lint PASS。APK 28817347 bytes / SHA-256 `c0ac8ff0b62800b0f1ef02c346005f6a151b245974b923ec5311ae009c6025c7`。 診断UIと出力経路の実機比較は未実施。FXなしでも残響維持のためFX処理は継続。 開発環境の実機／エミュレーター未接続。
+
+## 0.6.2-alpha — 安定優先の自動バッファ調整
+
+低遅延／安定優先を切替・保存。安定優先は4バースト以上から開始し、XRun増加時に段階的に最大8へ増量します。経路容量、2秒の間隔、未取得値、カウンターリセットを扱い、演奏中の自動縮小を避けます。
+
+Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
+
+53 JVM tests・Androidビルド・Lint PASS。APK 28541255 bytes / SHA-256 `219f5c8f1fef3809201c03274b56c7e2f4ac4bc1d8d8afbca560983ed73da639`。 実機のXRun改善・音質・追加遅延は未測定。バッファ増量は遅延を増やします。 開発環境の実機／エミュレーター未接続。

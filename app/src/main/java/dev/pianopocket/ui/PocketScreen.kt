@@ -121,6 +121,8 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             Parameter("ロール表示時間 (${state.sequence.lookAhead.toInt()} 秒)",state.sequence.lookAhead,2f..10f,true,model::lookAhead)
                             Text("ロール上のピンチで横幅を拡大・縮小、横ドラッグで音域を移動。ロールと鍵盤は連動します。拡大アイコンで88鍵／2オクターブ、矢印で横移動。",style=MaterialTheme.typography.bodySmall)
                             Text("オーディオ",style=MaterialTheme.typography.titleMedium)
+                            Row {FilterChip(selected=!state.stableAudio,onClick={model.stableAudio(false)},enabled=!state.busy,label={Text("低遅延")});Spacer(Modifier.width(8.dp));FilterChip(selected=state.stableAudio,onClick={model.stableAudio(true)},enabled=!state.busy,label={Text("安定優先・自動")})}
+                            Text("安定優先は4バースト以上で開始し、XRunが増えたら最大8まで段階的に増やします。出力経路の上限に従い、追加の遅延が生じます。",style=MaterialTheme.typography.bodySmall)
                             DeviceMenu(state,model)
                             BufferControl(state,model)
                             Parameter("最大発音数 (${state.voices} sample voices)",state.voices.toFloat(),32f..1024f,true){model.voices(it.toInt())}
@@ -161,7 +163,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
 }
 @Composable private fun BufferControl(state: PocketState,model: PocketViewModel) {
     var pending by remember(state.bursts) { mutableFloatStateOf(state.bursts.toFloat()) }
-    Column { Text("バッファ (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
+    Column { Text("${if(state.stableAudio)"手動基準バッファ"else "バッファ"} (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
 }
 @Composable internal fun IrMenuControl(menu: dev.pianopocket.library.IrMenu,enabled: Boolean,onSelect:(Int)->Unit) {
     var expanded by remember { mutableStateOf(false) }
