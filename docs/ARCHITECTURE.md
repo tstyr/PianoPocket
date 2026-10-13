@@ -12,7 +12,7 @@
 ## Streaming
 
 - 波形先頭8192 framesを常駐させ、発音開始のディスク待ちを避ける。
-- 予算に応じた256〜8192ページ（offlineは最大512）、各4096 frames＋補間用1 frame、Float stereo。callbackはページのreaderカウンターをCASで取得し、workerが上書きしない間だけ参照する。
+- 音源の必要量と予算に応じた32〜8192ページ（offlineは最大512）、各4096 frames＋補間用1 frame、Float stereo。callbackはページのreaderカウンターをCASで取得し、workerが上書きしない間だけ参照する。
 - workerはreader=0を-1にCASしてページを確保。ディスク読み取り・decode後release publication。音声側はブロックやページ境界ごとに短い参照を取得し、待たない。
 - オーディオ→cache workerの別SPSCキューで現在位置の先4096 / 8192 framesをprefetch。最終参照epochによるLRU。
 - 4候補のハッシュディレクトリー、優先要求キューと重複抑制を使用。ミス時は直前のサンプル値からゲインを滑らかに変更して演奏を継続。速度の遅いストレージで完全無欠落を保証する仕組みではない。ミス・I/OエラーはUIに公開。

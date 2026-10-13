@@ -125,7 +125,9 @@ int main(){try{
         check(complete && cache.readErrors==0,"hashed budget cache holds more than legacy 256 sample pages");
         for(int i=0;i<1000;++i)cache.prefetch(0,30000);std::this_thread::sleep_for(std::chrono::milliseconds(20));
         check(cache.requestDrops==0,"duplicate prefetch requests are coalesced");
-        auto instrument=bank();instrument->memoryBudget=64*1024*1024;instrument->prepare();check(instrument->residentBytes<=instrument->memoryBudget && instrument->cache->capacity()>256,"configured budget sizes the real resident cache");
+        auto instrument=bank();instrument->memoryBudget=64*1024*1024;instrument->prepare();check(instrument->residentBytes<2*1024*1024 && instrument->cache->capacity()==SampleCache::MinPages,"resident samples do not allocate the whole cache budget");
+        auto large=std::make_unique<Instrument>();Sample stream;stream.frames=10000000;large->samples.push_back(std::move(stream));large->memoryBudget=32*1024*1024;large->prepare();check(large->residentBytes<=large->memoryBudget && large->cache->capacity()>256,"large streaming banks retain a bounded budget-sized cache");
+        auto small=std::make_unique<Instrument>();small->samples.push_back(Sample::open(path,8192));small->memoryBudget=256*1024*1024;small->prepare();check(small->cache->capacity()==SampleCache::MinPages && small->residentBytes<2*1024*1024,"small streamed WAV uses only needed pages");
     }
 
     {

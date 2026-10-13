@@ -86,3 +86,10 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 - READMEと音源の読み込み案内を整理しました。
 
 77 JVM tests・Androidビルド・Lint PASS。APK 63040192 bytes / SHA-256 `f62d38be3853d402dc7a56e0c7c0f56f27e88645f0a4f019964d5a6fa92d718f`。SFZの未対応設定は音源パネルに警告を表示します。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.10.0-alpha/docs/SFZ.md)・[内蔵音源の出典](https://github.com/tstyr/PianoPocket/blob/v0.10.0-alpha/docs/BUNDLED_PIANO.md)。ビルドと自動テストは確認済み、開発環境でのAndroid実機試験は未実施です。 開発環境の実機／エミュレーター未接続。
+
+## 0.10.1-alpha — 音源に応じたメモリ節約
+
+- メモリ予算を上限として扱い、音源に必要な量だけキャッシュを確保するようにしました。
+- 小さい音源ではRAM使用量が減り、大きい音源では従来どおり予算内で先読み・LRUを使えます。
+
+77 JVM tests・Androidビルド・Lint PASS。APK 63040648 bytes / SHA-256 `55277eb86e7e67fac9878f8fcd7233316d61fcaf7e25dbab35c68ada051dbdea`。ビルド・自動テストを確認済み。開発環境でのAndroid実機試験は未実施です。 開発環境の実機／エミュレーター未接続。

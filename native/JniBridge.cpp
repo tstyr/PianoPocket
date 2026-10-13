@@ -31,7 +31,7 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         jint a[20]={};jfloat f[9];e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,9,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
-            if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::PageCount*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
+            if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::MinPages*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
             auto wav=Sample::open(path);staged->residentBytes+=wav.head.size()*sizeof(float);sample=staged->samples.size();paths[path]=sample;staged->samples.push_back(std::move(wav));
         }else sample=found->second;
         Region r;r.sample=sample;r.group=a[0];r.low=a[1];r.high=a[2];r.root=a[3];r.lowVel=a[4];r.highVel=a[5];r.trigger=Trigger(a[6]);r.start=a[7];r.end=a[8];r.loopStart=a[9];r.loopEnd=a[10];r.cc=a[11];r.ccLow=a[12];r.ccHigh=a[13];r.fadeInLow=a[14];r.fadeInHigh=a[15];r.fadeOutLow=a[16];r.fadeOutHigh=a[17];r.enabled=a[18]!=0;

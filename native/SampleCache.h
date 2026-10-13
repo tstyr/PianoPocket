@@ -7,7 +7,7 @@
 namespace pocket {
 class SampleCache {
 public:
-    static constexpr size_t PageFrames=4096,PageCount=256,MaxPages=8192;
+    static constexpr size_t PageFrames=4096,MinPages=32,PageCount=256,MaxPages=8192;
     static constexpr size_t Buckets=8192,Ways=4;
     struct Page {std::atomic<int> readers{0};uint64_t key=UINT64_MAX;std::atomic<uint64_t> used{0};std::array<float,(PageFrames+1)*2> data{};};
     static constexpr size_t DirectoryBytes=Buckets*Ways*sizeof(std::atomic<uint32_t>)+Buckets*sizeof(std::atomic<uint64_t>);

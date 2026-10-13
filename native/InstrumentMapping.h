@@ -30,14 +30,25 @@ struct Instrument {
             if(r.trigger==Trigger::PedalDown || r.trigger==Trigger::PedalUp)lookup[int(r.trigger)][60].push_back(i);
             else for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);
         }
-        size_t heads=0;for(auto& s:samples)heads+=s.head.size()*sizeof(float);
+        size_t heads=0,streamPages=0;
+        for(auto& s:samples){
+            heads+=s.head.size()*sizeof(float);
+            const uint64_t residentFrames=s.head.empty()?0:s.head.size()/2-1;
+            if(residentFrames<s.frames){
+                const auto total=(s.frames+SampleCache::PageFrames-1)/SampleCache::PageFrames;
+                const auto first=residentFrames/SampleCache::PageFrames;
+                streamPages+=size_t(std::min<uint64_t>(total-first,SampleCache::MaxPages));
+                streamPages=std::min(streamPages,SampleCache::MaxPages);
+            }
+        }
         size_t count=SampleCache::PageCount;
         if(memoryBudget){
-            const size_t minimum=SampleCache::PageCount*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes;
+            const size_t minimum=SampleCache::MinPages*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes;
             if(heads+minimum>memoryBudget)throw std::runtime_error("Sample heads and cache exceed memory budget");
             count=std::min(SampleCache::MaxPages,(memoryBudget-heads-SampleCache::DirectoryBytes)/sizeof(SampleCache::Page));
             if(offline)count=std::min<size_t>(count,512);
         }
+        count=std::min(count,std::max(SampleCache::MinPages,streamPages));
         cache=std::make_unique<SampleCache>(samples,offline,count);residentBytes=heads+cache->bytes();
     }
 };

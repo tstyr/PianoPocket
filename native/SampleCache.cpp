@@ -5,7 +5,7 @@ namespace pocket {
 static constexpr uint32_t NoPage=UINT32_MAX;
 static constexpr uint64_t UrgentBit=uint64_t(1)<<63;
 size_t SampleCache::bucket(uint64_t key) noexcept {key^=key>>33;key*=0xff51afd7ed558ccdULL;key^=key>>33;key*=0xc4ceb9fe1a85ec53ULL;key^=key>>33;return key&(Buckets-1);}
-SampleCache::SampleCache(const std::vector<Sample>& s,bool sync,size_t n):samples(s),count(std::clamp(n,PageCount,MaxPages)),pages(new Page[count]),offline(sync){
+SampleCache::SampleCache(const std::vector<Sample>& s,bool sync,size_t n):samples(s),count(std::clamp(n,MinPages,MaxPages)),pages(new Page[count]),offline(sync){
     for(auto& x:directory)x.store(NoPage);for(auto& x:pending)x.store(0);
     if(!offline)worker=std::thread([this]{run();});
 }
