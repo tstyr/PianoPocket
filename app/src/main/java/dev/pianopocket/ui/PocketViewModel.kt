@@ -9,6 +9,10 @@ import dev.pianopocket.audio.NativeAudio
 import dev.pianopocket.library.*
 import dev.pianopocket.midi.*
 import dev.pianopocket.settings.Preferences
+import dev.pianopocket.settings.SoundSettings
+import dev.pianopocket.settings.SoundSettingsStore
+import dev.pianopocket.settings.SoundRecord
+import dev.pianopocket.settings.FavoriteSound
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val soundFavorites: List<String> = emptyList(),
     val stableAudio: Boolean = false,
     val diagnosticMode: Int = 0, val diagnosticRecording: Boolean = false,
     val targetFps: Int = 60,
@@ -41,6 +46,8 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val worker=executor.asCoroutineDispatcher()
     private val repository=LibraryRepository(app)
     private val preferences=Preferences(app)
+    private val soundStore=SoundSettingsStore(File(app.filesDir,"sound-settings"))
+    private var soundSaveJob: Job?=null
     private val midiLibrary=MidiLibrary(app)
     private val recorder=MidiRecorder()
     private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
@@ -87,7 +94,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         foreground=active
         if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
         work {
-            if(!active){NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(ready=false) };return@work}
+            if(!active){soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(ready=false) };return@work}
             check(NativeAudio.start(state.value.device,state.value.bursts)) { "オーディオ出力を開始できません" }
             if(!initialized){var entries=repository.entries();if(entries.isEmpty())entries=repository.installDemo();mutable.update { it.copy(library=entries) };initialized=true}
             val entry=state.value.library.firstOrNull { it.id==(state.value.selected.ifBlank { preferences.lastInstrument }) } ?: state.value.library.firstOrNull()
@@ -100,11 +107,19 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(outputs=listOf(OutputDevice(0,"システム既定"))+devices.map { d->OutputDevice(d.id,d.productName.toString()) }) }
     }
     fun load(entry: LibraryEntry) = work { loadInternal(entry) }
-    private fun loadInternal(entry: LibraryEntry) {
+    private fun loadInternal(entry: LibraryEntry,override: SoundSettings?=null,factory: Boolean=false) {
+        soundSaveJob?.cancel();saveCurrentSound()
         diagnosticMode(0)
         NativeAudio.event(10,0,0,0,0f);live.clear()
         mutable.update { it.copy(busy=true,message="XMLと参照WAVを確認中") }
-        val preset=repository.parse(entry)
+        val base=repository.parse(entry)
+        val schema=SoundSettings.schema(base)
+        val readResult=runCatching {soundStore.read(entry.id,schema)}
+        if(readResult.isFailure)soundStore.backupCorrupt(entry.id,schema)
+        val record=readResult.getOrDefault(SoundRecord())
+        val saved=if(factory)null else (override ?: record.last)?.takeIf {it.valid(base)}
+        val settingsWarning=if(readResult.isFailure)listOf("保存設定が壊れていたため退避し、初期値を使います。")else if(!factory && record.last!=null && saved==null)listOf("保存設定が現在の音源に適合しないため初期値を使います。")else emptyList()
+        val preset=base.copy(warnings=base.warnings+settingsWarning,controls=base.controls.mapIndexed { i,c->c.copy(value=saved?.controls?.get(i) ?: c.value) },menus=base.menus.mapIndexed { i,m->m.copy(selected=saved?.menus?.get(i) ?: m.selected) })
         NativeAudio.begin(state.value.memoryMiB)
         preset.regions.forEachIndexed { i,r ->
             NativeAudio.region(repository.resolve(entry,r.path).path,r.ints,r.floats)
@@ -115,24 +130,27 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         var initialGroups=preset.groupVolumes
         preset.controls.forEach { c->val reflected=reflectTargets(configured,initialGroups,c,c.value);configured=reflected.first;initialGroups=reflected.second }
         preset.menus.forEach { menu->val option=menu.options[menu.selected];configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->if(i==option.effectIndex)fx.copy(ir=option.path)else fx }) }
+        if(saved!=null){initialGroups=saved.groups;configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->fx.copy(params=saved.effects[i].toFloatArray()) })}
         configured.effects.forEach { fx -> NativeAudio.effect(fx.type,fx.params,if(fx.ir.isBlank())"" else repository.resolve(entry,fx.ir).path) }
         NativeAudio.commit()
-        val voices=state.value.voices.coerceIn(32,1024)
-        NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,state.value.volume)
+        val voices=(saved?.voices ?: preferences.voiceLimit).coerceIn(32,1024)
+        val output=saved?.output ?: .7f
+        NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,output)
         initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) }
-        preset.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
+        configured.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
         repository.used(entry);preferences.lastInstrument=entry.id
         if(!foreground)NativeAudio.stop()
-        mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,ready=foreground,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
+        mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=foreground,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
+        saveCurrentSound()
     }
     fun importArchive(uri: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importArchive(uri){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false,message="${imported.size} プリセットをインポートしました。ライブラリで選択してください。") } }
     fun importPreset(uri: Uri, tree: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importPreset(uri,tree){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false) };loadInternal(imported.first()) }
-    fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(preset=null,selected="",ready=false) } };repository.delete(entry);mutable.update { it.copy(library=repository.entries(),message="音源フォルダーを削除しました") } }
+    fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(preset=null,selected="",ready=false) } };soundSaveJob?.cancel();state.value.library.filter {it.root==entry.root}.forEach {soundStore.delete(it.id)};repository.delete(entry);mutable.update { it.copy(library=repository.entries(),message="音源フォルダーを削除しました") } }
     fun rescan()=work { mutable.update { it.copy(library=repository.rescan(),message="再スキャン完了") } }
     fun message(text: String){mutable.update { it.copy(message=text) }}
-    fun volume(value: Float){NativeAudio.event(4,0,0,0,value);mutable.update { it.copy(volume=value) }}
-    fun group(index: Int,value: Float){NativeAudio.event(6,0,index,0,value);mutable.update { s->s.copy(groups=s.groups.mapIndexed { i,v->if(i==index)value else v }) }}
-    fun fx(index: Int, slot: Int, value: Float){NativeAudio.event(7,0,index,slot,value);mutable.update { s->s.copy(preset=s.preset?.copy(effects=s.preset.effects.mapIndexed { i,e->if(i==index)e.copy(params=e.params.copyOf().also { it[slot]=value }) else e })) }}
+    fun volume(value: Float){NativeAudio.event(4,0,0,0,value);mutable.update { it.copy(volume=value) };saveSoundSoon()}
+    fun group(index: Int,value: Float){NativeAudio.event(6,0,index,0,value);mutable.update { s->s.copy(groups=s.groups.mapIndexed { i,v->if(i==index)value else v }) };saveSoundSoon()}
+    fun fx(index: Int, slot: Int, value: Float){NativeAudio.event(7,0,index,slot,value);mutable.update { s->s.copy(preset=s.preset?.copy(effects=s.preset.effects.mapIndexed { i,e->if(i==index)e.copy(params=e.params.copyOf().also { it[slot]=value }) else e })) };saveSoundSoon()}
     private fun applyControl(control: Control,value: Float){
         control.bindings.forEach { b -> NativeAudio.event(when(b.type){"group"->6;"master"->9;else->7},0,b.index,b.slot,bindingValue(b,control,value)) }
     }
@@ -148,14 +166,15 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun control(index: Int,value: Float){state.value.preset?.controls?.getOrNull(index)?.let { c->applyControl(c,value) };mutable.update { s->
         val p=s.preset ?: return@update s;val c=p.controls.getOrNull(index) ?: return@update s;val (changed,groups)=reflectTargets(p,s.groups,c,value)
         s.copy(preset=changed.copy(controls=p.controls.mapIndexed { i,control->if(i==index)control.copy(value=value)else control }),groups=groups)
-    }}
-    fun voices(value: Int){preferences.voiceLimit=value;NativeAudio.event(8,0,value,0,0f);mutable.update { it.copy(voices=value) }}
+    };saveSoundSoon()}
+    fun voices(value: Int){preferences.voiceLimit=value;NativeAudio.event(8,0,value,0,0f);mutable.update { it.copy(voices=value) };saveSoundSoon()}
     fun impulse(menuIndex: Int,optionIndex: Int)=work {
         val preset=state.value.preset ?: return@work;val menu=preset.menus[menuIndex];val choice=menu.options[optionIndex]
         val entry=state.value.library.first { it.id==state.value.selected };val fx=preset.effects[choice.effectIndex]
         mutable.update { it.copy(busy=true,message="IRを準備中: ${choice.name}") }
         NativeAudio.replaceImpulse(choice.effectIndex,repository.resolve(entry,choice.path).path,fx.params)
         mutable.update { s->s.copy(busy=false,message="IR: ${choice.name}",preset=s.preset?.copy(effects=s.preset.effects.mapIndexed { i,e->if(i==choice.effectIndex)e.copy(ir=choice.path)else e },menus=s.preset.menus.mapIndexed { i,m->if(i==menuIndex)m.copy(selected=optionIndex)else m })) }
+        saveCurrentSound()
     }
     fun stableAudio(value: Boolean)=work {preferences.stableAudio=value;NativeAudio.stability(value);mutable.update { it.copy(stableAudio=value,message=if(value)"安定優先: XRun増加時にバッファを増やします"else "低遅延: 手動のバッファ設定を使います") }}
     fun memory(value: Int){preferences.memoryMiB=value;mutable.update { it.copy(memoryMiB=value,message="メモリ上限は次回の音源読み込みから適用されます") }}
@@ -221,6 +240,16 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(uiPedal=false,sequence=it.sequence.copy(recording=false)) }
         work {val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date());val entry=midiLibrary.save(name,song);selectSong(entry,song);mutable.update { it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。") }}
     }
+    private fun saveCurrentSound(s: PocketState=state.value){
+        val p=s.preset ?: return;val schema=SoundSettings.schema(p);val record=try{soundStore.read(s.selected,schema)}catch(e: Exception){soundStore.backupCorrupt(s.selected,schema);mutable.update {it.copy(message="保存設定の破損を検出し、退避しました")};SoundRecord()};soundStore.write(s.selected,schema,record.copy(last=SoundSettings.capture(p,s.volume,s.voices,s.groups)))
+    }
+    private fun saveSoundSoon(){soundSaveJob?.cancel();soundSaveJob=viewModelScope.launch {delay(350);withContext(worker){try{saveCurrentSound()}catch(e: Exception){mutable.update {it.copy(message="音源設定を保存できません: ${e.message}")}}}}}
+    fun saveSound(name: String)=work {
+        require(name.isNotBlank() && name.length<=40);val s=state.value;val p=s.preset ?: return@work;val schema=SoundSettings.schema(p);val record=soundStore.read(s.selected,schema);require(record.favorites.size<32 || record.favorites.any {it.name==name}){"お気に入りは音源ごとに32件までです"};val settings=SoundSettings.capture(p,s.volume,s.voices,s.groups);val favorites=record.favorites.filterNot {it.name==name}+FavoriteSound(name,settings);soundStore.write(s.selected,schema,record.copy(last=settings,favorites=favorites));mutable.update {it.copy(soundFavorites=favorites.map {f->f.name},message="お気に入り「$name」を保存しました")}
+    }
+    fun recallSound(name: String)=work {val s=state.value;val p=s.preset ?: return@work;val saved=soundStore.read(s.selected,SoundSettings.schema(p)).favorites.first {it.name==name}.settings;require(saved.valid(p)){"保存設定と音源の構成が一致しません"};loadInternal(s.library.first {it.id==s.selected},saved);mutable.update {it.copy(message="お気に入り「$name」を読み込みました")} }
+    fun resetSound()=work {val s=state.value;loadInternal(s.library.first {it.id==s.selected},factory=true);mutable.update {it.copy(message="音源の初期値へ戻しました")} }
+    fun deleteSound(name: String)=work {val s=state.value;val p=s.preset ?: return@work;val schema=SoundSettings.schema(p);val record=soundStore.read(s.selected,schema);val favorites=record.favorites.filterNot {it.name==name};soundStore.write(s.selected,schema,record.copy(favorites=favorites));mutable.update {it.copy(soundFavorites=favorites.map {f->f.name})} }
     fun diagnosticMode(mode: Int){if(mode !in 0..2)return;NativeAudio.event(12,0,mode,0,0f);mutable.update { it.copy(diagnosticMode=mode) }}
     fun startDiagnosis(){val s=state.value;diagnostics.start(System.nanoTime(),"${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.RELEASE}, app ${dev.pianopocket.BuildConfig.VERSION_NAME}\npreset=${s.preset?.name}, Output=${s.volume}, voices=${s.voices}, memoryMiB=${s.memoryMiB}, selectedOutputId=${s.device}, availableOutputs=${s.outputs.joinToString { it.label }}");mutable.update { it.copy(diagnosticRecording=true) }}
     fun stopDiagnosis(){diagnostics.stop();mutable.update { it.copy(diagnosticRecording=false) }}
@@ -269,5 +298,5 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         }catch(e: Throwable){NativeAudio.abort();runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver,uri) };throw e}
         finally{temp.delete();if(encoded!=temp)encoded.delete();mutable.update { it.copy(busy=false,sequence=it.sequence.copy(exporting=false)) }}
     }
-    override fun onCleared() { cancelExport();midi.close();executor.execute { NativeAudio.stop();NativeAudio.abort() };executor.shutdown();super.onCleared() }
+    override fun onCleared() { cancelExport();midi.close();executor.execute { runCatching {saveCurrentSound()};NativeAudio.stop();NativeAudio.abort() };executor.shutdown();super.onCleared() }
 }

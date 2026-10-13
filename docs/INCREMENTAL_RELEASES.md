@@ -51,3 +51,11 @@ MP4はisom、MOVはQuickTime qtコンテナ。独立したFFmpegによる30fps/4
 Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 
 53 JVM tests・Androidビルド・Lint PASS。APK 28541255 bytes / SHA-256 `219f5c8f1fef3809201c03274b56c7e2f4ac4bc1d8d8afbca560983ed73da639`。 実機のXRun改善・音質・追加遅延は未測定。バッファ増量は遅延を増やします。 開発環境の実機／エミュレーター未接続。
+
+## 0.7.0-alpha — 音源設定の自動保存・お気に入り
+
+マイク音量、XMLコントロール、エフェクト、IR、Output、発音上限を音源ごとに自動保存・復元。名前付きお気に入り32件を保存・呼び出し・削除でき、初期値へ戻せます。構成変更時の分離、原子的書込み、破損退避に対応。
+
+57 JVM tests PASS。詳しい保存範囲と手順はdocs/SAVED_SOUNDS.md。
+
+57 JVM tests・Androidビルド・Lint PASS。APK 28714263 bytes / SHA-256 `25fad5dd9a11437928fd3b2c0eff9890fd39334b5316dda9e8757b7d0e13aacf`。 再起動と設定復元の実機UI・聴感テストは未実施。お気に入り呼び出しは音源の再準備を伴います。 開発環境の実機／エミュレーター未接続。

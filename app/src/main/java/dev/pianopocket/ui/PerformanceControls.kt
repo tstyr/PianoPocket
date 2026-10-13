@@ -101,6 +101,7 @@ fun InstrumentPanel(state: PocketState,model: PocketViewModel,close:()->Unit,lib
         }
         TabRow(selectedTabIndex=page) { listOf("ミキサー","エフェクト","情報").forEachIndexed { i,name->Tab(selected=page==i,onClick={page=i},text={Text(name)}) } }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            if(preset!=null)SavedSoundsPanel(state,model)
             if(preset==null)OutlinedButton(onClick=library){Text("音源を選択")} else when(page) {
                 0 -> {
                     // Only real XML bindings become microphone strips. No invented Helsinki parameters.
