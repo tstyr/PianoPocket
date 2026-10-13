@@ -9,6 +9,8 @@
 namespace pocket {
 struct Event {int type=0,channel=0,a=0,b=0;float value=0;};
 struct TimedEvent {int64_t frame=0;Event event;};
+struct PracticeGate {int64_t frame=0;std::array<uint64_t,2> keys{};};
+struct PracticeBeat {int64_t frame=0;bool accent=false;};
 struct Voice {
     bool active=false,held=false,pending=false;
     int channel=0,note=0,velocity=0;
@@ -53,6 +55,21 @@ class SamplerEngine {
     std::array<std::array<int,128>,16> loopControllers{};
     std::array<float,16> loopBends{};
     bool playing=false;
+    std::vector<PracticeGate> gates;
+    std::vector<PracticeBeat> beats;
+    size_t gateCursor=0,beatCursor=0;
+    std::array<uint64_t,128> liveSerial{},consumedSerial{};
+    std::array<int64_t,128> liveOnFrame{};
+    int64_t audioFrame=0,gateOpened=-1;
+    bool waitForKeys=false,holding=false,metronome=false,metroFollow=false;
+    float metroBpm=120,metroVolume=.35f,metroGain=0;
+    double metroCountdown=0,metroPhase=0,metroFrequency=1000;
+    int metroRemaining=0,metroLength=0,metroBeat=0;
+    std::atomic<bool> reportedWaiting{false};
+    std::array<std::atomic<uint64_t>,2> reportedKeys{};
+    void resetPracticePosition(int64_t frame) noexcept;
+    bool practiceHold() noexcept;
+    float metronomeSample(int offset) noexcept;
     std::atomic<int64_t> reportedFrame{0};
     std::atomic<bool> reportedPlaying{false};
     std::atomic<bool> transportOverload{false};
@@ -75,6 +92,8 @@ public:
     void initialControls(const std::vector<Event>& values){for(const auto& e:values)dispatch(e);volume=targetVolume;instrumentVolume=targetInstrumentVolume;}
     void setTimeline(std::vector<TimedEvent> events,int64_t duration); // callback stopped
     void configureLoop(int64_t begin,int64_t end,bool enabled); // callback stopped; snapshots prepared here
+    void configurePractice(std::vector<PracticeGate>,std::vector<PracticeBeat>,bool wait,bool metro,float bpm,float gain,bool follow); // callback stopped
+    std::array<uint64_t,3> practiceStatus() const {return {reportedWaiting.load()?1ULL:0ULL,reportedKeys[0].load(),reportedKeys[1].load()};}
     void seek(int64_t frame){playing=false;transportOverload.store(false);reportedPlaying.store(false);seekTimeline(frame);}
     std::array<double,3> transport() const {return {double(reportedFrame.load())/reportedRate.load(),reportedPlaying.load()?1.:0.,transportOverload.load()?1.:0.};}
     void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}

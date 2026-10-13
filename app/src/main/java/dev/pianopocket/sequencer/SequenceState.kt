@@ -9,6 +9,8 @@ data class SequenceState(
     val viewport: KeyboardViewport = KeyboardViewport(),
     val speed: Float=1f,val loopA: Long=0,val loopB: Long=0,val looping: Boolean=false,
     val hiddenTracks: Set<Int> = emptySet(),val mutedTracks: Set<Int> = emptySet(),
+    val guided: GuidedPractice=GuidedPractice(),val waiting: Boolean=false,val waitingKeys: Set<Int> = emptySet(),
+    val metronome: Boolean=false,val metronomeBpm: Float=120f,val metronomeVolume: Float=.35f,
     val exportSelection: ExportSelection=ExportSelection(),
     val exporting: Boolean = false, val exportProgress: Float = 0f,
     val exportPhase: String="",val exportEtaSeconds: Long?=null,val previewPath: String?=null

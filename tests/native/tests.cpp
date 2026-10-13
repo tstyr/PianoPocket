@@ -170,6 +170,22 @@ int main(){try{
         float loud=0,soft=0;
         for(int velocity:{127,64}){b=bank();b->regions[0].sfzVelocity=true;b->regions[0].customVelocity=true;b->regions[0].velocityCurve.fill(1);b->regions[0].velocityCurve[64]=.2f;s.install(std::move(b),{},48000);s.send({0,0,60,velocity});for(int i=0;i<4;++i)render(s,out,256);if(velocity==127)loud=energy(out,256);else soft=energy(out,256);}check(std::abs(soft/loud-.04f)<.002f,"custom velocity points are normalized amplitude");
     }
-    check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb, SFZ playback; audio allocations=0\n";
+    {
+        SamplerEngine p;p.install(bank(),{},48000);p.setTimeline({},48000);
+        p.configurePractice({{100,{uint64_t(1)<<60,1}},{600,{uint64_t(1)<<60,0}}},{},true,false,120,.3f,true);p.send({10,0,1});render(p,out,256);
+        check(p.practiceStatus()[0]==1 && std::abs(p.transport()[0]*48000-100)<.01,"guided practice freezes at the note onset");
+        p.send({0,0,63,90});render(p,out,256);check(p.practiceStatus()[0]==1 && std::abs(p.transport()[0]*48000-100)<.01,"wrong keys do not advance");
+        p.send({0,0,60,90});render(p,out,256);check(p.practiceStatus()[1]==0 && p.practiceStatus()[2]==1,"remaining chord notes reported separately");
+        p.send({0,17,64,90});render(p,out,256);check(p.practiceStatus()[0]==1,"file playback cannot satisfy live practice");
+        p.send({0,16,64,90});render(p,out,256);check(p.practiceStatus()[0]==0 && p.transport()[0]*48000>100,"screen keyboard completes a chord after USB input");
+        render(p,out,256);check(p.practiceStatus()[0]==1 && std::abs(p.transport()[0]*48000-600)<.01,"a held note does not satisfy the next repeated note");
+        p.send({1,0,60});p.send({0,0,60,90});render(p,out,256);check(p.practiceStatus()[0]==0,"fresh repeated note resumes practice");
+        p.seek(100);p.send({10,0,1});render(p,out,256);check(p.practiceStatus()[0]==1,"seek clears previously consumed practice input");
+        SamplerEngine metro;metro.install(nullptr,{},48000);metro.configurePractice({}, {},false,true,120,1,false);std::vector<float> ticks(48000*2);
+        for(int frame=0;frame<48000;frame+=256){int n=std::min(256,48000-frame);render(metro,ticks.data()+frame*2,n);}
+        check(energy(ticks.data(),1000)>.001f && energy(ticks.data()+24000*2,1000)>.001f && energy(ticks.data()+5000*2,1000)<.000001f,"free metronome ticks at sample-clock quarter-note intervals");
+        metro.setTimeline({},48000);metro.configurePractice({},{{0,true},{12000,false}},false,true,120,1,true);metro.send({10,0,1});render(metro,out,256);metro.send({10,0,0});for(int i=0;i<60;++i)render(metro,out,256);check(energy(out,256)<.000001f,"song metronome pauses with transport");
+    }
+    check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: sampler, streaming, FX, SFZ, guided practice and metronome; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

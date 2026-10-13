@@ -28,9 +28,9 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
     var held by remember { mutableStateOf(setOf<Int>()) }
     val paint=remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign=Paint.Align.CENTER } }
     DisposableEffect(enabled) { onDispose { model.pedal(false);held=emptySet() } }
-    val external=remember(seq.position,seq.playing,seq.song,seq.live,seq.mutedTracks){
+    val external=remember(seq.position,seq.playing,seq.song,seq.live,seq.mutedTracks,seq.guided){
         val active=seq.live.held.toMutableSet()
-        if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd && it.track !in seq.mutedTracks)active+=it.key}
+        if(seq.playing)seq.song?.keyIndex?.visible(seq.position,seq.position){if(seq.position<it.keyEnd && it.track !in seq.mutedTracks && !dev.pianopocket.sequencer.Practice.target(it.key,it.track,seq.guided,seq.mutedTracks))active+=it.key}
         active
     }
     Box(modifier.background(Color(0xff20242a))) {
@@ -58,6 +58,7 @@ fun PianoKeyboard(state: PocketState,model: PocketViewModel,modifier: Modifier=M
                 val left=viewport.screen(key.left)*size.width;val width=key.width*viewport.zoom*size.width;val height=if(key.black)size.height*.62f else size.height
                 if(left+width<0 || left>=size.width)return@forEach
                 drawRect(color,Offset(left+1,0f),Size((width-2).coerceAtLeast(1f),height))
+                if(key.note in seq.waitingKeys)drawRect(Color(0xffffd36a),Offset(left+1,height-4.dp.toPx()),Size((width-2).coerceAtLeast(1f),4.dp.toPx()))
                 if(seq.noteLabels){
                     drawNoteLabel(key.note,left+width/2,0f,width,height,paint,black=key.black)
                 }

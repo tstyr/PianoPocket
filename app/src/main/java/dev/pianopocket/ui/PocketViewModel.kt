@@ -57,7 +57,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val recorder=MidiRecorder()
     private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
     private val live=LiveNotes()
-    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(exportSelection=preferences.exportSelection,noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(metronomeBpm=preferences.metronomeBpm,metronomeVolume=preferences.metronomeVolume,exportSelection=preferences.exportSelection,noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
     @Volatile private var foreground=false;private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
@@ -94,8 +94,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun targetFps(value: Int){if(value !in listOf(30,60,90,120))return;preferences.targetFps=value;mutable.update { it.copy(targetFps=value) }}
     fun displayFrame() {
         if(!foreground)return
-        val transport=NativeAudio.transport();val snapshot=live.snapshot()
-        mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=!s.sequence.exporting && s.sequence.previewPath==null && transport[1]>0,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)ExportCoordinator.status.value.progress else s.sequence.exportProgress)) }
+        val transport=NativeAudio.transport();val snapshot=live.snapshot();val practice=NativeAudio.practiceStatus()
+        val waiting=practice[0]!=0L;val expected=if(waiting)(0..127).filter {((practice[1+it/64] ushr (it%64)) and 1L)!=0L}.toSet()else emptySet()
+        mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=!s.sequence.exporting && s.sequence.previewPath==null && transport[1]>0,waiting=waiting,waitingKeys=expected,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)ExportCoordinator.status.value.progress else s.sequence.exportProgress)) }
         if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
     }
     private fun work(action: suspend () -> Unit) { viewModelScope.launch { withContext(worker) { try { action() } catch(e: Exception) { NativeAudio.abort();mutable.update { it.copy(busy=false,message=e.message ?: e.javaClass.simpleName) } } catch(e: OutOfMemoryError) { NativeAudio.abort();mutable.update { it.copy(busy=false,message="メモリ不足。音源を減らすかメモリ設定を下げて再試行してください。") } } } } }
@@ -112,7 +113,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(!initialized){mutable.update {it.copy(busy=true,message="内蔵ピアノを準備しています")};val entries=repository.ensureBundled();mutable.update {it.copy(library=entries,busy=false)};initialized=true}
         val entry=state.value.library.firstOrNull {it.id==(state.value.selected.ifBlank {preferences.lastInstrument})} ?: state.value.library.firstOrNull()
         if(entry!=null && (state.value.preset==null || forceReload || ExportCoordinator.performanceUnloaded))loadInternal(entry)else mutable.update {it.copy(ready=true)}
-        if(state.value.sequence.song==null)state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi}?.let {selectSong(it,midiLibrary.load(it))}
+        if(state.value.sequence.song==null){val last=state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi};if(last!=null)selectSong(last,midiLibrary.load(last))else installPractice(state.value.sequence)}
     }
     private fun refreshOutputs() {
         val devices=getApplication<Application>().getSystemService(AudioManager::class.java).getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -224,19 +225,21 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun noteLabels(value: Boolean){preferences.noteLabels=value;mutable.update { it.copy(sequence=it.sequence.copy(noteLabels=value)) }}
     fun rollVisible(value: Boolean){preferences.rollVisible=value;mutable.update { it.copy(sequence=it.sequence.copy(rollVisible=value)) }}
     fun lookAhead(value: Float){preferences.lookAhead=value;mutable.update { it.copy(sequence=it.sequence.copy(lookAhead=value)) }}
-    private fun arrays(song: MidiSong,muted: Set<Int> = emptySet()): Pair<LongArray,IntArray> {
-        val messages=Practice.messages(song,muted)
+    private fun arrays(song: MidiSong,muted: Set<Int> = emptySet(),guided: dev.pianopocket.sequencer.GuidedPractice=dev.pianopocket.sequencer.GuidedPractice()): Pair<LongArray,IntArray> {
+        val messages=Practice.messages(song,muted,guided)
         val times=LongArray(messages.size){messages[it].micros};val data=IntArray(times.size*3)
         messages.forEachIndexed { i,e->data[i*3]=e.status;data[i*3+1]=e.a;data[i*3+2]=e.b };return times to data
     }
     private fun selectSong(entry: MidiEntry,song: MidiSong){
-        val (times,data)=arrays(song);NativeAudio.timeline(times,data,song.duration);if(!foreground)NativeAudio.stop()
+        val (times,data)=arrays(song);NativeAudio.timeline(times,data,song.duration)
+        val fresh=state.value.sequence.copy(song=song,guided=dev.pianopocket.sequencer.GuidedPractice(),mutedTracks=emptySet());installPractice(fresh)
+        if(!foreground)NativeAudio.stop()
         preferences.lastMidi=entry.id
-        mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries(),song=song,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet()),message="${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}") }
+        mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries(),song=song,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet()),message="${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}") }
     }
     fun importMidi(uri: Uri)=work { if(state.value.sequence.recording)stopRecording();mutable.update { it.copy(busy=true) };val (entry,song)=midiLibrary.import(uri);selectSong(entry,song);mutable.update { it.copy(busy=false) } }
     fun selectMidi(entry: MidiEntry)=work { selectSong(entry,midiLibrary.load(entry)) }
-    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);mutable.update { it.copy(sequence=it.sequence.copy(song=null,selected="",title="MIDIを選択",playing=false,position=0)) } };midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
+    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
     fun play()=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work
         if(seq.recording || seq.exporting || !state.value.ready)return@work
@@ -251,8 +254,30 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private fun configurePracticeLoop(a: Long,b: Long,enabled: Boolean){val duration=state.value.sequence.song?.duration ?: return;require(!enabled || a>=0 && b<=duration && b-a>=100000){"リピート区間が不正です"};NativeAudio.practiceLoop(a,b,enabled);if(!foreground)NativeAudio.stop();mutable.update {it.copy(sequence=it.sequence.copy(loopA=a,loopB=b,looping=enabled))}}
     fun trackVisible(track: Int,visible: Boolean){val seq=state.value.sequence;if(track !in 0 until (seq.song?.tracks ?: 0))return;mutable.update {it.copy(sequence=it.sequence.copy(hiddenTracks=if(visible)it.sequence.hiddenTracks-track else it.sequence.hiddenTracks+track))}}
     fun trackMuted(track: Int,muted: Boolean)=work {
-        val seq=state.value.sequence;val song=seq.song ?: return@work;require(track in 0 until song.tracks);val tracks=if(muted)seq.mutedTracks+track else seq.mutedTracks-track;val (times,data)=arrays(song,tracks);NativeAudio.timeline(times,data,song.duration);NativeAudio.event(11,0,0,0,seq.speed);NativeAudio.practiceLoop(seq.loopA,seq.loopB,seq.looping);NativeAudio.seekTimeline(seq.position);if(seq.playing)NativeAudio.event(10,0,1,0,0f);if(!foreground)NativeAudio.stop();mutable.update {it.copy(sequence=it.sequence.copy(mutedTracks=tracks))}
+        val seq=state.value.sequence;val song=seq.song ?: return@work;require(track in 0 until song.tracks);val tracks=if(muted)seq.mutedTracks+track else seq.mutedTracks-track;rebuildPractice(seq.copy(mutedTracks=tracks))
     }
+    private fun installPractice(seq: dev.pianopocket.sequencer.SequenceState){
+        val gates=seq.song?.let {Practice.gates(it,seq.mutedTracks,seq.guided)} ?: emptyList()
+        val ticks=if(seq.metronome)seq.song?.let(Practice::beats) ?: emptyList()else emptyList()
+        val times=gates.map {it.micros}.toLongArray();val masks=LongArray(gates.size*2)
+        gates.forEachIndexed {i,g->g.keys.forEach {key->masks[i*2+key/64]=masks[i*2+key/64] or (1L shl (key%64))}}
+        NativeAudio.practicePlan(times,masks,ticks.map {it.micros}.toLongArray(),ticks.map {if(it.accent)1 else 0}.toIntArray(),seq.guided.enabled && seq.guided.waitForInput,seq.metronome,seq.metronomeBpm,seq.metronomeVolume,seq.song!=null)
+    }
+    private fun rebuildPractice(seq: dev.pianopocket.sequencer.SequenceState){
+        val song=seq.song
+        if(song!=null){val (times,data)=arrays(song,seq.mutedTracks,seq.guided);NativeAudio.timeline(times,data,song.duration)}
+        installPractice(seq)
+        if(song!=null){NativeAudio.event(11,0,0,0,seq.speed);NativeAudio.practiceLoop(seq.loopA,seq.loopB,seq.looping);NativeAudio.seekTimeline(seq.position);if(seq.playing)NativeAudio.event(10,0,1,0,0f)}
+        if(!foreground)NativeAudio.stop();mutable.update {it.copy(sequence=seq.copy(waiting=false,waitingKeys=emptySet()))}
+    }
+    fun guidedPractice(options: dev.pianopocket.sequencer.GuidedPractice)=work {
+        val seq=state.value.sequence;val song=seq.song ?: return@work
+        require(!options.enabled || song.notes.any {Practice.target(it.key,it.track,options,seq.mutedTracks)}) {"練習するノートがありません。手・トラック・ミュートを確認してください。"}
+        rebuildPractice(seq.copy(guided=options))
+    }
+    fun metronome(enabled: Boolean)=work {rebuildPractice(state.value.sequence.copy(metronome=enabled))}
+    fun metronomeBpm(value: Float){val v=value.coerceIn(20f,300f);preferences.metronomeBpm=v;NativeAudio.event(13,0,0,0,v);mutable.update {it.copy(sequence=it.sequence.copy(metronomeBpm=v))}}
+    fun metronomeVolume(value: Float){val v=value.coerceIn(0f,1f);preferences.metronomeVolume=v;NativeAudio.event(13,0,1,0,v);mutable.update {it.copy(sequence=it.sequence.copy(metronomeVolume=v))}}
     fun startRecording(){
         if(state.value.sequence.exporting || !state.value.ready || state.value.busy)return
         if(state.value.midiInput=="none"){message("録音するMIDI入力または画面鍵盤を選択してください。");return}

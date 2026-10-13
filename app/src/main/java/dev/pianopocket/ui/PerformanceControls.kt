@@ -44,7 +44,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
                     DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
-                    DropdownMenuItem(text={Text("速度・リピート・トラック")},enabled=seq.song!=null && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
+                    DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
                     DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                     DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                     DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
@@ -59,6 +59,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             }
         }
         if(seq.exporting)Text("${seq.exportPhase}${seq.exportEtaSeconds?.let {" · 推定残り（この工程） ${durationLabel(it*1000000)}"} ?: ""}",style=MaterialTheme.typography.labelSmall)
+        if(seq.waiting)Text("次の音: "+seq.waitingKeys.sorted().take(8).joinToString("  "){key->if(seq.noteLabels)noteLabelLines(key).joinToString("")+"${key/12-1}"else arrayOf("C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B")[key%12]+"${key/12-1}"},style=MaterialTheme.typography.labelMedium,color=androidx.compose.ui.graphics.Color(0xffffd36a))
         if(seq.exporting)Row(verticalAlignment=Alignment.CenterVertically) {
             LinearProgressIndicator(progress={seq.exportProgress},modifier=Modifier.weight(1f))
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)

@@ -4,6 +4,12 @@ import android.content.Context
 
 class Preferences(context: Context) {
     private val store=context.getSharedPreferences("pianopocket",Context.MODE_PRIVATE)
+    var metronomeBpm: Float
+        get()=store.getFloat("metronomeBpm",120f).coerceIn(20f,300f)
+        set(value){store.edit().putFloat("metronomeBpm",value).apply()}
+    var metronomeVolume: Float
+        get()=store.getFloat("metronomeVolume",.35f).coerceIn(0f,1f)
+        set(value){store.edit().putFloat("metronomeVolume",value).apply()}
     var exportSelection: dev.pianopocket.sequencer.ExportSelection
         get()=runCatching {dev.pianopocket.sequencer.ExportSelection(dev.pianopocket.sequencer.ExportFormat.valueOf(store.getString("exportFormat","WAV24")!!),store.getInt("exportRate",48000),store.getInt("exportTail",8),store.getInt("exportBitrate",256),dev.pianopocket.video.VideoOptions(store.getInt("exportVideoFps",30),store.getInt("exportVideoHeight",720)))}.getOrDefault(dev.pianopocket.sequencer.ExportSelection())
         set(value){store.edit().putString("exportFormat",value.format.name).putInt("exportRate",value.rate).putInt("exportTail",value.tail).putInt("exportBitrate",value.bitrate).putInt("exportVideoFps",value.video.fps).putInt("exportVideoHeight",value.video.height).apply()}
