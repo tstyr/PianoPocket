@@ -10,16 +10,17 @@ import java.io.File
 import java.io.InputStream
 import java.util.UUID
 
-data class LibraryEntry(val id: String, val root: String, val preset: String, val name: String, val bytes: Long, val lastUsed: Long = 0)
+data class LibraryEntry(val id: String, val root: String, val preset: String, val name: String, val bytes: Long, val lastUsed: Long = 0,val decodedBytes: Long=0)
 class LibraryRepository(private val context: Context) {
     private val home = File(context.filesDir, "instruments").apply { mkdirs() }
     private val index = File(home, "library.json")
     private val decoded=DecodedSamples(File(context.filesDir,"decoded-samples"))
-    init { home.listFiles().orEmpty().filter { it.isDirectory && it.name.endsWith(".pending") }.forEach { it.deleteRecursively() };File(home,"library.tmp").delete() }
+    init { home.listFiles().orEmpty().filter { it.isDirectory && it.name.endsWith(".pending") && it.absolutePath !in activeStages }.forEach { it.deleteRecursively() } }
     fun entries(): List<LibraryEntry> = if (!index.exists()) emptyList() else {
         val a = JSONArray(index.readText())
         (0 until a.length()).map { a.getJSONObject(it) }.map { LibraryEntry(it.getString("id"), it.getString("root"), it.getString("preset"), it.getString("name"), it.getLong("bytes"), it.optLong("lastUsed")) }
             .filter { LibraryFilePolicy.isPreset(it.preset) && File(home, "${it.root}/${it.preset}").isFile }
+            .map {it.copy(decodedBytes=File(context.filesDir,"decoded-samples/${it.root}").walkTopDown().filter {file->file.isFile}.sumOf {file->file.length()})}
     }
     private fun save(entries: List<LibraryEntry>) {
         val a=JSONArray(); entries.forEach { e -> a.put(JSONObject().put("id",e.id).put("root",e.root).put("preset",e.preset).put("name",e.name).put("bytes",e.bytes).put("lastUsed",e.lastUsed)) }
@@ -60,6 +61,12 @@ class LibraryRepository(private val context: Context) {
     }
     fun importArchive(uri: Uri, progress: (String) -> Unit): List<LibraryEntry> = transaction { dir ->
         context.contentResolver.openInputStream(uri)?.use { SafeArchive.extract(it,dir,progress=progress) } ?: error("Cannot open archive")
+    }
+    fun findDownloaded(id: String): LibraryEntry? = entries().firstOrNull {entry->File(root(entry),"download-id.txt").run {isFile && length()<128 && readText().trim()==id}}
+    fun importDownloaded(input: InputStream,id: String,expandedBytes: Long,progress: (String)->Unit): List<LibraryEntry> = transaction {dir->
+        SafeArchive.extract(input,dir,SafeArchive.Limits(files=128,total=expandedBytes+1048576),progress)
+        require(File(dir,"download-id.txt").run {isFile && length()<128 && readText().trim()==id}) {"音源パッケージの識別子が一致しません"}
+        progress("音源の追加を確定します")
     }
     fun ensureBundled(): List<LibraryEntry> {
         val prefs=context.getSharedPreferences("library",Context.MODE_PRIVATE)
@@ -117,7 +124,7 @@ class LibraryRepository(private val context: Context) {
       }.sortedBy { it.preset!=primary }
     }
     private fun transaction(copy: (File) -> Unit): List<LibraryEntry> {
-        val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending").apply { mkdirs() };val destination=File(home,id)
+        val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending");activeStages.add(stage.absolutePath);stage.mkdirs();val destination=File(home,id)
         try {
             copy(stage)
             val presets=stage.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(stage).invariantSeparatorsPath) }.toList()
@@ -128,8 +135,10 @@ class LibraryRepository(private val context: Context) {
             val added=presets.map { LibraryEntry(UUID.randomUUID().toString(),id,it.relativeTo(stage).invariantSeparatorsPath,it.nameWithoutExtension,bytes) }
             require(stage.renameTo(destination)) { "Import commit failed" };save(entries()+added);return added
         } catch(e: Throwable) { stage.deleteRecursively();destination.deleteRecursively();throw e }
+        finally {activeStages.remove(stage.absolutePath)}
     }
     companion object {
+        private val activeStages=java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         private fun readSfz(file: File): String = file.inputStream().use { limitedBytes(it,SfzParser.MAX_TEXT).toString(Charsets.UTF_8) }
         internal fun copyBounded(input: InputStream, max: Long, write: (ByteArray,Int)->Unit): Long {
             val b=ByteArray(65536);var total=0L

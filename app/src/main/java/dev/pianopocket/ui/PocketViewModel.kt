@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val downloadPack: dev.pianopocket.download.DownloadPack?=null,val download:dev.pianopocket.download.DownloadStatus=dev.pianopocket.download.DownloadStatus(),val downloadedInstrument: String="",
     val soundFavorites: List<String> = emptyList(),
     val stableAudio: Boolean = false,
     val diagnosticMode: Int = 0, val diagnosticRecording: Boolean = false,
@@ -66,6 +67,11 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(inputs=list,midiInput=if(it.midiInput !in listOf("all","none","screen") && list.none { d->d.id==it.midiInput })"none" else it.midiInput) }
     },::receiveMidi)
     init {
+        mutable.update {it.copy(downloadPack=dev.pianopocket.download.DownloadCatalog.load(app))}
+        viewModelScope.launch {dev.pianopocket.download.DownloadCoordinator.status.collect {status->
+            mutable.update {it.copy(download=status)}
+            if(!status.running && status.id>0 && status.success)work {refreshLibrary()}
+        }}
         work {
             NativeAudio.stability(preferences.stableAudio)
             mutable.update { it.copy(aacAvailable=AacExporter.available(),videoOptions=VideoExporter.supportedOptions()) }
@@ -110,7 +116,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private fun openAudioWorker(forceReload: Boolean=false) {
         if(!foreground || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
         check(NativeAudio.start(state.value.device,state.value.bursts)){"オーディオ出力を開始できません"}
-        if(!initialized){mutable.update {it.copy(busy=true,message="内蔵ピアノを準備しています")};val entries=repository.ensureBundled();mutable.update {it.copy(library=entries,busy=false)};initialized=true}
+        if(!initialized){mutable.update {it.copy(busy=true,message="内蔵ピアノを準備しています")};val entries=repository.ensureBundled();mutable.update {it.copy(library=entries,busy=false)};refreshLibrary();initialized=true}
         val entry=state.value.library.firstOrNull {it.id==(state.value.selected.ifBlank {preferences.lastInstrument})} ?: state.value.library.firstOrNull()
         if(entry!=null && (state.value.preset==null || forceReload || ExportCoordinator.performanceUnloaded))loadInternal(entry)else mutable.update {it.copy(ready=true)}
         if(state.value.sequence.song==null){val last=state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi};if(last!=null)selectSong(last,midiLibrary.load(last))else installPractice(state.value.sequence)}
@@ -160,8 +166,12 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     }
     fun importArchive(uri: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importArchive(uri){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false,message="${imported.size} プリセットをインポートしました。ライブラリで選択してください。") } }
     fun importPreset(uri: Uri, tree: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importPreset(uri,tree){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false) };loadInternal(imported.first()) }
-    fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(preset=null,selected="",ready=false) } };soundSaveJob?.cancel();state.value.library.filter {it.root==entry.root}.forEach {soundStore.delete(it.id)};repository.delete(entry);mutable.update { it.copy(library=repository.entries(),message="音源フォルダーを削除しました") } }
-    fun rescan()=work { mutable.update { it.copy(library=repository.rescan(),message="再スキャン完了") } }
+    fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.suspendPerformance();live.clear();mutable.update { it.copy(preset=null,selected="",ready=false,uiPedal=false) } };soundSaveJob?.cancel();state.value.library.filter {it.root==entry.root}.forEach {soundStore.delete(it.id)};repository.delete(entry);refreshLibrary();mutable.update { it.copy(message="音源フォルダーを削除しました") } }
+    fun rescan()=work { repository.rescan();refreshLibrary();mutable.update {it.copy(message="再スキャン完了")} }
+    private fun refreshLibrary(){val pack=state.value.downloadPack;mutable.update {it.copy(library=repository.entries(),downloadedInstrument=pack?.let {p->repository.findDownloaded(p.id)?.id} ?: "")}}
+    fun downloadPiano(){if(!state.value.busy && !ExportCoordinator.running)dev.pianopocket.download.DownloadCoordinator.start(getApplication())}
+    fun cancelPianoDownload(){dev.pianopocket.download.DownloadCoordinator.cancel(getApplication())}
+    fun useDownloadedPiano()=work {val id=state.value.downloadPack?.id ?: return@work;val entry=repository.findDownloaded(id) ?: error("音源がありません。再取得してください");loadInternal(entry);refreshLibrary()}
     fun restoreBundled()=work { mutable.update {it.copy(busy=true)};val entry=repository.installBundled().first();mutable.update {it.copy(library=repository.entries(),busy=false)};loadInternal(entry) }
     fun message(text: String){mutable.update { it.copy(message=text) }}
     fun volume(value: Float){NativeAudio.event(4,0,0,0,value);mutable.update { it.copy(volume=value) };saveSoundSoon()}

@@ -1,6 +1,7 @@
 #include "SamplerEngine.h"
 #include "ImpulseLoader.h"
 #include "OfflineRenderer.h"
+#include "CompressedSampleDecoder.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -15,6 +16,7 @@ static void require(bool pass,const char* message){if(!pass)throw std::runtime_e
 int main(int argc,char** argv){try{
     require(argc==2 || (argc==4 && std::string(argv[2])=="--offline-export") || (argc==6 && (std::string(argv[2])=="--reverb-stress" || std::string(argv[2])=="--poly-stress")),"usage: owned_preset_probe <production-parser.mapping> [--offline-export <private-output.wav>]");std::ifstream file(argv[1]);require(bool(file),"mapping file missing");
     auto bank=std::make_unique<Instrument>();std::unordered_map<std::string,unsigned> paths;std::vector<EffectSpec> fx;
+    auto playable=[&](const std::string& path){auto extension=std::filesystem::path(path).extension().string();if(extension!=".flac" && extension!=".ogg")return path;auto folder=std::filesystem::path(argv[1]).parent_path()/"decoded-samples";std::filesystem::create_directories(folder);auto target=(folder/(std::to_string(std::hash<std::string>{}(path))+".wav")).string();if(!std::filesystem::exists(target))decodeCompressedSample(path,target);return target;};
     std::vector<Event> setup;std::string line;std::set<std::string> impulses;
     while(std::getline(file,line)){
         auto t=split(line,'\t');if(t.empty())continue;
@@ -22,7 +24,7 @@ int main(int argc,char** argv){try{
             auto ints=split(t.at(2),',');auto floats=split(t.at(3),',');require(((ints.size()==19 || ints.size()==20) && floats.size()==9) || (ints.size()==24 && (floats.size()==13 || floats.size()==141)),"mapping schema");
             int a[24]={};float f[141]={};for(unsigned i=0;i<ints.size();++i)a[i]=std::stoi(ints[i]);for(unsigned i=0;i<floats.size();++i)f[i]=std::stof(floats[i]);
             auto path=t.at(1);auto found=paths.find(path);unsigned sample;
-            if(found==paths.end()){sample=bank->samples.size();paths[path]=sample;bank->samples.push_back(Sample::open(path));}else sample=found->second;
+            if(found==paths.end()){sample=bank->samples.size();paths[path]=sample;bank->samples.push_back(Sample::open(playable(path)));}else sample=found->second;
             Region r;r.sample=sample;r.group=a[0];r.low=a[1];r.high=a[2];r.root=a[3];r.lowVel=a[4];r.highVel=a[5];r.trigger=Trigger(a[6]);r.start=a[7];r.end=a[8];r.loopStart=a[9];r.loopEnd=a[10];r.cc=a[11];r.ccLow=a[12];r.ccHigh=a[13];r.enabled=a[18];r.gain=f[0];r.pan=f[1];r.tune=f[2];r.attack=f[3];r.decay=f[4];r.sustain=f[5];r.release=f[6];r.velTrack=f[7];r.keyTrack=f[8];
             r.oneShot=a[19]&1;r.loopDuringRelease=a[19]&2;r.sfzVelocity=a[19]&4;r.fadeInLow=a[14];r.fadeInHigh=a[15];r.fadeOutLow=a[16];r.fadeOutHigh=a[17];
             if(ints.size()==24){r.sequenceLength=a[20];r.sequencePosition=a[21];r.filterType=a[22];r.customVelocity=a[23];r.randomLow=f[9];r.randomHigh=f[10];r.cutoff=f[11];r.resonance=f[12];if(r.customVelocity)for(int i=0;i<128;++i)r.velocityCurve[i]=f[13+i];}

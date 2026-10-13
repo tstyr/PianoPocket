@@ -1,11 +1,11 @@
 # PianoPocket
 
 Androidでピアノを弾く、MIDIを再生する、演奏を残す。
-無料・広告なし・アカウント不要。すべて端末内で動作します。
+無料・広告なし・アカウント不要。演奏・録音・書き出しは端末内で動作します。音源の追加ダウンロード時だけ通信します。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.12.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.12.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.13.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.13.0-alpha)
 
-Android 10以降・ARM64対応。現在の配布版は **0.12.0 alpha**、デバッグ署名のAPKです。
+Android 10以降・ARM64対応。現在の配布版は **0.13.0 alpha**、デバッグ署名のAPKです。
 
 ## はじめる
 
@@ -14,6 +14,12 @@ Android 10以降・ARM64対応。現在の配布版は **0.12.0 alpha**、デバ
 3. 自分の音源を使うときは、音源ライブラリから「音源をインポート」を選びます。
 
 Pocket Uprightは、VSCO 2 Community Editionの実録音を使ったステレオ・アップライトピアノです。3段階のベロシティ、88鍵のマッピングに対応。音源は約33MiBで、別途ダウンロードする必要はありません。削除した場合も「内蔵ピアノを読み込む」で戻せます。
+
+## 高品質ピアノを追加する
+
+音源ライブラリの **Pocket Upright HQ** から直接ダウンロードできます。23収録キー、3段階のベロシティ、24bitステレオ、元の残響を全収録した69サンプルの音源です。約105MiBの通信と約600MiBの空き容量が必要です。初期同梱の軽量版は引き続き使えます。
+
+GitHub上の公開ファイルから取得するため、専用サーバー・APIキー・アカウントは不要です。キャンセル・途中再開・SHA-256検証に対応し、取得後はオフラインで演奏できます。[配布方式・出典](docs/DOWNLOADS.md)。
 
 ## 音源を追加する
 
@@ -64,7 +70,7 @@ ctest --test-dir build/native --output-on-failure
 
 APKは `app/build/outputs/apk/debug/app-debug.apk` に生成されます。同梱音源もリポジトリに含まれています。
 
-0.10.0のビルド・自動テストは完了しています。開発環境でのAndroid実機試験は未実施です。端末ごとのレイテンシやBluetooth MIDIの動作は実機で確認してください。[テスト結果](docs/SFZ.md#検証) · [アーキテクチャ](docs/ARCHITECTURE.md)。Windows VSTは独立した[実験資料](experiments/windows-vst/README.md)のみで、アプリの機能には含まれません。
+各公開版でビルド・自動テストを実行しています。開発環境でのAndroid実機試験は未実施です。端末ごとのレイテンシやBluetooth MIDIの動作は実機で確認してください。[テスト結果](docs/SFZ.md#検証) · [アーキテクチャ](docs/ARCHITECTURE.md)。Windows VSTは独立した[実験資料](experiments/windows-vst/README.md)のみで、アプリの機能には含まれません。
 
 ## ライセンス
 

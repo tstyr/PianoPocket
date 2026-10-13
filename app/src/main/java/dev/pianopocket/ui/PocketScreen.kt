@@ -97,6 +97,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                         when(tab) {
                             1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
                             2 -> {
+                            DownloadPanel(state,model)
                             Button(onClick=import,enabled=!state.busy){Text("音源をインポート")}
                             Text("ZIP / ZIP形式のdslibrary、またはdspreset・SFZ＋サンプルフォルダー。",style=MaterialTheme.typography.bodySmall)
                             TextButton(onClick=model::restoreBundled,enabled=!state.busy){Text("内蔵ピアノを読み込む")}
@@ -104,7 +105,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             state.library.forEach { entry ->
                                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
                                     Text(entry.name,style=MaterialTheme.typography.titleMedium)
-                                    Text("${"%.1f".format(entry.bytes/1048576.0)} MiB · ${if(entry.lastUsed==0L)"未使用" else DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(entry.lastUsed))}",style=MaterialTheme.typography.bodySmall)
+                                    Text("${"%.1f".format((entry.bytes+entry.decodedBytes)/1048576.0)} MiB · ${if(entry.lastUsed==0L)"未使用" else DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(entry.lastUsed))}",style=MaterialTheme.typography.bodySmall)
                                     Text(if(entry.id==state.selected)"読み込み済み・警告を演奏画面で確認" else "互換性は選択時に解析",style=MaterialTheme.typography.bodySmall)
                                     Row { TextButton(onClick={model.load(entry);tab=0},enabled=!state.busy){Text("選択")};TextButton(onClick={deleting=entry},enabled=!state.busy){Text("削除") } }
                                 } }
