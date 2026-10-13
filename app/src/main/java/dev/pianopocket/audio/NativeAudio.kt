@@ -8,6 +8,7 @@ object NativeAudio {
     external fun stability(enabled: Boolean)
     external fun begin(memoryMiB: Int)
     external fun abort()
+    external fun decodeSample(source: String,target: String)
     external fun region(path: String, ints: IntArray, floats: FloatArray)
     external fun velocityCurve(group: Int, curve: FloatArray)
     external fun effect(type: Int, params: FloatArray, ir: String)

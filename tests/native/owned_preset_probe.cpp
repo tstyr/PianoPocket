@@ -19,12 +19,13 @@ int main(int argc,char** argv){try{
     while(std::getline(file,line)){
         auto t=split(line,'\t');if(t.empty())continue;
         if(t[0]=="R"){
-            auto ints=split(t.at(2),',');auto floats=split(t.at(3),',');require((ints.size()==19 || ints.size()==20) && floats.size()==9,"mapping schema");
-            int a[20]={};float f[9];for(unsigned i=0;i<ints.size();++i)a[i]=std::stoi(ints[i]);for(int i=0;i<9;++i)f[i]=std::stof(floats[i]);
+            auto ints=split(t.at(2),',');auto floats=split(t.at(3),',');require(((ints.size()==19 || ints.size()==20) && floats.size()==9) || (ints.size()==24 && (floats.size()==13 || floats.size()==141)),"mapping schema");
+            int a[24]={};float f[141]={};for(unsigned i=0;i<ints.size();++i)a[i]=std::stoi(ints[i]);for(unsigned i=0;i<floats.size();++i)f[i]=std::stof(floats[i]);
             auto path=t.at(1);auto found=paths.find(path);unsigned sample;
             if(found==paths.end()){sample=bank->samples.size();paths[path]=sample;bank->samples.push_back(Sample::open(path));}else sample=found->second;
             Region r;r.sample=sample;r.group=a[0];r.low=a[1];r.high=a[2];r.root=a[3];r.lowVel=a[4];r.highVel=a[5];r.trigger=Trigger(a[6]);r.start=a[7];r.end=a[8];r.loopStart=a[9];r.loopEnd=a[10];r.cc=a[11];r.ccLow=a[12];r.ccHigh=a[13];r.enabled=a[18];r.gain=f[0];r.pan=f[1];r.tune=f[2];r.attack=f[3];r.decay=f[4];r.sustain=f[5];r.release=f[6];r.velTrack=f[7];r.keyTrack=f[8];
             r.oneShot=a[19]&1;r.loopDuringRelease=a[19]&2;r.sfzVelocity=a[19]&4;r.fadeInLow=a[14];r.fadeInHigh=a[15];r.fadeOutLow=a[16];r.fadeOutHigh=a[17];
+            if(ints.size()==24){r.sequenceLength=a[20];r.sequencePosition=a[21];r.filterType=a[22];r.customVelocity=a[23];r.randomLow=f[9];r.randomHigh=f[10];r.cutoff=f[11];r.resonance=f[12];if(r.customVelocity)for(int i=0;i<128;++i)r.velocityCurve[i]=f[13+i];}
             require(r.group<256 && r.low>=0 && r.high<=127 && r.low<=r.high,"zone bounds");require(r.start>=0 && uint64_t(r.start)<bank->samples[sample].frames,"sample start");require(r.end<0 || uint64_t(r.end)<=bank->samples[sample].frames,"sample end");bank->regions.push_back(r);
         }else if(t[0]=="V"){auto g=std::stoi(t[1]);auto values=split(t[2],',');require(values.size()==128 && g>=0 && g<256,"velocity curve size");for(int i=0;i<128;++i)bank->velocityGains[g][i]=std::stof(values[i]);}
         else if(t[0]=="G")setup.push_back({6,0,std::stoi(t[1]),0,std::stof(t[2])});

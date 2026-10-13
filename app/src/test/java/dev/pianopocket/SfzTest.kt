@@ -41,15 +41,15 @@ class SfzTest {
     }
     @Test fun oneShotContinuousAndInclusiveEnd() {
         val p=parse("<region> sample=a.wav key=60 loop_mode=one_shot end=999 <region> sample=b.wav key=61 loop_mode=loop_continuous loop_start=20 loop_end=999")
-        assertEquals(5,p.regions[0].ints[19]);assertEquals(1000,p.regions[0].ints[8]);assertEquals(6,p.regions[1].ints[19]);assertEquals(999,p.regions[1].ints[10])
+        assertEquals(5,p.regions[0].ints[19]);assertEquals(999,p.regions[0].ints[8]);assertEquals(6,p.regions[1].ints[19]);assertEquals(999,p.regions[1].ints[10])
     }
     @Test fun controllerAndCrossfadeMapping() {
         val p=parse("<region> sample=a.wav locc64=64 hicc64=127 pitch_keycenter=-1 transpose=12 amp_veltrack=0 xfade_velcurve=gain xfin_lovel=1 xfin_hivel=64")
         val r=p.regions.single();assertEquals(64,r.ints[11]);assertEquals(64,r.ints[12]);assertEquals(1,r.ints[14]);assertEquals(1200f,r.floats[2]);assertEquals(0f,r.floats[7]);assertEquals(0f,r.floats[8])
     }
     @Test fun unsupportedVariantsDoNotStack() {
-        val p=parse("<region> sample=first.wav key=60 <region> sample=roundrobin.wav key=60 seq_position=2 <region> sample=filtered.wav cutoff=8000 fil_type=lpf_2p")
-        assertEquals(2,p.regions.size);assertTrue(p.warnings.any {"seq_position" in it});assertTrue(p.warnings.any {"skipped" in it});assertTrue(p.warnings.any {"cutoff" in it})
+        val p=parse("<region> sample=first.wav key=60 <region> sample=keyswitch.wav key=60 sw_last=24 <region> sample=filtered.wav cutoff=8000 fil_type=lpf_4p")
+        assertEquals(2,p.regions.size);assertTrue(p.warnings.any {"sw_last" in it});assertTrue(p.warnings.any {"skipped" in it});assertTrue(p.warnings.any {"lpf_4p" in it})
     }
     @Test fun quotedUnicodeAndMacroExpansion() {
         val p=parse("#define ${'$'}A ${'$'}B\n#define ${'$'}B C4\n<region> key=${'$'}A sample=\"ピアノ 音.wav\" /* x */")
@@ -62,6 +62,16 @@ class SfzTest {
     @Test(expected=IllegalArgumentException::class) fun invalidVelocityRejected() { parse("<region> sample=a.wav lovel=100 hivel=20") }
     @Test(expected=IllegalArgumentException::class) fun enormousSourceRejected() { parse(" ".repeat(SfzParser.MAX_TEXT+1)) }
     @Test fun sfzLibraryAndSidecars() {assertTrue(LibraryFilePolicy.isPreset("Piano.SFZ"));assertFalse(LibraryFilePolicy.isPreset("__MACOSX/._Piano.sfz"));assertFalse(LibraryFilePolicy.isPreset("Piano.sf2"))}
+    @Test fun roundRobinRandomAndFilters() {
+        val p=parse("<group> seq_length=2 lorand=0.5 hirand=1 <region> sample=a.flac seq_position=1 fil_type=lpf_2p cutoff=1500 resonance=4 <region> sample=b.ogg seq_position=2")
+        assertEquals(2,p.regions[0].ints[20]);assertEquals(2,p.regions[1].ints[21]);assertEquals(2,p.regions[0].ints[22]);assertEquals(.5f,p.regions[0].floats[9]);assertEquals(1500f,p.regions[0].floats[11]);assertTrue(p.warnings.any {"approximation" in it});assertFalse(p.warnings.any {"skipped" in it})
+    }
+    @Test fun customVelocityCurveInterpolatesAndOverrides() {
+        val p=parse("<global> amp_velcurve_1=0.2 amp_velcurve_3=0.3 <region> sample=a.wav <region> sample=b.wav amp_velcurve_127=0.8 amp_veltrack=-100")
+        assertEquals(141,p.regions[0].floats.size);assertEquals(1,p.regions[0].ints[23]);assertEquals(.25f,p.regions[0].floats[15],.00001f);assertEquals(.8f,p.regions[1].floats[140]);assertEquals(-1f,p.regions[1].floats[7]);assertTrue(p.warnings.isEmpty())
+    }
+    @Test(expected=IllegalArgumentException::class) fun impossibleSequenceRejected() {parse("<region> sample=a.wav seq_length=2 seq_position=3")}
+    @Test(expected=IllegalArgumentException::class) fun invalidCurveRejected() {parse("<region> sample=a.wav amp_velcurve_64=2")}
     @Test fun bundledPianoCoversAll88KeysAndVelocities() {
         val bank=File("src/main/assets/instruments/PocketUpright")
         val p=SfzParser().parse(File(bank,"Pocket Upright.sfz").readText(),"Pocket Upright")

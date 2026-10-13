@@ -24,3 +24,7 @@ APK carries license text in assets/encoder-licenses.txt and a settings viewer. F
 ## Bundled piano
 
 Pocket Upright uses VSCO 2 Community Edition's Upright Piano recordings by Simon Dalzell / Ivy Audio, distributed by Versilian Studios / Sam Gossner under CC0 1.0 Universal. The sample bank, full license and attribution are in `app/src/main/assets/instruments/PocketUpright`. The adaptation uses 12 sampled keys and three velocity layers. See [source, changes and reproduction](../docs/BUNDLED_PIANO.md). No Pianobook recordings or user-imported instruments are distributed.
+
+## OGG sample decoder
+
+`stb/stb_vorbis.c`: stb revision `2c980bb59875b0d32144a71867fbdebb2f77cd20`, https://github.com/nothings/stb. Used under the MIT alternative of its MIT / public-domain dual license. Full LICENSE retained; decoder source unchanged, built with `STB_VORBIS_MAX_CHANNELS=2`. The importer uses a bounded 16 MiB setup allocator and decodes only on the background worker into WAV. libFLAC handles FLAC samples with MD5 / CRC checks. Both decoders limit individual decoded files to 512 MiB.

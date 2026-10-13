@@ -33,7 +33,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
     var licenses by remember { mutableStateOf(false) }
     var licenseText by remember { mutableStateOf("読み込み中") }
     val context=androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(licenses){if(licenses)licenseText=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.assets.open("instruments/PocketUpright/NOTICE.txt").bufferedReader().use { it.readText() }+"\n\n"+context.assets.open("instruments/PocketUpright/LICENSE.txt").bufferedReader().use {it.readText()}+"\n\n"+context.assets.open("encoder-licenses.txt").bufferedReader().use { it.readText() }}}
+    LaunchedEffect(licenses){if(licenses)licenseText=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.assets.open("instruments/PocketUpright/NOTICE.txt").bufferedReader().use { it.readText() }+"\n\n"+context.assets.open("instruments/PocketUpright/LICENSE.txt").bufferedReader().use {it.readText()}+"\n\n"+context.assets.open("decoder-licenses.txt").bufferedReader().use {it.readText()}+"\n\n"+context.assets.open("encoder-licenses.txt").bufferedReader().use { it.readText() }}}
     var deleting by remember { mutableStateOf<LibraryEntry?>(null) }
     val activity=LocalActivity.current
     val window=LocalWindowInfo.current.containerSize

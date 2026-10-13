@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを再生する、演奏を残す。
 無料・広告なし・アカウント不要。すべて端末内で動作します。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.10.1-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.10.1-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.11.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.11.0-alpha)
 
-Android 10以降・ARM64対応。現在の配布版は **0.10.1 alpha**、デバッグ署名のAPKです。
+Android 10以降・ARM64対応。現在の配布版は **0.11.0 alpha**、デバッグ署名のAPKです。
 
 ## はじめる
 
@@ -23,11 +23,11 @@ Pocket Uprightは、VSCO 2 Community Editionの実録音を使ったステレオ
 | `.dspreset` | プリセットを選び、続けてそのファイルが置かれているフォルダーを選択 |
 | `.zip` / `.dslibrary` | プリセットとサンプルを含むZIPを選択 |
 
-サンプルはWAVに対応しています。フォルダーの構成を変えずに読み込んでください。親フォルダーを参照するSFZは、必要なファイルをまとめたZIPでインポートできます。読み込んだ音源は端末内に保存され、次回も利用できます。
+サンプルはWAV・FLAC・OGG Vorbisに対応しています。フォルダーの構成を変えずに読み込んでください。親フォルダーを参照するSFZは、必要なファイルをまとめたZIPでインポートできます。読み込んだ音源は端末内に保存され、次回も利用できます。
 
 Helsinki 1967 ProのDecent Sampler版は、利用者が正規に入手したファイルを読み込む方式です。通常版・XF版、マイクミキサー、リリース・ペダル音、付属IRに対応しています。[互換性の詳細](docs/HELSINKI.md)。Helsinkiの音源・IRは同梱していません。
 
-SFZは基本的なWAVマッピング、ベロシティ、ADSR、チューニング、パン、明示されたループ、`#include` / `#define`に対応します。SFZ・Decent Samplerの全機能には対応しておらず、未対応の指定は音源パネルに警告を表示します。SF2、OGG・FLACサンプルは未対応です。[SFZの対応範囲](docs/SFZ.md)。
+SFZは基本的なWAVマッピング、ベロシティ、ADSR、チューニング、パン、明示されたループ、ラウンドロビン、ベロシティ曲線、基本フィルター、`#include` / `#define`に対応します。SFZ・Decent Samplerの全機能には対応しておらず、未対応の指定は音源パネルに警告を表示します。SF2、OGG Opusは未対応です。[SFZの対応範囲](docs/SFZ.md)。
 
 ## 演奏・MIDI
 
@@ -74,6 +74,7 @@ PianoPocketのコードは[MIT](LICENSE)。内蔵ピアノのサンプルは[CC0
 | --- | --- |
 | Oboe、AndroidX / Compose、Kotlin / Coroutines | Apache-2.0 |
 | libFLAC | BSD-3-Clause |
+| stb_vorbis | MIT（選択） |
 | LAME（共有ライブラリ） | LGPL-2.0-or-later |
 | NDK libc++ | Apache-2.0 with LLVM exception |
 

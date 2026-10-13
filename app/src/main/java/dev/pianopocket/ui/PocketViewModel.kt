@@ -124,7 +124,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         diagnosticMode(0)
         NativeAudio.event(10,0,0,0,0f);live.clear()
         mutable.update { it.copy(busy=true,message="XMLと参照WAVを確認中") }
-        val base=repository.parse(entry)
+        val base=repository.parse(entry) {p->mutable.update {it.copy(message=p)}}
         val schema=SoundSettings.schema(base)
         val readResult=runCatching {soundStore.read(entry.id,schema)}
         if(readResult.isFailure)soundStore.backupCorrupt(entry.id,schema)

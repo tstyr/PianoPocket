@@ -7,13 +7,13 @@
 | 設定 | 対応 |
 | --- | --- |
 | ヘッダー | `<control>` / `<global>` / `<master>` / `<group>` / `<region>`、階層ごとの継承と上書き |
-| サンプル | `sample` / `default_path`、相対パス、空白・日本語・引用符・Windows区切りのパス。WAVのみ |
+| サンプル | `sample` / `default_path`、相対パス、空白・日本語・引用符・Windows区切りのパス。WAV / FLAC / OGG Vorbis |
 | キー | `key` / `lokey` / `hikey` / `pitch_keycenter`、数値とC4などの音名。C4=60 |
-| ベロシティ | `lovel` / `hivel` / `amp_veltrack`（0–100） |
+| ベロシティ | `lovel` / `hivel` / `amp_veltrack`（−100〜100）、`amp_velcurve_N` |
 | 音量・定位 | `volume`（dB） / `amplitude`（%） / `pan`（−100〜100） |
 | ピッチ | `transpose` / `tune` / `pitch_keytrack`。`pitch_keycenter=-1` でキートラッキングを無効化 |
 | エンベロープ | `ampeg_attack` / `ampeg_decay` / `ampeg_sustain`（%） / `ampeg_release` |
-| 再生範囲 | `offset` / `end`。SFZのinclusive endをエンジンのexclusive endへ変換 |
+| 再生範囲 | `offset` / `end`。SFZとエンジンのinclusive endを一致 |
 | 再生モード | `no_loop` / `one_shot` / `loop_sustain` / `loop_continuous` |
 | ループ | 明示された `loop_start` / `loop_end`。continuousはリリース中もループを保持 |
 | トリガー・ペダル | `trigger=attack` / `release`、MIDI CC64、`locc64` / `hicc64` |
@@ -22,11 +22,19 @@
 
 SFZの既定 `amp_veltrack=100` は音量を `(velocity / 127)²` で変化させます。Decent Samplerの既存カーブを変えず、SFZにだけ適用します。キー追従を無効にしてもチューニングは適用されます。
 
+## 0.11.0の追加
+
+`seq_length` / `seq_position` によるラウンドロビン、`lorand` / `hirand` によるランダム選択に対応しました。シーケンスはキー・ベロシティ・CC条件に合う発音ごとにリージョン単位で進み、音源を読み直すと1に戻ります。ランダム値は同じ発音の全リージョンで共通です。
+
+`amp_velcurve_N` は0〜127の振幅点を線形補間します。負の `amp_veltrack` はカーブを反転します。`cutoff` / `resonance` / `fil_type` はLPF / HPFの1・2ポール、BPF / BRFの2ポールに対応。フィルターとレゾナンスのQ変換は近似として警告します。LFOやCCによる変調、4・6ポールのフィルターは未対応です。
+
+FLACはCRC / MD5を確認して元の16 / 24 / 32bit PCMを保持し、OGG VorbisはFloat32へ展開します。音源準備のワーカーで一度WAVへ変換し、演奏時は既存の先読み・LRUを使います。圧縮ファイルをコールバックで復号することはありません。展開したWAVの分だけストレージを使い、音源削除時に一緒に削除します。1ファイルの展開は512MiBまで、Vorbisのセットアップ用メモリは16MiBまでです。OGG Opusは未対応です。
+
 ## 制限
 
-フィルター、LFO、任意CCのモジュレーション、CCでの発音、キー切替、ランダム選択、ラウンドロビン、負の `amp_veltrack`、OGG / FLAC、埋め込みWAVループマーカーには未対応です。未対応opcode・ヘッダーは音源パネルと `PianoPocket.Import` ログに警告を出します。
+LFO、任意CCのモジュレーション、CCでの発音、キー切替、OGG Opus、埋め込みWAVループマーカーには未対応です。未対応opcode・ヘッダーは音源パネルと `PianoPocket.Import` ログに警告を出します。
 
-ランダム・シーケンス・キー切替・未対応CC条件を持つリージョンは、複数候補が同時発音することを避けるためスキップします。フィルターなどの未対応処理は適用されません。再生可能なリージョンが残らない場合は読み込みエラーになります。
+キー切替・未対応CC条件を持つリージョンは、複数候補が同時発音することを避けるためスキップします。未対応の処理は適用されません。再生可能なリージョンが残らない場合は読み込みエラーになります。
 
 リリースサンプルは押鍵時のベロシティで、サステイン解除後に発音します。SFZの `rt_decay` や `release_key` による厳密な離鍵挙動は未対応で、警告を出します。短いエンベロープにもクリック防止用の最小フェードを入れます。MIDIピッチベンドはアプリ共通の±2半音です。
 
@@ -50,3 +58,5 @@ SFZは1ファイル4MiB、includeは64回・深さ16、全ソースは64MiB、�
 Android実機・エミュレーターはこの開発環境に接続していません。内蔵音源の初回展開・永続化・削除後の復元を確認する端末テストはコンパイル済みですが、実行は未実施です。
 
 端末では、初回にPocket Uprightが鳴ること、サステインと同時発音、SFZとフォルダーの選択、ZIPに含まれる親参照、アプリ再起動後の再選択、同じ音源での音声・動画の書き出しを確認してください。
+
+0.11.0: JVM 81件、native / ASan / UBSan、Androidビルド・Lintを通過。ラウンドロビンの実波形交替、ランダム選択の欠音・重複防止、フィルターの帯域減衰、カーブの振幅を確認。FLAC / Vorbisの6条件（8 / 44.1 / 48kHz・mono / stereo）、FLACのPCM一致、破損2ファイルの拒否を確認しました。端末での新機能試験は未実施です。

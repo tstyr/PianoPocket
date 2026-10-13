@@ -14,6 +14,7 @@ data class LibraryEntry(val id: String, val root: String, val preset: String, va
 class LibraryRepository(private val context: Context) {
     private val home = File(context.filesDir, "instruments").apply { mkdirs() }
     private val index = File(home, "library.json")
+    private val decoded=DecodedSamples(File(context.filesDir,"decoded-samples"))
     init { home.listFiles().orEmpty().filter { it.isDirectory && it.name.endsWith(".pending") }.forEach { it.deleteRecursively() };File(home,"library.tmp").delete() }
     fun entries(): List<LibraryEntry> = if (!index.exists()) emptyList() else {
         val a = JSONArray(index.readText())
@@ -28,21 +29,25 @@ class LibraryRepository(private val context: Context) {
     fun root(entry: LibraryEntry) = File(home,entry.root)
     fun presetFile(entry: LibraryEntry) = File(root(entry),entry.preset)
     fun resolve(entry: LibraryEntry, relative: String): File {
+        return decoded.resolve(source(entry,relative),entry.root)
+    }
+    private fun source(entry: LibraryEntry, relative: String): File {
         val base=if(entry.preset.endsWith(".sfz",true))root(entry)else presetFile(entry).parentFile!!
         val file=File(base,DspresetParser.safeRelative(relative)).canonicalFile
         require(file.path.startsWith(root(entry).canonicalPath + File.separator) && file.isFile) { "Missing reference: $relative" }
         return file
     }
-    fun parse(entry: LibraryEntry): Preset = (if(entry.preset.endsWith(".sfz",true)) {
-        SfzParser().parse(readSfz(presetFile(entry)),entry.name,entry.preset) { relative -> readSfz(resolve(entry,relative)) }
+    fun parse(entry: LibraryEntry, progress: (String)->Unit = {}): Preset = (if(entry.preset.endsWith(".sfz",true)) {
+        SfzParser().parse(readSfz(presetFile(entry)),entry.name,entry.preset) { relative -> readSfz(source(entry,relative)) }
     } else presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }).also { preset ->
-        preset.regions.map { it.path }.distinct().forEach { resolve(entry,it) }
+        val refs=preset.regions.map {it.path}.distinct()
+        refs.forEachIndexed { index,path -> progress("サンプル準備 ${index+1}/${refs.size}");resolve(entry,path) }
         preset.effects.filter { it.ir.isNotEmpty() }.forEach { resolve(entry,it.ir) }
         preset.menus.flatMap { it.options }.forEach { resolve(entry,it.path) }
         preset.warnings.forEach { Log.w("PianoPocket.Import",it) }
     }
     fun used(entry: LibraryEntry) { save(entries().map { if(it.id==entry.id) it.copy(lastUsed=System.currentTimeMillis()) else it }) }
-    fun delete(entry: LibraryEntry) { save(entries().filter { it.root!=entry.root });root(entry).deleteRecursively() }
+    fun delete(entry: LibraryEntry) { save(entries().filter { it.root!=entry.root });root(entry).deleteRecursively();decoded.delete(entry.root) }
     fun rescan(): List<LibraryEntry> {
         val old=runCatching { entries() }.getOrDefault(emptyList()).associateBy { "${it.root}/${it.preset}" }
         val list=home.listFiles().orEmpty().filter { it.isDirectory && !it.name.endsWith(".pending") }.flatMap { folder ->

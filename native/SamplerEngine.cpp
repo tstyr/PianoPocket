@@ -6,6 +6,8 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
     Effects prepared;prepared.prepare(fx,sr);
     if(rate!=sr){for(auto& e:timeline)e.frame=int64_t(std::llround(e.frame*double(sr)/rate));playFrame=playFrame*double(sr)/rate;totalFrames=int64_t(std::llround(totalFrames*double(sr)/rate));loopStartFrame=int64_t(std::llround(loopStartFrame*double(sr)/rate));loopEndFrame=int64_t(std::llround(loopEndFrame*double(sr)/rate));}
     instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
+    sequenceCounts.assign(instrument?instrument->regions.size():0,0);randomState=0x8a341316;
+    if(instrument)for(auto& r:instrument->regions)r.filterCoefficients=VoiceFilter::coefficients(r.filterType,r.cutoff,r.resonance,sr);
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
     diagnosticMode=0;diagnosticFx=1;diagnosticTone=0;tonePhaseL=tonePhaseR=0;
@@ -16,8 +18,12 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
 bool SamplerEngine::send(Event e){std::lock_guard<std::mutex> lock(producer);if(events.push(e))return true;droppedEvents.fetch_add(1);panic.store(true);return false;}
 void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) noexcept {
     if(!instrument)return;
+    randomState^=randomState<<13;randomState^=randomState>>17;randomState^=randomState<<5;
+    const double random=randomState/4294967296.;
     for(auto index:instrument->lookup[int(kind)][note]){
         auto& r=instrument->regions[index];if(!r.enabled || vel<r.lowVel || vel>r.highVel || (r.cc>=0 && (controllers[ch][r.cc]<r.ccLow || controllers[ch][r.cc]>r.ccHigh)))continue;
+        auto& sequence=sequenceCounts[index];unsigned position=sequence+1;if(++sequence>=unsigned(r.sequenceLength))sequence=0;
+        if(position!=unsigned(r.sequencePosition) || random<r.randomLow || random>=r.randomHigh)continue;
         float fade=1;
         fade*=instrument->velocityGains[r.group][vel];
         if(r.fadeInLow>=0 && r.fadeInHigh>r.fadeInLow)fade*=std::clamp(float(vel-r.fadeInLow)/(r.fadeInHigh-r.fadeInLow),0.f,1.f);
@@ -38,7 +44,8 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         *voice=Voice{};voice->active=true;voice->held=kind==Trigger::Attack;voice->channel=ch;voice->note=note;voice->velocity=vel;voice->id=id;voice->region=index;voice->position=r.start;
         auto playedNote=(kind==Trigger::PedalDown || kind==Trigger::PedalUp)?r.root:note;
         voice->baseStep=instrument->samples[r.sample].rate/rate*std::pow(2.,((playedNote-r.root)*r.keyTrack+r.tune/100.)/12.);
-        float velocityGain=r.sfzVelocity?std::pow(vel/127.f,2*r.velTrack):((1-r.velTrack)+r.velTrack*vel/127.f);
+        float velocityGain=(1-r.velTrack)+r.velTrack*vel/127.f;
+        if(r.sfzVelocity){float value=r.customVelocity?r.velocityCurve[vel]:vel/127.f;if(r.velTrack<0)value=1-value;velocityGain=std::pow(value,std::abs(r.velTrack)*(r.customVelocity?1.f:2.f));}
         voice->gain=r.gain*fade*velocityGain;voice->envelope.start(r.attack,r.decay,r.sustain,r.release);
         voice->stealL=oldL;voice->stealR=oldR;voice->stealRemaining=oldL!=0 || oldR!=0?128:0;
         instrument->cache->prefetch(r.sample,r.start+4096);instrument->cache->prefetch(r.sample,r.start+8192);
@@ -147,6 +154,7 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
             float l=v.sourceL,rr=v.sourceR,t=float(v.position-pos);
             if(view.data){auto off=(pos-view.start)*2;l=view.data[off]*(1-t)+view.data[off+2]*t;rr=view.data[off+1]*(1-t)+view.data[off+3]*t;v.sourceL=l;v.sourceR=rr;}
             v.streamGain+=((view.data?1.f:0.f)-v.streamGain)*.04f;
+            if(r.filterType)v.filter.process(l,rr,r.filterCoefficients);
             v.mixGain+=(channelGain*groupGains[r.group]-v.mixGain)*.002f;
             float gain=v.gain*v.envelope.next(rate)*v.mixGain*v.streamGain;
             if(r.loopStart<0 || v.envelope.stage==Envelope::Release)gain*=std::clamp(float(end-v.position)/128.f,0.f,1.f);

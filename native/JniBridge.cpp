@@ -2,6 +2,7 @@
 #include "ImpulseLoader.h"
 #include "OfflineRenderer.h"
 #include "CompressedEncoder.h"
+#include "CompressedSampleDecoder.h"
 #include <jni.h>
 #include <unordered_map>
 #include <string>
@@ -17,6 +18,7 @@ static std::atomic<float> exportProgress{0};
 static std::vector<Event> exportControls;
 static std::string string(JNIEnv* e,jstring s){auto p=e->GetStringUTFChars(s,nullptr);std::string out(p);e->ReleaseStringUTFChars(s,p);return out;}
 static void fail(JNIEnv* e,const std::exception& x){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),x.what());}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_decodeSample(JNIEnv* e,jobject,jstring source,jstring target){try{decodeCompressedSample(string(e,source),string(e,target));}catch(const std::exception& x){fail(e,x);}}
 extern "C" JNIEXPORT jboolean JNICALL Java_dev_pianopocket_audio_NativeAudio_start(JNIEnv*,jobject,jint device,jint bursts){return engine.start(device,bursts);}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_stop(JNIEnv*,jobject){engine.stop();}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_suspendPerformance(JNIEnv* e,jobject){try{engine.stop();engine.sampler.install(nullptr,{},engine.sampler.currentRate());}catch(const std::exception& x){fail(e,x);}}
@@ -27,8 +29,9 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
     try{
         if(!staged)throw std::runtime_error("No import transaction");
         auto length=e->GetArrayLength(ints);
-        if((length!=19 && length!=20) || e->GetArrayLength(floats)!=9)throw std::runtime_error("Invalid mapping");
-        jint a[20]={};jfloat f[9];e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,9,f);
+        auto floatLength=e->GetArrayLength(floats);
+        if(!((length==19 || length==20) && floatLength==9) && !(length==24 && (floatLength==13 || floatLength==141)))throw std::runtime_error("Invalid mapping");
+        jint a[24]={};jfloat f[141]={};e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,floatLength,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
             if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::MinPages*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
@@ -38,6 +41,13 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         r.gain=f[0];r.pan=f[1];r.tune=f[2];r.attack=f[3];r.decay=f[4];r.sustain=f[5];r.release=f[6];r.velTrack=f[7];r.keyTrack=f[8];
         if(a[19]<0 || a[19]>7)throw std::runtime_error("Invalid SFZ flags");
         r.oneShot=a[19]&1;r.loopDuringRelease=a[19]&2;r.sfzVelocity=a[19]&4;
+        if(length==24){
+            if(a[20]<1 || a[20]>1024 || a[21]<1 || a[21]>a[20] || a[22]<0 || a[22]>6 || (a[23]!=0 && a[23]!=1) || (a[23] && floatLength!=141))throw std::runtime_error("Invalid SFZ extension");
+            for(int i=9;i<floatLength;++i)if(!std::isfinite(f[i]))throw std::runtime_error("Non-finite SFZ parameter");
+            r.sequenceLength=a[20];r.sequencePosition=a[21];r.filterType=a[22];r.customVelocity=a[23];r.randomLow=f[9];r.randomHigh=f[10];r.cutoff=f[11];r.resonance=f[12];
+            if(r.randomLow<0 || r.randomHigh>1 || r.randomLow>=r.randomHigh)throw std::runtime_error("Invalid random range");
+            if(r.customVelocity)for(int i=0;i<128;++i){if(f[13+i]<0 || f[13+i]>1)throw std::runtime_error("Invalid velocity curve");r.velocityCurve[i]=f[13+i];}
+        }
         auto frames=staged->samples[sample].frames;
         if(r.group>=256 || r.low<0 || r.high>127 || r.low>r.high || r.root<0 || r.root>127 || a[6]<0 || a[6]>3 || r.start<0 || uint64_t(r.start)>=frames || (r.end>=0 && (uint64_t(r.end)>frames || r.end<r.start)) || (r.loopStart>=0 && (r.loopEnd<=r.loopStart || uint64_t(r.loopEnd)>=frames)))throw std::runtime_error("Region boundaries outside WAV or invalid mapping");
         staged->regions.push_back(r);

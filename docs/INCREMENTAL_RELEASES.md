@@ -93,3 +93,12 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 - 小さい音源ではRAM使用量が減り、大きい音源では従来どおり予算内で先読み・LRUを使えます。
 
 77 JVM tests・Androidビルド・Lint PASS。APK 63040648 bytes / SHA-256 `55277eb86e7e67fac9878f8fcd7233316d61fcaf7e25dbab35c68ada051dbdea`。ビルド・自動テストを確認済み。開発環境でのAndroid実機試験は未実施です。 開発環境の実機／エミュレーター未接続。
+
+## 0.11.0-alpha — SFZ互換性と圧縮サンプル
+
+- SFZのラウンドロビン、ランダム選択、独自ベロシティ曲線、負のベロシティ追従に対応しました。
+- 基本フィルターを追加。近似アルゴリズムであることは音源パネルに表示します。
+- FLAC・OGG Vorbisサンプルを準備時にWAVへ展開し、既存の低遅延エンジンで演奏できます。
+- SFZの再生終了位置を1フレーム正確に扱うよう修正しました。
+
+81 JVM tests・Androidビルド・Lint PASS。APK 63306048 bytes / SHA-256 `2b30bd1a259ab6bd397b5bf9852f1d3060d9b245ee82cb46b639cfd730a77b13`。未対応の指定は警告表示。OGG Opus・キー切替・LFOは未対応です。ビルドと自動テストを確認済み、開発環境でのAndroid実機試験は未実施です。 開発環境の実機／エミュレーター未接続。

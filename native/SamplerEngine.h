@@ -4,6 +4,7 @@
 #include "Effects.h"
 #include "OutputLimiter.h"
 #include "SpscQueue.h"
+#include "VoiceFilter.h"
 #include <mutex>
 namespace pocket {
 struct Event {int type=0,channel=0,a=0,b=0;float value=0;};
@@ -17,6 +18,7 @@ struct Voice {
     float gain=1,lastL=0,lastR=0,sourceL=0,sourceR=0,stealL=0,stealR=0,streamGain=1,mixGain=0;
     int stealRemaining=0;
     Envelope envelope;
+    VoiceFilter filter;
 };
 class SamplerEngine {
     struct Key { uint64_t id=0; int velocity=0; bool down=false,pending=false; };
@@ -39,6 +41,8 @@ class SamplerEngine {
     double tonePhaseL=0,tonePhaseR=0;
     int limit=512;
     uint64_t nextId=0;
+    std::vector<unsigned> sequenceCounts;
+    uint32_t randomState=0x8a341316;
     std::vector<TimedEvent> timeline;
     size_t cursor=0;
     double playFrame=0;

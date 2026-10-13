@@ -15,6 +15,11 @@ struct Region {
     int64_t start=0,end=-1,loopStart=-1,loopEnd=-1;
     bool enabled=true;
     bool oneShot=false,loopDuringRelease=false,sfzVelocity=false;
+    int sequenceLength=1,sequencePosition=1,filterType=0;
+    float randomLow=0,randomHigh=1,cutoff=20000,resonance=0;
+    bool customVelocity=false;
+    std::array<float,128> velocityCurve{};
+    std::array<double,5> filterCoefficients{1,0,0,0,0};
 };
 struct Instrument {
     std::array<std::array<float,128>,256> velocityGains;

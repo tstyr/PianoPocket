@@ -158,6 +158,18 @@ int main(){try{
         SamplerEngine tuned,reference;auto t=bank(),r=bank();t->regions[0].keyTrack=0;t->regions[0].tune=1200;
         tuned.install(std::move(t),{},48000);reference.install(std::move(r),{},48000);tuned.send({0,0,60,127});reference.send({0,0,72,127});float compare[512];render(tuned,out,256);render(reference,compare,256);for(int i=0;i<512;++i)check(std::abs(out[i]-compare[i])<.00001f,"tuning remains independent of pitch key tracking");
     }
+    {
+        auto b=bank();b->regions[0].sequenceLength=2;b->regions[0].sequencePosition=1;b->regions[0].gain=.3f;
+        Region other=b->regions[0];other.sequencePosition=2;other.gain=.6f;b->regions.push_back(other);b->prepare();SamplerEngine s;s.install(std::move(b),{},48000);float previous=0;
+        for(int k=0;k<6;++k){s.send({2,0,120,0});s.send({0,0,60,127});for(int i=0;i<4;++i)render(s,out,256);check(s.noteVoiceCount(60,0)==1,"one round-robin variant per note");float current=energy(out,256);if(k>0)check(std::abs(current/previous-(k%2?4.f:.25f))<.02f,"round robin alternates actual audio gains");previous=current;}
+        b=bank();b->regions[0].randomHigh=.5f;b->regions[0].gain=.3f;other=b->regions[0];other.randomLow=.5f;other.randomHigh=1;other.gain=.6f;b->regions.push_back(other);b->prepare();s.install(std::move(b),{},48000);float minimum=1e9f,maximum=0;
+        for(int k=0;k<64;++k){s.send({2,0,120,0});s.send({0,0,60,127});for(int i=0;i<4;++i)render(s,out,256);check(s.noteVoiceCount(60,0)==1,"random partitions never stack or miss a note");float current=energy(out,256);minimum=std::min(minimum,current);maximum=std::max(maximum,current);}check(maximum/minimum>3.9f,"both random samples play");
+        float unfiltered=0,filtered=0;
+        for(bool filter:{false,true}){b=bank();b->regions[0].filterType=filter?2:0;b->regions[0].cutoff=80;s.install(std::move(b),{},48000);s.send({0,0,60,127});for(int i=0;i<24;++i)render(s,out,256);if(filter)filtered=energy(out,256);else unfiltered=energy(out,256);}
+        check(filtered/unfiltered<.02f,"per-voice SFZ lowpass attenuates above cutoff");
+        float loud=0,soft=0;
+        for(int velocity:{127,64}){b=bank();b->regions[0].sfzVelocity=true;b->regions[0].customVelocity=true;b->regions[0].velocityCurve.fill(1);b->regions[0].velocityCurve[64]=.2f;s.install(std::move(b),{},48000);s.send({0,0,60,velocity});for(int i=0;i<4;++i)render(s,out,256);if(velocity==127)loud=energy(out,256);else soft=energy(out,256);}check(std::abs(soft/loud-.04f)<.002f,"custom velocity points are normalized amplitude");
+    }
     check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb, SFZ playback; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

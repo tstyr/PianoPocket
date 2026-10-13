@@ -9,7 +9,8 @@ class SfzParser {
         "volume", "amplitude", "pan", "transpose", "tune", "pitch_keytrack", "amp_veltrack",
         "ampeg_attack", "ampeg_decay", "ampeg_sustain", "ampeg_release", "offset", "end",
         "loop_start", "loop_end", "loop_mode", "trigger", "group_label", "region_label", "label",
-        "locc64", "hicc64", "xfade_velcurve", "xfin_lovel", "xfin_hivel", "xfout_lovel", "xfout_hivel")
+        "locc64", "hicc64", "xfade_velcurve", "xfin_lovel", "xfin_hivel", "xfout_lovel", "xfout_hivel",
+        "seq_length", "seq_position", "lorand", "hirand", "cutoff", "resonance", "fil_type")
 
     fun parse(text: String, name: String, file: String = "Instrument.sfz", include: (String) -> String = { error("Missing SFZ include: $it") }): Preset {
         warnings.clear()
@@ -99,12 +100,12 @@ class SfzParser {
                     require(target.size < 512 || key in target) { "SFZ opcode count exceeded" }
                     target[key!!] = value!!
                     if (scope == "control") { if (key != "default_path") warn("SFZ <control> $key is unsupported") }
-                    else if (key !in supported) warn("SFZ opcode $key is unsupported")
+                    else if (key !in supported && !key.matches(Regex("amp_velcurve_\\d{1,3}"))) warn("SFZ opcode $key is unsupported")
                 }
             }
         }
         flush()
-        require(regions.isNotEmpty()) { "SFZに再生可能なWAVリージョンがありません。" }
+        require(regions.isNotEmpty()) { "SFZに再生可能なサンプルリージョンがありません。" }
         return Preset(name, regions, groups, emptyList(), emptyList(), warnings.toList(), groups.map { 1f })
     }
 
@@ -112,8 +113,8 @@ class SfzParser {
         val sample = a["sample"] ?: error("SFZ region is missing sample")
         checkRelative(sample)
         if(defaultPath.isNotEmpty())checkRelative(defaultPath)
-        if (sample.startsWith('*') || !sample.endsWith(".wav", true)) {
-            warn("SFZ sample $sample skipped: only WAV files are supported")
+        if (sample.startsWith('*') || sample.substringAfterLast('.').lowercase() !in setOf("wav","flac","ogg")) {
+            warn("SFZ sample $sample skipped: only WAV, FLAC and OGG Vorbis files are supported")
             return null
         }
         fun number(key: String, fallback: Float, low: Float, high: Float): Float {
@@ -139,8 +140,8 @@ class SfzParser {
             else -> { warn("SFZ trigger=${a["trigger"]}: region skipped"); return null }
         }
         // Selecting all unsupported random/sequence variants would stack them and distort the sound.
-        if (a.keys.any { it.startsWith("sw_") || it == "seq_position" || it == "seq_length" || it == "lorand" || it == "hirand" || it.matches(Regex("(?:lo|hi)cc(?!64$)\\d+")) || it.startsWith("on_lo") || it.startsWith("on_hi") }) {
-            warn("SFZ $sample skipped: unsupported keyswitch, random, sequence or controller selection")
+        if (a.keys.any { it.startsWith("sw_") || it.matches(Regex("(?:lo|hi)cc(?!64$)\\d+")) || it.startsWith("on_lo") || it.startsWith("on_hi") }) {
+            warn("SFZ $sample skipped: unsupported keyswitch or controller selection")
             return null
         }
         val loop = a["loop_mode"] ?: "no_loop"
@@ -149,25 +150,42 @@ class SfzParser {
         val explicit = looping && "loop_start" in a && "loop_end" in a
         if (looping && !explicit) warn("SFZ $sample: embedded WAV loop markers are unsupported; explicit loop_start / loop_end required")
         val start = integer("offset", 0)
-        val end = if ("end" in a) integer("end", 0, start) + 1 else -1 // SFZ end is inclusive.
+        val end = if ("end" in a) integer("end", 0, start) else -1 // Native end is inclusive too.
         val loopStart = if (explicit) integer("loop_start", 0, start) else -1
         val loopEnd = if (explicit) integer("loop_end", 0, loopStart + 1) else -1
         val cc = if ("locc64" in a || "hicc64" in a) 64 else -1
         val ccLow = integer("locc64", 0, 0, 127); val ccHigh = integer("hicc64", 127, ccLow, 127)
         val velocity = number("amp_veltrack", 100f, -100f, 100f)
-        if (velocity < 0) { warn("SFZ $sample skipped: negative amp_veltrack is unsupported"); return null }
+        val sequenceLength=integer("seq_length",1,0,1024).coerceAtLeast(1)
+        val sequencePosition=integer("seq_position",1,1,sequenceLength)
+        val randomLow=number("lorand",0f,0f,1f);val randomHigh=number("hirand",1f,randomLow,1f)
+        require(randomHigh>randomLow) { "Empty SFZ random range" }
+        val filter=if(a.keys.any {it in setOf("cutoff","resonance","fil_type")})when(a["fil_type"] ?: "lpf_2p") {
+            "lpf_1p"->1;"lpf_2p"->2;"hpf_1p"->3;"hpf_2p"->4;"bpf_2p"->5;"brf_2p"->6
+            else->{warn("SFZ filter ${a["fil_type"]} is unsupported; filter bypassed");0}
+        }else 0
+        if(filter>0)warn("SFZ filter uses a biquad approximation; resonance-to-Q mapping can differ between players")
+        val points=sortedMapOf(0 to 0f,127 to 1f)
+        a.filterKeys {it.startsWith("amp_velcurve_")}.forEach { (key,value)->
+            val index=key.removePrefix("amp_velcurve_").toIntOrNull() ?: error("Invalid velocity curve index")
+            val gain=value.toFloatOrNull() ?: error("Invalid velocity curve amplitude")
+            require(index in 0..127 && gain.isFinite() && gain in 0f..1f);points[index]=gain
+        }
+        val customVelocity=a.keys.any {it.startsWith("amp_velcurve_")}
         if (a.keys.any { it.startsWith("xfin_") || it.startsWith("xfout_") } && a["xfade_velcurve"] != "gain") warn("SFZ velocity crossfade uses a linear gain curve; power curve is approximated")
         val flags = 4 or (if (loop == "one_shot") 1 else 0) or (if (loop == "loop_continuous") 2 else 0)
         val ints = intArrayOf(group, low, high, root.coerceAtLeast(0), lovel, hivel, trigger, start, end, loopStart, loopEnd,
             cc, ccLow, ccHigh, integer("xfin_lovel", -1, -1, 127), integer("xfin_hivel", -1, -1, 127),
-            integer("xfout_lovel", -1, -1, 127), integer("xfout_hivel", -1, -1, 127), 1, flags)
+            integer("xfout_lovel", -1, -1, 127), integer("xfout_hivel", -1, -1, 127), 1, flags,sequenceLength,sequencePosition,filter,if(customVelocity)1 else 0)
         val gain = 10.0.pow(number("volume", 0f, -144f, 48f) / 20.0).toFloat() * number("amplitude", 100f, 0f, 100f) / 100f
         val floats = floatArrayOf(gain, number("pan", 0f, -100f, 100f) / 100f,
             number("tune", 0f, -1200f, 1200f) + number("transpose", 0f, -127f, 127f) * 100f,
             number("ampeg_attack", 0f, 0f, 60f), number("ampeg_decay", 0f, 0f, 60f),
             number("ampeg_sustain", 100f, 0f, 100f) / 100f, number("ampeg_release", .001f, 0f, 120f),
-            velocity / 100f, if (root == -1) 0f else number("pitch_keytrack", 100f, -1200f, 1200f) / 100f)
-        return Region(path(base, defaultPath.replace('\\', '/').let { if (it.isEmpty() || it.endsWith('/')) it else "$it/" } + sample), ints, floats)
+            velocity / 100f, if (root == -1) 0f else number("pitch_keytrack", 100f, -1200f, 1200f) / 100f,
+            randomLow,randomHigh,number("cutoff",20000f,0f,200000f),number("resonance",0f,0f,40f))
+        val curve=if(customVelocity)FloatArray(128) {v->val lo=points.entries.last {it.key<=v};val hi=points.entries.first {it.key>=v};if(lo.key==hi.key)lo.value else lo.value+(hi.value-lo.value)*(v-lo.key)/(hi.key-lo.key)}else FloatArray(0)
+        return Region(path(base, defaultPath.replace('\\', '/').let { if (it.isEmpty() || it.endsWith('/')) it else "$it/" } + sample), ints, floats+curve)
     }
 
     private fun warn(message: String) { if (warnings.size < 100) warnings += message else warnings += "Further SFZ warnings omitted" }
