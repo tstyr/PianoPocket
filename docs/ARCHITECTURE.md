@@ -1,10 +1,10 @@
 # Architecture and realtime contract
 
-`MainActivity → Compose / PocketViewModel → LibraryRepository / DspresetParser → JNI → AudioEngine → SamplerEngine → Effects → Oboe`
+`MainActivity → Compose / PocketViewModel → LibraryRepository → DspresetParser / SfzParser → JNI → AudioEngine → SamplerEngine → Effects → Oboe`
 
 ## Ownership
 
-- Kotlinのファイル処理・XML解析・WAV準備はViewModelが所有する単一ワーカー上で実行。JNIのstart / stop / install / statsも同じワーカーで順序付ける。
+- Kotlinのファイル処理・XML / SFZ解析・内蔵サンプルの展開・WAV準備は単一ワーカー上で実行。JNIのstart / stop / install / statsも同じワーカーで順序付ける。
 - 音源はstaging transactionで構築。ロード失敗時はstagingを破棄し、演奏中の音源を変更しない。commit時にOboeを停止・closeしてコールバックを終了させ、bankを交換。古いbank、cache worker、DSP bufferの破棄は非オーディオスレッド。
 - sample vector、zone lookup、WAV先頭、effect chainはcommit前に準備。コールバック中は変更しない。オーディオ経路再開後はプリセットを再準備し、OS sample rateに合わせる。
 - Main / Android MIDIなど複数のイベント送信元は**送信側だけ**mutexで直列化し、固定長SPSCキューへpush。音声側はmutexを取らずpop。満杯時は欠落カウント＋panic flagでstuck notesを防ぐ。

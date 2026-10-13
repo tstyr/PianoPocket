@@ -1,0 +1,19 @@
+Pocket Upright
+
+Samples: VSCO 2 Community Edition, CC0 1.0 Universal.
+Upright Piano recorded by Simon Dalzell / Ivy Audio, winter 2015–16.
+Distributed by Versilian Studios / Sam Gossner.
+https://vis.versilstudios.net/vsco-community.html
+https://github.com/sgossner/VSCO-2-CE
+Revision: 440300901dfe9275fd84e0b7763af1f8443ae62e
+
+Upstream mapping: SFZ branch, revision 6dd651d55dde97fd4028699be9d4481f26917891.
+
+PianoPocket adaptation: 12 sampled keys across A0–C8, three velocity layers,
+44.1 kHz stereo PCM16. Original layer gains (23 / 10 / 2 dB) followed by
+one shared headroom adjustment, tails limited to 12 seconds and faded over
+the final 150 ms. Original round-robin variants are not included.
+WAVs are losslessly gzip-packed in the APK and unpacked on installation.
+SFZ mapping and preparation script: MIT, see project LICENSE.
+Source and converted sample SHA-256 hashes are in manifest.json.
+No Helsinki / Pianobook samples are included.

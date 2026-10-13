@@ -33,7 +33,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
     var licenses by remember { mutableStateOf(false) }
     var licenseText by remember { mutableStateOf("読み込み中") }
     val context=androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(licenses){if(licenses)licenseText=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.assets.open("encoder-licenses.txt").bufferedReader().use { it.readText() }}}
+    LaunchedEffect(licenses){if(licenses)licenseText=kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO){context.assets.open("instruments/PocketUpright/NOTICE.txt").bufferedReader().use { it.readText() }+"\n\n"+context.assets.open("instruments/PocketUpright/LICENSE.txt").bufferedReader().use {it.readText()}+"\n\n"+context.assets.open("encoder-licenses.txt").bufferedReader().use { it.readText() }}}
     var deleting by remember { mutableStateOf<LibraryEntry?>(null) }
     val activity=LocalActivity.current
     val window=LocalWindowInfo.current.containerSize
@@ -98,7 +98,8 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
                             2 -> {
                             Button(onClick=import,enabled=!state.busy){Text("音源をインポート")}
-                            Text("ZIP / ZIP形式のdslibrary、またはdspreset＋サンプルフォルダー。利用者が正規に取得した音源を選択してください。",style=MaterialTheme.typography.bodySmall)
+                            Text("ZIP / ZIP形式のdslibrary、またはdspreset・SFZ＋サンプルフォルダー。",style=MaterialTheme.typography.bodySmall)
+                            TextButton(onClick=model::restoreBundled,enabled=!state.busy){Text("内蔵ピアノを読み込む")}
                             TextButton(onClick=model::rescan,enabled=!state.busy){Text("再スキャン")}
                             state.library.forEach { entry ->
                                 Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
@@ -149,14 +150,14 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
                             state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
                             Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            TextButton(onClick={licenses=true}){Text("エンコーダーのライセンス・ソース") }
-                            Text("PianoPocket ${dev.pianopocket.BuildConfig.VERSION_NAME} · Dark theme\nHelsinki v1.6は実ファイルでホスト検証。この版のUI・USB/BLE・レイテンシは開発環境で実機未検証。Windows VSTは別フォルダーの実験手順で扱います。",style=MaterialTheme.typography.bodySmall)
+                            TextButton(onClick={licenses=true}){Text("音源・ライブラリのライセンス") }
+                            Text("PianoPocket ${dev.pianopocket.BuildConfig.VERSION_NAME}\nPocket Upright · VSCO 2 CE / CC0\nAndroid 10以降・ARM64",style=MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
                 }
             }
-            if(licenses)AlertDialog(onDismissRequest={licenses=false},title={Text("エンコーダーのライセンス")},text={Text(licenseText,Modifier.verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)},confirmButton={TextButton(onClick={licenses=false}){Text("閉じる")}})
+            if(licenses)AlertDialog(onDismissRequest={licenses=false},title={Text("ライセンス")},text={Text(licenseText,Modifier.verticalScroll(rememberScrollState()),style=MaterialTheme.typography.bodySmall)},confirmButton={TextButton(onClick={licenses=false}){Text("閉じる")}})
             deleting?.let { entry -> AlertDialog(onDismissRequest={deleting=null},title={Text("音源フォルダーを削除")},text={Text("${entry.name} と同じインポートに含まれる全プリセット・サンプルを削除します。")},confirmButton={TextButton(onClick={model.delete(entry);deleting=null}){Text("削除")}},dismissButton={TextButton(onClick={deleting=null}){Text("キャンセル")}}) }
         }
     }

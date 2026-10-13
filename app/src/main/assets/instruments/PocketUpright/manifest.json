@@ -1,0 +1,300 @@
+{
+  "source": "https://github.com/sgossner/VSCO-2-CE",
+  "revision": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+  "license": "CC0-1.0",
+  "sampleRate": 44100,
+  "channels": 2,
+  "bits": 16,
+  "maxDurationSeconds": 12,
+  "sharedGain": 0.5793050652825665,
+  "samples": [
+    {
+      "file": "Samples/P1_021.wav",
+      "sourceFile": "Player_dyn1_rr1_000.wav",
+      "sourceSha256": "e61aeb988bf05181b5666ec1ff24b3f4ca375517c7ea47b87a009bc116fca56d",
+      "sha256": "e07f20656c75128ebaa2b2223a1efba167dd913f8393e52d5235befd4f9b626c",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P1_029.wav",
+      "sourceFile": "Player_dyn1_rr1_004.wav",
+      "sourceSha256": "511af05989eb9636cb79d2c10caf58fe6d3c07f907f4380951b5640c5f11e06d",
+      "sha256": "5525e106f696e30b8ba357fe5413b060d1a46599d5abcf8d0ccf03cf25e9c067",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P1_037.wav",
+      "sourceFile": "Player_dyn1_rr1_008.wav",
+      "sourceSha256": "3b4cdd096b01b23a81b2ad8ad880c409c8a78d69cd0306fe9bf66795cd62acca",
+      "sha256": "8f7d72f7310f6851cc76f6df899694fd9f618964969fd15056dfcd35f28de9d9",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P1_045.wav",
+      "sourceFile": "Player_dyn1_rr1_012.wav",
+      "sourceSha256": "16be23a8378185f1b392600d3fa800a206945543866548640f7573534f76faf2",
+      "sha256": "4d91e5fa14a6e83e497e03e2cb5deafe3a9d8a5ebaaba8ed5cc286e36485d456",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P1_053.wav",
+      "sourceFile": "Player_dyn1_rr1_016.wav",
+      "sourceSha256": "f1a3a542cf70a13aa865ce130d50d72cd735449e605d1c5a45dc06b5a60b27fd",
+      "sha256": "05f56904bd6aefe917069dd8f3fc5392de392b39d9cd99392935e8d74b78c86c",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P1_061.wav",
+      "sourceFile": "Player_dyn1_rr1_020.wav",
+      "sourceSha256": "08242e8d1c865c8cdc794cc7921d3d9663bedb5a12bfefe0de13aaa86fd23133",
+      "sha256": "4be4d7d5a25d77dc15738a9248c9913507ddce8c3ffa2e0f68897cca5e79af75",
+      "bytes": 2088996,
+      "duration": 11.842132
+    },
+    {
+      "file": "Samples/P1_069.wav",
+      "sourceFile": "Player_dyn1_rr1_024.wav",
+      "sourceSha256": "916c3ec2d61fb421e74fb4866ef75d3ef17e9d88e9dc858da24159846489d33f",
+      "sha256": "4a0c1a4a7e7d86e8b438d85128c61de8096d9690ea3533e40a164209f0ceb2ed",
+      "bytes": 1481552,
+      "duration": 8.398571
+    },
+    {
+      "file": "Samples/P1_077.wav",
+      "sourceFile": "Player_dyn1_rr1_028.wav",
+      "sourceSha256": "a9fbd1af0703b294d3267f8f88fca4b4366e3b772f7d780acf2de1cbf2056355",
+      "sha256": "a9be1836125c6e735d76ef30450d229fff710976c98800d3cf01bdafc782ec82",
+      "bytes": 1289756,
+      "duration": 7.311293
+    },
+    {
+      "file": "Samples/P1_085.wav",
+      "sourceFile": "Player_dyn1_rr1_032.wav",
+      "sourceSha256": "2a903396ee7130c42a75aa10497c6ee018445e0934dde135e7f168f07d3b8a07",
+      "sha256": "bc75aac9433680b557ed2f0cee377b9a2241b92b05f78b2aa542dc499dbd5b9c",
+      "bytes": 1163648,
+      "duration": 6.596395
+    },
+    {
+      "file": "Samples/P1_093.wav",
+      "sourceFile": "Player_dyn1_rr1_036.wav",
+      "sourceSha256": "6dfbe8f959d75a52eadfa5802ac05e52684e8acacb5cb4ed39e858f7359e0385",
+      "sha256": "eefaa62c8f98995552721da7db3ae77070d7e43ce3a6b6985a02a1b88dace4bc",
+      "bytes": 869032,
+      "duration": 4.926236
+    },
+    {
+      "file": "Samples/P1_101.wav",
+      "sourceFile": "Player_dyn1_rr1_040.wav",
+      "sourceSha256": "43cd5b95a890fd482c56fa1c49c87e63026e8968633272eed88a89abceb30d47",
+      "sha256": "e07d3842a3746cca226e419b36c4de42e0e80c095370a97d3893a8a824192077",
+      "bytes": 428068,
+      "duration": 2.42644
+    },
+    {
+      "file": "Samples/P1_108.wav",
+      "sourceFile": "Player_dyn1_rr1_044.wav",
+      "sourceSha256": "ab25ca49f0e9fbc0d14be7321a1d08fdd61a37f56d47c3140720d91c89cc34b1",
+      "sha256": "5bd4f358f27620be689525500a97bdff49dea32c240bc39203710a849ec980c4",
+      "bytes": 251292,
+      "duration": 1.424308
+    },
+    {
+      "file": "Samples/P2_021.wav",
+      "sourceFile": "Player_dyn2_rr1_000.wav",
+      "sourceSha256": "32f3cda282b64a65c6b2b071c91d98019514e8ffe80154a915431fa03443ee93",
+      "sha256": "5264c4700587099c34ff3f02f2af3b1de8ed24a3ebca2b2ad0cbdc6d1d69094c",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_029.wav",
+      "sourceFile": "Player_dyn2_rr1_004.wav",
+      "sourceSha256": "ea7f8c8e997794656422b9c19f3a96f8ba03a0282ee664b97437c13b5ed2865c",
+      "sha256": "a07591d0ce950dbcc4162464ef9d53d4577a014d927dafce696421e44a1e3d27",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_037.wav",
+      "sourceFile": "Player_dyn2_rr1_008.wav",
+      "sourceSha256": "52be11ac2a57389f2d12cbd82df9b175da7b60e423d8a1154e1d7fc3340ecd6e",
+      "sha256": "156ddae78881fce726779d8974879f84e1d0d14cb5899c195fb2101c612e8290",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_045.wav",
+      "sourceFile": "Player_dyn2_rr1_012.wav",
+      "sourceSha256": "9accd92b779985736589d7bf25b93f1d6d508830d2f2aad3e76a481549cc1ca2",
+      "sha256": "ac1432442ae979a9301f3339dfd82284861af734a04f38c063ea3b5148648958",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_053.wav",
+      "sourceFile": "Player_dyn2_rr1_016.wav",
+      "sourceSha256": "87b90b8161b5ddac5f1e81cce7895c726aff220e735586059c7ed684a5ae82dc",
+      "sha256": "cfc9c44d1cedd6263b2d231dd7b9d443debbc8126fd7893d2d81ccdedd504775",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_061.wav",
+      "sourceFile": "Player_dyn2_rr1_020.wav",
+      "sourceSha256": "dc314226819e7af0768cd7fc08933f5e5b550083145e05af630fd7556f4d3913",
+      "sha256": "47494aa3c677afa1f8f32cb38a0c6e5bcb4bc3ef0514ea319064bf213875cc39",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_069.wav",
+      "sourceFile": "Player_dyn2_rr1_024.wav",
+      "sourceSha256": "a00ae1a2b2a78c154b067a9709afc1ce2d3be9f08d9f4ad3c9c869a7db80eb75",
+      "sha256": "86c805de34ad575d019668b8507eb42752230f711b3eeb8839a0ff84b82ce224",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P2_077.wav",
+      "sourceFile": "Player_dyn2_rr1_028.wav",
+      "sourceSha256": "84fe87bd24dc93d354213f730517a29f485c40715d5959af97976b364110b70a",
+      "sha256": "3e60ab7361a957bb9d4a4b8ccf522cf9cd20cb86fc768fe955616f5002b39122",
+      "bytes": 2005464,
+      "duration": 11.368594
+    },
+    {
+      "file": "Samples/P2_085.wav",
+      "sourceFile": "Player_dyn2_rr1_032.wav",
+      "sourceSha256": "8a4b127b8420c276d8935495d13b4e493c3eaa8f8aaef75bbc4f74d6437160f2",
+      "sha256": "34c92af856ea23cfd41e5784bb5771f2de267ded2499612e886fd74f7c6628bc",
+      "bytes": 1925268,
+      "duration": 10.913968
+    },
+    {
+      "file": "Samples/P2_093.wav",
+      "sourceFile": "Player_dyn2_rr1_036.wav",
+      "sourceSha256": "87ef3cb2e7f234b56ca70ff323e2714bccd80d771fc6ac02dfef3405c217085c",
+      "sha256": "b74223af32221b7ebf18b684cb91de20026a3b83171e090a03d0586777dcb209",
+      "bytes": 1502840,
+      "duration": 8.519252
+    },
+    {
+      "file": "Samples/P2_101.wav",
+      "sourceFile": "Player_dyn2_rr1_040.wav",
+      "sourceSha256": "25028a985a79b059659b785ecb29388bb8c173cf3a1b2e185fb8c64491d0f476",
+      "sha256": "bd81cdbcbfb8a78b761c2cb27471ce5fd97bdab6a22b5f48a0d6843c078fc69a",
+      "bytes": 444852,
+      "duration": 2.521587
+    },
+    {
+      "file": "Samples/P2_108.wav",
+      "sourceFile": "Player_dyn2_rr1_044.wav",
+      "sourceSha256": "8dbeca4e4254bd3635fdb7be54bbe57cddd751a3d0a0bda64e85baf02a4de999",
+      "sha256": "eadd22d09f95457de83ea1ed3c2057a24eabc599636fd267bfd37d311dcc740b",
+      "bytes": 386996,
+      "duration": 2.193605
+    },
+    {
+      "file": "Samples/P3_021.wav",
+      "sourceFile": "Player_dyn3_rr1_000.wav",
+      "sourceSha256": "529ef60490fcb922cf3d469c420608a2205042b9b329db04abc0147aa5f4ea63",
+      "sha256": "c5f87880a43c28af64d6fd257481876b87a42c345271373158f319161ad9adba",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_029.wav",
+      "sourceFile": "Player_dyn3_rr1_004.wav",
+      "sourceSha256": "f2eae20cd065108f5ea9ba3b6c3fcaeada1f0a3b12566e1a5a719389233ce6ec",
+      "sha256": "cfe8e49a2dd898cd042aa8fc0b4d5cc84e947a771f42feb34d4adf734f073280",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_037.wav",
+      "sourceFile": "Player_dyn3_rr1_008.wav",
+      "sourceSha256": "19080adc5446961073aaeca7d5f5594cdd7c409ee0ffb95231400dfd8c2fd947",
+      "sha256": "3c64f41d9c89e842034e2a3887d40d6d85067b1b50166c70829587e91ae93a78",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_045.wav",
+      "sourceFile": "Player_dyn3_rr1_012.wav",
+      "sourceSha256": "ac6644ffc1aa25d194f024d3abdae4f06d6dff1ae42ba2a7e8edc1fddcdff12b",
+      "sha256": "584c7aee6a949a324bde7acc06461eb0229dad31998458258ad105caab0f0355",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_053.wav",
+      "sourceFile": "Player_dyn3_rr1_016.wav",
+      "sourceSha256": "bbf92571a777aeadee8751bba780b8a9a0b5913980c252d805acde2069bedb89",
+      "sha256": "7d00da6a6319a0e809ba739fe27d2942ac0257c527d6baad571a0af2c52ee741",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_061.wav",
+      "sourceFile": "Player_dyn3_rr1_020.wav",
+      "sourceSha256": "515e6d85e51050867174eb901dd2fdc8018e7be0e8f320d23cdeb854531ea4c8",
+      "sha256": "2e73cb49a1de94224b63bf9d7e4366e8f42fcb887fa99d9ddb81df3abea32f23",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_069.wav",
+      "sourceFile": "Player_dyn3_rr1_024.wav",
+      "sourceSha256": "cc8b22d1779248f6edc88fa5d072b8ce8b51b06fbe62be3d3d19a324d1da9030",
+      "sha256": "25c89c695a9147fd7079445546b8ea03709dc8d79dce135f8651c038b1190a38",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_077.wav",
+      "sourceFile": "Player_dyn3_rr1_028.wav",
+      "sourceSha256": "bf6c7d1bbf94b66e4167ecafef413835eee568f6f750dae30c2f3b9250fd89f5",
+      "sha256": "46e8512746cbd891aa40d8b1d46f65bccc13cb632a8e6ac21035ed96c9ed5d93",
+      "bytes": 1902280,
+      "duration": 10.783651
+    },
+    {
+      "file": "Samples/P3_085.wav",
+      "sourceFile": "Player_dyn3_rr1_032.wav",
+      "sourceSha256": "403a1f1a4b9df06be59fb45382af40728755c92a225d9e7c3455159ed3ae3ba7",
+      "sha256": "163d7fee38344b9c1dbed1cf4ca085380c45a9099cba8ce424e397cd7bb9348c",
+      "bytes": 2116844,
+      "duration": 12
+    },
+    {
+      "file": "Samples/P3_093.wav",
+      "sourceFile": "Player_dyn3_rr1_036.wav",
+      "sourceSha256": "06f39cb4f41cb2cb46f126b60b302269307cc397ead376c9186f182c4260cd78",
+      "sha256": "6da9d6e96e595a8440a19e912ebc2142417cb97f2c15325acb9effb31139def9",
+      "bytes": 991160,
+      "duration": 5.618571
+    },
+    {
+      "file": "Samples/P3_101.wav",
+      "sourceFile": "Player_dyn3_rr1_040.wav",
+      "sourceSha256": "df8692ef3371510f8492d45af6ddf9c576d5cfd88aac817c86f36afcb40866e2",
+      "sha256": "8c2df865e39cf952526e9df703f972ad2312087b51cc64869eba9f28988bfafb",
+      "bytes": 483456,
+      "duration": 2.740431
+    },
+    {
+      "file": "Samples/P3_108.wav",
+      "sourceFile": "Player_dyn3_rr1_044.wav",
+      "sourceSha256": "5625c4930fa958ff18e92106002e6b63ef73a1a37f99c57cf7b7900abaf8ccd3",
+      "sha256": "e00e22effd83b0e5b6f7910b5174791ee8efc6f1948e08ebefd6a16df3de8039",
+      "bytes": 409616,
+      "duration": 2.321837
+    }
+  ]
+}

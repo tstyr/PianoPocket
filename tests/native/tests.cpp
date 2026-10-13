@@ -136,6 +136,26 @@ int main(){try{
         float previous=0,maxJump=0;for(int frame=0;frame<16000;frame+=256){render(e,out,256);for(int i=0;i<256;++i){maxJump=std::max(maxJump,std::abs(out[i*2]-previous));previous=out[i*2];}}
         check(e.misses()>0 && maxJump<.02f,"stream starvation fades the last source instead of a hard zero click");
     }
-    check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb; audio allocations=0\n";
+    {
+        SamplerEngine normal,oneShot;auto n=bank(),o=bank();o->regions[0].oneShot=true;
+        normal.install(std::move(n),{},48000);oneShot.install(std::move(o),{},48000);
+        normal.send({0,0,60,127});oneShot.send({0,0,60,127});render(normal,out,256);render(oneShot,out,256);
+        normal.send({1,0,60,0});oneShot.send({1,0,60,0});
+        for(int i=0;i<12;++i){render(normal,out,256);render(oneShot,out,256);}
+        check(normal.noteVoiceCount(60,0)==0 && oneShot.noteVoiceCount(60,0)==1,"SFZ one-shot survives note-off");
+        oneShot.send({5});for(int i=0;i<12;++i)render(oneShot,out,256);check(oneShot.noteVoiceCount(60,0)==0,"panic stops SFZ one-shots");
+        float loud=0,soft=0;
+        for(int velocity:{127,64}){SamplerEngine s;auto b=bank();b->regions[0].sfzVelocity=true;s.install(std::move(b),{},48000);s.send({0,0,60,velocity});for(int i=0;i<4;++i)render(s,out,256);if(velocity==127)loud=energy(out,256);else soft=energy(out,256);}
+        check(std::abs(soft/loud-std::pow(64.f/127,4))<.002f,"SFZ default velocity is squared amplitude");
+        for(bool continuous:{false,true}){
+            auto b=bank();b->regions[0].loopStart=100;b->regions[0].loopEnd=300;b->regions[0].loopDuringRelease=continuous;b->regions[0].release=.2f;
+            for(size_t i=301*2;i<b->samples[0].head.size();++i)b->samples[0].head[i]=0;
+            SamplerEngine loop;loop.install(std::move(b),{},48000);loop.send({0,0,60,127});render(loop,out,256);loop.send({1,0,60,0});for(int i=0;i<4;++i)render(loop,out,256);
+            check(continuous?energy(out,256)>.01f:energy(out,256)<.00001f,"SFZ continuous loops continue on release; sustain loops leave the loop");
+        }
+        SamplerEngine tuned,reference;auto t=bank(),r=bank();t->regions[0].keyTrack=0;t->regions[0].tune=1200;
+        tuned.install(std::move(t),{},48000);reference.install(std::move(r),{},48000);tuned.send({0,0,60,127});reference.send({0,0,72,127});float compare[512];render(tuned,out,256);render(reference,compare,256);for(int i=0;i<512;++i)check(std::abs(out[i]-compare[i])<.00001f,"tuning remains independent of pitch key tracking");
+    }
+    check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: decoder, cache, sampler, pedal, release, channels, stealing, limiter, queue, convolution, reverb, SFZ playback; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

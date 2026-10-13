@@ -37,15 +37,16 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         float oldL=voice->active?voice->lastL:0,oldR=voice->active?voice->lastR:0;
         *voice=Voice{};voice->active=true;voice->held=kind==Trigger::Attack;voice->channel=ch;voice->note=note;voice->velocity=vel;voice->id=id;voice->region=index;voice->position=r.start;
         auto playedNote=(kind==Trigger::PedalDown || kind==Trigger::PedalUp)?r.root:note;
-        voice->baseStep=instrument->samples[r.sample].rate/rate*std::pow(2.,(playedNote-r.root+r.tune/100.)*r.keyTrack/12.);
-        voice->gain=r.gain*fade*((1-r.velTrack)+r.velTrack*vel/127.f);voice->envelope.start(r.attack,r.decay,r.sustain,r.release);
+        voice->baseStep=instrument->samples[r.sample].rate/rate*std::pow(2.,((playedNote-r.root)*r.keyTrack+r.tune/100.)/12.);
+        float velocityGain=r.sfzVelocity?std::pow(vel/127.f,2*r.velTrack):((1-r.velTrack)+r.velTrack*vel/127.f);
+        voice->gain=r.gain*fade*velocityGain;voice->envelope.start(r.attack,r.decay,r.sustain,r.release);
         voice->stealL=oldL;voice->stealR=oldR;voice->stealRemaining=oldL!=0 || oldR!=0?128:0;
         instrument->cache->prefetch(r.sample,r.start+4096);instrument->cache->prefetch(r.sample,r.start+8192);
     }
 }
 void SamplerEngine::releaseId(int ch,int note,uint64_t id,int velocity) noexcept {
     for(auto& key:keys[ch][note])if(key.id==id)key=Key{};
-    for(auto& v:voices)if(v.active && v.id==id && v.channel==ch){v.pending=false;v.envelope.off(rate);}
+    for(auto& v:voices)if(v.active && v.id==id && v.channel==ch){v.pending=false;if(!instrument->regions[v.region].oneShot)v.envelope.off(rate);}
     trigger(Trigger::Release,ch,note,velocity,++nextId);
 }
 void SamplerEngine::dispatch(const Event& e) noexcept {
@@ -139,7 +140,7 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
         instrument->cache->prefetch(r.sample,uint64_t(v.position)+4096);instrument->cache->prefetch(r.sample,uint64_t(v.position)+8192);
         if(r.loopStart>=0)instrument->cache->prefetch(r.sample,r.loopStart);
         for(int i=0;i<count;++i){
-            if(r.loopStart>=0 && r.loopEnd>r.loopStart && v.envelope.stage!=Envelope::Release && v.position>=r.loopEnd+1)v.position=r.loopStart+std::fmod(v.position-r.loopStart,double(r.loopEnd+1-r.loopStart));
+            if(r.loopStart>=0 && r.loopEnd>r.loopStart && (r.loopDuringRelease || v.envelope.stage!=Envelope::Release) && v.position>=r.loopEnd+1)v.position=r.loopStart+std::fmod(v.position-r.loopStart,double(r.loopEnd+1-r.loopStart));
             if(v.position>=end || v.envelope.stage==Envelope::Done){v.active=false;break;}
             auto pos=uint64_t(v.position);
             if((!view.data && (pos/SampleCache::PageFrames!=attemptedPage || retry++>=32)) || (view.data && (pos<view.start || pos>=view.start+view.frames))){retry=0;attemptedPage=pos/SampleCache::PageFrames;instrument->cache->view(r.sample,pos,view);}

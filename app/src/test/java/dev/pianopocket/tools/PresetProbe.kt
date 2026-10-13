@@ -19,8 +19,11 @@ fun main(args: Array<String>) {
     }
     root.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(root).invariantSeparatorsPath) }.sortedBy { it.name }.forEach { file ->
         try {
-            val preset=file.inputStream().use { DspresetParser().parse(it,file.nameWithoutExtension) }
-            fun ref(path: String):String {val resolved=File(file.parentFile,DspresetParser.safeRelative(path)).canonicalFile;require(resolved.toPath().startsWith(root.toPath()) && resolved.isFile) { "Missing/unsafe file: $path" };return resolved.path}
+            val sfz=file.extension.equals("sfz",true)
+            val preset=if(sfz)dev.pianopocket.library.SfzParser().parse(file.readText(),file.nameWithoutExtension,file.relativeTo(root).invariantSeparatorsPath) { relative ->
+                val included=File(root,DspresetParser.safeRelative(relative)).canonicalFile;require(included.toPath().startsWith(root.toPath()) && included.length()<=4*1024*1024);included.readText()
+            }else file.inputStream().use { DspresetParser().parse(it,file.nameWithoutExtension) }
+            fun ref(path: String):String {val resolved=File(if(sfz)root else file.parentFile,DspresetParser.safeRelative(path)).canonicalFile;require(resolved.toPath().startsWith(root.toPath()) && resolved.isFile) { "Missing/unsafe file: $path" };return resolved.path}
             val groups=preset.groupVolumes.toMutableList();val effects=preset.effects.map { it.copy(params=it.params.copyOf()) }.toMutableList();var master=1f
             preset.controls.forEach { c->c.bindings.forEach { b->var v=if(b.outMin.isNaN() || b.outMax.isNaN())c.value else b.outMin+(c.value-c.min)/(c.max-c.min)*(b.outMax-b.outMin);if(b.decibels)v=10f.pow(v/20)
                 when(b.type){"group"->groups[b.index]=v;"master"->master=v;else->effects[b.index].params[b.slot]=v}

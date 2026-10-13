@@ -28,16 +28,18 @@ class LibraryRepository(private val context: Context) {
     fun root(entry: LibraryEntry) = File(home,entry.root)
     fun presetFile(entry: LibraryEntry) = File(root(entry),entry.preset)
     fun resolve(entry: LibraryEntry, relative: String): File {
-        val base=presetFile(entry).parentFile!!
+        val base=if(entry.preset.endsWith(".sfz",true))root(entry)else presetFile(entry).parentFile!!
         val file=File(base,DspresetParser.safeRelative(relative)).canonicalFile
         require(file.path.startsWith(root(entry).canonicalPath + File.separator) && file.isFile) { "Missing reference: $relative" }
         return file
     }
-    fun parse(entry: LibraryEntry): Preset = presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }.also { preset ->
+    fun parse(entry: LibraryEntry): Preset = (if(entry.preset.endsWith(".sfz",true)) {
+        SfzParser().parse(readSfz(presetFile(entry)),entry.name,entry.preset) { relative -> readSfz(resolve(entry,relative)) }
+    } else presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }).also { preset ->
         preset.regions.map { it.path }.distinct().forEach { resolve(entry,it) }
         preset.effects.filter { it.ir.isNotEmpty() }.forEach { resolve(entry,it.ir) }
         preset.menus.flatMap { it.options }.forEach { resolve(entry,it.path) }
-        preset.warnings.forEach { Log.w("PianoPocket.XML",it) }
+        preset.warnings.forEach { Log.w("PianoPocket.Import",it) }
     }
     fun used(entry: LibraryEntry) { save(entries().map { if(it.id==entry.id) it.copy(lastUsed=System.currentTimeMillis()) else it }) }
     fun delete(entry: LibraryEntry) { save(entries().filter { it.root!=entry.root });root(entry).deleteRecursively() }
@@ -54,40 +56,67 @@ class LibraryRepository(private val context: Context) {
     fun importArchive(uri: Uri, progress: (String) -> Unit): List<LibraryEntry> = transaction { dir ->
         context.contentResolver.openInputStream(uri)?.use { SafeArchive.extract(it,dir,progress=progress) } ?: error("Cannot open archive")
     }
-    fun installDemo(): List<LibraryEntry> = transaction { dir ->
-        val wav=File(dir,"PocketTone.wav")
-        java.io.DataOutputStream(wav.outputStream().buffered()).use { out ->
-            fun int(value: Int){out.writeInt(Integer.reverseBytes(value))}
-            fun short(value: Int){out.writeShort(java.lang.Short.reverseBytes(value.toShort()).toInt())}
-            val frames=48000*4
-            out.writeBytes("RIFF");int(36+frames*4);out.writeBytes("WAVEfmt ");int(16);short(1);short(2);int(48000);int(192000);short(4);short(16);out.writeBytes("data");int(frames*4)
-            for(i in 0 until frames){val t=i/48000.0;val v=(kotlin.math.sin(2*Math.PI*261.625565*t)+.3*kotlin.math.sin(2*Math.PI*523.25113*t))*kotlin.math.exp(-t*1.7)*.25;short((v*32767).toInt());short((v*32767).toInt())}
+    fun ensureBundled(): List<LibraryEntry> {
+        val prefs=context.getSharedPreferences("library",Context.MODE_PRIVATE)
+        if(!prefs.getBoolean("pocketUprightV1",false) || entries().isEmpty()) {
+            installBundled();prefs.edit().putBoolean("pocketUprightV1",true).apply()
         }
-        File(dir,"Pocket Tone — Demo.dspreset").writeText("""<DecentSampler name="Pocket Tone — 自作デモ"><groups><group name="Demo"><sample path="PocketTone.wav" rootNote="60" loNote="24" hiNote="108" attack="0.003" release="0.3" /></group></groups><effects><effect type="reverb" roomSize="0.65" damping="0.35" wetLevel="0.2" /></effects></DecentSampler>""")
+        return entries()
     }
-    fun importPreset(uri: Uri, tree: Uri, progress: (String) -> Unit): List<LibraryEntry> = transaction { dir ->
+    fun installBundled(): List<LibraryEntry> {
+        entries().firstOrNull { File(root(it),"bundled-id.txt").run { isFile && readText().trim()=="pocket-upright-v1" } }?.let { return listOf(it) }
+        return transaction { dir ->
+            fun copy(asset: String, target: File) {
+                val children=context.assets.list(asset).orEmpty()
+                if(children.isNotEmpty()){target.mkdirs();children.forEach { copy("$asset/$it",File(target,it)) }}
+                else context.assets.open(asset).use { packed ->
+                    val compressed=asset.endsWith(".wav.pack")
+                    val destination=if(compressed)File(target.parentFile,target.name.removeSuffix(".pack"))else target
+                    val input=if(compressed)java.util.zip.GZIPInputStream(packed)else packed
+                    input.use { stream -> destination.outputStream().use { out -> copyBounded(stream,16L*1024*1024) { b,n -> out.write(b,0,n) } } }
+                }
+            }
+            copy("instruments/PocketUpright",dir)
+        }
+    }
+    fun importPreset(uri: Uri, tree: Uri, progress: (String) -> Unit): List<LibraryEntry> {
+      var primary=""
+      return transaction { dir ->
         val presetBytes=context.contentResolver.openInputStream(uri)?.use { limitedBytes(it,4*1024*1024) } ?: error("Cannot open preset")
-        val preset=DspresetParser().parse(presetBytes.inputStream(),"Imported instrument")
         val root=DocumentFile.fromTreeUri(context,tree) ?: error("Cannot open sample directory")
-        File(dir,"Instrument.dspreset").writeBytes(presetBytes)
+        fun document(relative: String): DocumentFile {
+            var doc=root
+            DspresetParser.safeRelative(relative).split('/').forEach { part -> doc=doc.findFile(part) ?: error("選択フォルダーに参照ファイルがありません: $relative") }
+            require(doc.isFile) { "Reference is not a file" };return doc
+        }
+        val originalName=DocumentFile.fromSingleUri(context,uri)?.name ?: "Instrument.dspreset"
+        val sfz=originalName.endsWith(".sfz",true)
+        val filename=DspresetParser.safeRelative(originalName).also { require('/' !in it) { "Invalid preset filename" } }
+        primary=filename
+        File(dir,filename).writeBytes(presetBytes)
+        val preset=if(sfz)SfzParser().parse(presetBytes.toString(Charsets.UTF_8),"Imported instrument",filename) { path ->
+            val doc=document(path)
+            val bytes=context.contentResolver.openInputStream(doc.uri)?.use { limitedBytes(it,SfzParser.MAX_TEXT) } ?: error("Cannot read $path")
+            val target=File(dir,path);require(target.canonicalFile!=File(dir,filename).canonicalFile) { "SFZ include overlaps main preset" }
+            target.parentFile!!.mkdirs();target.writeBytes(bytes);bytes.toString(Charsets.UTF_8)
+        }else DspresetParser().parse(presetBytes.inputStream(),"Imported instrument")
         val refs=(preset.regions.map { it.path }+preset.effects.map { it.ir }.filter { it.isNotBlank() }+preset.menus.flatMap { it.options }.map { it.path }).distinct()
         require(refs.size<=4096) { "Reference file count exceeded" }
         var total=0L
         refs.forEachIndexed { i,path ->
             val clean=DspresetParser.safeRelative(path)
-            var doc=root
-            clean.split('/').forEach { part -> doc=doc.findFile(part) ?: error("選択フォルダーに参照ファイルがありません: $path") }
-            require(doc.isFile) { "Reference is not a file" }
+            val doc=document(clean)
             val target=File(dir,clean);target.parentFile!!.mkdirs();progress("コピー ${i+1}/${refs.size}: ${doc.name}")
             context.contentResolver.openInputStream(doc.uri)?.use { input -> target.outputStream().use { out -> copyBounded(input,512L*1024*1024) { b,n -> out.write(b,0,n);total+=n;require(total<=8L*1024*1024*1024 && dir.usableSpace>128L*1024*1024) { "Import storage limit exceeded" } } } } ?: error("Cannot read $path")
         }
+      }.sortedBy { it.preset!=primary }
     }
     private fun transaction(copy: (File) -> Unit): List<LibraryEntry> {
         val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending").apply { mkdirs() };val destination=File(home,id)
         try {
             copy(stage)
             val presets=stage.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(stage).invariantSeparatorsPath) }.toList()
-            require(presets.isNotEmpty() && presets.size<=128) { "No .dspreset found, or too many presets" }
+            require(presets.isNotEmpty() && presets.size<=128) { "No .dspreset / .sfz found, or too many presets" }
             // Validate syntax now; unsupported variants remain visible with an error on selection.
             presets.forEach { require(it.length()<=4*1024*1024) { "Preset too large" } }
             val bytes=stage.walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -96,6 +125,7 @@ class LibraryRepository(private val context: Context) {
         } catch(e: Throwable) { stage.deleteRecursively();destination.deleteRecursively();throw e }
     }
     companion object {
+        private fun readSfz(file: File): String = file.inputStream().use { limitedBytes(it,SfzParser.MAX_TEXT).toString(Charsets.UTF_8) }
         internal fun copyBounded(input: InputStream, max: Long, write: (ByteArray,Int)->Unit): Long {
             val b=ByteArray(65536);var total=0L
             while(true) { val n=input.read(b);if(n<0)break;total+=n;require(total<=max) { "File size limit exceeded" };write(b,n) };return total

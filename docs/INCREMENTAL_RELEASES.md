@@ -77,3 +77,12 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 今回選択された改善1・2・3・4・6を、0.6.1（診断）、0.6.2（安定優先）、0.7.0（音源設定）、0.8.0（練習）、0.9.0（書き出し）としてそれぞれコミット・プッシュ・公開しました。
 
 62 JVM tests・Androidビルド・Lint PASS。APK 29091090 bytes / SHA-256 `5adc7a57800d7264f1c9b7afb8042da82995efebb2d69c8c9755c83b31781e04`。 通知・画面オフ・タスク除去・実Codec・VideoViewの実機成功は未確認。OS／省電力による終了・強制停止を超えて継続を保証せず、プロセス死亡後の自動再開は未対応。プレビューの長音再構築は近似。 開発環境の実機／エミュレーター未接続。
+
+## 0.10.0-alpha — SFZと内蔵ピアノ
+
+- SFZ音源を読み込めるようになりました。キー・ベロシティのマッピング、エンベロープ、チューニング、ループ、include・マクロに対応しています。
+- 内蔵ピアノ「Pocket Upright」を追加。CC0の実録音、ステレオ、3段階のベロシティで、初回起動から演奏できます。
+- 音源ライブラリから内蔵ピアノを復元できます。既存の音源と保存設定は引き続き使えます。
+- READMEと音源の読み込み案内を整理しました。
+
+77 JVM tests・Androidビルド・Lint PASS。APK 63040192 bytes / SHA-256 `f62d38be3853d402dc7a56e0c7c0f56f27e88645f0a4f019964d5a6fa92d718f`。SFZの未対応設定は音源パネルに警告を表示します。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.10.0-alpha/docs/SFZ.md)・[内蔵音源の出典](https://github.com/tstyr/PianoPocket/blob/v0.10.0-alpha/docs/BUNDLED_PIANO.md)。ビルドと自動テストは確認済み、開発環境でのAndroid実機試験は未実施です。 開発環境の実機／エミュレーター未接続。

@@ -37,9 +37,9 @@ class MainActivity:ComponentActivity() {
             var name=""
             contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { c -> if(c.moveToFirst())name=c.getString(0) }
             when(name.substringAfterLast('.').lowercase()) {
-                "dspreset" -> { pendingPreset=uri;model.message("dspresetと同じフォルダーを選択してください。相対パスの基準になります。");directory.launch(null) }
+                "dspreset","sfz" -> { pendingPreset=uri;model.message("選んだプリセットと同じフォルダーを選択してください。相対パスの基準になります。");directory.launch(null) }
                 "zip","dslibrary" -> model.importArchive(uri)
-                else -> model.message("対応形式はdspreset、ZIP、ZIP形式のdslibraryです。SFZ/SF2は未対応です。")
+                else -> model.message("対応形式はdspreset、SFZ、ZIP、ZIP形式のdslibraryです。SF2は未対応です。")
             }
         }
     }

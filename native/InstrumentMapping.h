@@ -14,6 +14,7 @@ struct Region {
     int fadeInLow=-1,fadeInHigh=-1,fadeOutLow=-1,fadeOutHigh=-1;
     int64_t start=0,end=-1,loopStart=-1,loopEnd=-1;
     bool enabled=true;
+    bool oneShot=false,loopDuringRelease=false,sfzVelocity=false;
 };
 struct Instrument {
     std::array<std::array<float,128>,256> velocityGains;

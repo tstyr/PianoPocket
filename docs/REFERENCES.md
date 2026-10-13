@@ -1,5 +1,7 @@
 # Sources checked on 2026-10-11
 
+2026-10-13: [SFZ Format](https://sfzformat.com/)のヘッダー、pitch_keycenter、amp_veltrack、loop_mode、endを参照。内蔵音源は [VSCO 2 CE](https://github.com/sgossner/VSCO-2-CE/tree/440300901dfe9275fd84e0b7763af1f8443ae62e) のCC0 LICENSEとUpright Piano / Info.txtの録音者・再配布許可を確認。[出典と変換](BUNDLED_PIANO.md)。
+
 | 資料 | 用途 |
 | --- | --- |
 | [Decent Sampler developer guide](https://decentsampler-developers-guide.readthedocs.io/en/latest/index.html) | 公式形式説明。取得時の表示は1.36.1。Helsinki v1.6のXMLそのものではない |

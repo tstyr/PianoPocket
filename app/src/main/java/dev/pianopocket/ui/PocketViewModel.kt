@@ -109,7 +109,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private fun openAudioWorker(forceReload: Boolean=false) {
         if(!foreground || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
         check(NativeAudio.start(state.value.device,state.value.bursts)){"オーディオ出力を開始できません"}
-        if(!initialized){var entries=repository.entries();if(entries.isEmpty())entries=repository.installDemo();mutable.update {it.copy(library=entries)};initialized=true}
+        if(!initialized){mutable.update {it.copy(busy=true,message="内蔵ピアノを準備しています")};val entries=repository.ensureBundled();mutable.update {it.copy(library=entries,busy=false)};initialized=true}
         val entry=state.value.library.firstOrNull {it.id==(state.value.selected.ifBlank {preferences.lastInstrument})} ?: state.value.library.firstOrNull()
         if(entry!=null && (state.value.preset==null || forceReload || ExportCoordinator.performanceUnloaded))loadInternal(entry)else mutable.update {it.copy(ready=true)}
         if(state.value.sequence.song==null)state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi}?.let {selectSong(it,midiLibrary.load(it))}
@@ -161,6 +161,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun importPreset(uri: Uri, tree: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importPreset(uri,tree){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false) };loadInternal(imported.first()) }
     fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(preset=null,selected="",ready=false) } };soundSaveJob?.cancel();state.value.library.filter {it.root==entry.root}.forEach {soundStore.delete(it.id)};repository.delete(entry);mutable.update { it.copy(library=repository.entries(),message="音源フォルダーを削除しました") } }
     fun rescan()=work { mutable.update { it.copy(library=repository.rescan(),message="再スキャン完了") } }
+    fun restoreBundled()=work { mutable.update {it.copy(busy=true)};val entry=repository.installBundled().first();mutable.update {it.copy(library=repository.entries(),busy=false)};loadInternal(entry) }
     fun message(text: String){mutable.update { it.copy(message=text) }}
     fun volume(value: Float){NativeAudio.event(4,0,0,0,value);mutable.update { it.copy(volume=value) };saveSoundSoon()}
     fun group(index: Int,value: Float){NativeAudio.event(6,0,index,0,value);mutable.update { s->s.copy(groups=s.groups.mapIndexed { i,v->if(i==index)value else v }) };saveSoundSoon()}

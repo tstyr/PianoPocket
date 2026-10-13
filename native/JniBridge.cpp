@@ -26,8 +26,9 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_abort(J
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(JNIEnv* e,jobject,jstring file,jintArray ints,jfloatArray floats){
     try{
         if(!staged)throw std::runtime_error("No import transaction");
-        if(e->GetArrayLength(ints)!=19 || e->GetArrayLength(floats)!=9)throw std::runtime_error("Invalid mapping");
-        jint a[19];jfloat f[9];e->GetIntArrayRegion(ints,0,19,a);e->GetFloatArrayRegion(floats,0,9,f);
+        auto length=e->GetArrayLength(ints);
+        if((length!=19 && length!=20) || e->GetArrayLength(floats)!=9)throw std::runtime_error("Invalid mapping");
+        jint a[20]={};jfloat f[9];e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,9,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
             if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::PageCount*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
@@ -35,6 +36,8 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         }else sample=found->second;
         Region r;r.sample=sample;r.group=a[0];r.low=a[1];r.high=a[2];r.root=a[3];r.lowVel=a[4];r.highVel=a[5];r.trigger=Trigger(a[6]);r.start=a[7];r.end=a[8];r.loopStart=a[9];r.loopEnd=a[10];r.cc=a[11];r.ccLow=a[12];r.ccHigh=a[13];r.fadeInLow=a[14];r.fadeInHigh=a[15];r.fadeOutLow=a[16];r.fadeOutHigh=a[17];r.enabled=a[18]!=0;
         r.gain=f[0];r.pan=f[1];r.tune=f[2];r.attack=f[3];r.decay=f[4];r.sustain=f[5];r.release=f[6];r.velTrack=f[7];r.keyTrack=f[8];
+        if(a[19]<0 || a[19]>7)throw std::runtime_error("Invalid SFZ flags");
+        r.oneShot=a[19]&1;r.loopDuringRelease=a[19]&2;r.sfzVelocity=a[19]&4;
         auto frames=staged->samples[sample].frames;
         if(r.group>=256 || r.low<0 || r.high>127 || r.low>r.high || r.root<0 || r.root>127 || a[6]<0 || a[6]>3 || r.start<0 || uint64_t(r.start)>=frames || (r.end>=0 && (uint64_t(r.end)>frames || r.end<r.start)) || (r.loopStart>=0 && (r.loopEnd<=r.loopStart || uint64_t(r.loopEnd)>=frames)))throw std::runtime_error("Region boundaries outside WAV or invalid mapping");
         staged->regions.push_back(r);
