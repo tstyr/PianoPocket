@@ -35,3 +35,11 @@ MP4はisom、MOVはQuickTime qtコンテナ。独立したFFmpegによる30fps/4
 このAPKには0.4.5〜0.5.0で機能ごとに公開した左下FPS表示、最大120FPS設定、目のアイコンによるUI非表示、発音抜け／ストリーミングノイズ対策も含みます。
 
 51 JVM tests・Androidビルド・Lint PASS。APK 28454755 bytes / SHA-256 `2609fab18cb374a12d7955c9f85829e5f53bd805bf7b083661c56f42368c6899`。 端末のSurface H.264＋AAC動画生成・GPU描画・長時間同期・イヤホン音質・120Hz動作は未検証。Android test APKのビルド済み／実行未実施。発音数は有限、既定512／最大1024サンプルボイス。 開発環境の実機／エミュレーター未接続。
+
+## 0.6.1-alpha — 音声切り分けと診断記録
+
+通常／FXなし／左右別テスト音を比較。60秒の有界診断でXRun・キャッシュミス・ボイス置換・負荷をコピーできます。未取得値とカウンターリセットを区別。
+
+利用者から有線で0.6.0のノイズが残っていないとの報告を受けています。開発環境では実機未接続。詳細はdocs/AUDIO_DIAGNOSTICS.md。Native tests・ASan/UBSan PASS。
+
+53 JVM tests・Androidビルド・Lint PASS。APK 28817347 bytes / SHA-256 `c0ac8ff0b62800b0f1ef02c346005f6a151b245974b923ec5311ae009c6025c7`。 診断UIと出力経路の実機比較は未実施。FXなしでも残響維持のためFX処理は継続。 開発環境の実機／エミュレーター未接続。

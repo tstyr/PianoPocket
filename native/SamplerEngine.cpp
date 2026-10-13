@@ -8,6 +8,7 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
     instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
     keys={};
     instrumentVolume=targetInstrumentVolume=1;
+    diagnosticMode=0;diagnosticFx=1;diagnosticTone=0;tonePhaseL=tonePhaseR=0;
     for(auto& c:controllers){c.fill(0);c[7]=c[11]=127;}bends.fill(0);groupGains.fill(1);
     effects=std::move(prepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);stolenVoices.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
     playing=false;reportedPlaying.store(false);
@@ -75,6 +76,7 @@ void SamplerEngine::dispatch(const Event& e) noexcept {
     else if(e.type==8){limit=std::clamp(e.a,32,MaxVoices);for(int i=limit;i<MaxVoices;++i)if(voices[i].active){voices[i].envelope.stage=Envelope::Release;voices[i].envelope.releaseStep=voices[i].envelope.value/(rate*.01f);voices[i].held=false;voices[i].pending=false;}}
     else if(e.type==9)targetInstrumentVolume=std::clamp(e.value,0.f,8.f);
     else if(e.type==10){playing=e.a!=0;reportedPlaying.store(playing);if(!playing)for(int channel=17;channel<33;++channel){dispatch({2,channel,120,0});dispatch({2,channel,64,0});}}
+    else if(e.type==12){diagnosticMode=std::clamp(e.a,0,2);if(diagnosticMode==2){dispatch({10,0,0});dispatch({5});}}
 }
 void SamplerEngine::setTimeline(std::vector<TimedEvent> source,int64_t duration){
     timeline=std::move(source);std::stable_sort(timeline.begin(),timeline.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
@@ -133,7 +135,14 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
         }
     }
     int active=0;for(auto& v:voices)if(v.active)++active;activeVoices.store(active,std::memory_order_relaxed);
-    for(int i=0;i<count;++i){float& l=output[i*2];float& r=output[i*2+1];effects.process(l,r);volume+=(targetVolume-volume)*.001f;instrumentVolume+=(targetInstrumentVolume-instrumentVolume)*.001f;l*=volume*instrumentVolume;r*=volume*instrumentVolume;
+    for(int i=0;i<count;++i){float& l=output[i*2];float& r=output[i*2+1];const float dryL=l,dryR=r;effects.process(l,r);volume+=(targetVolume-volume)*.001f;instrumentVolume+=(targetInstrumentVolume-instrumentVolume)*.001f;
+        diagnosticFx+=((diagnosticMode==1?0.f:1.f)-diagnosticFx)*.0015f;
+        diagnosticTone+=((diagnosticMode==2?1.f:0.f)-diagnosticTone)*.0015f;
+        l=(diagnosticFx==1?l:dryL+(l-dryL)*diagnosticFx)*instrumentVolume*(1-diagnosticTone);
+        r=(diagnosticFx==1?r:dryR+(r-dryR)*diagnosticFx)*instrumentVolume*(1-diagnosticTone);
+        if(diagnosticTone>1e-6f){l+=float(std::sin(tonePhaseL))*.08f*diagnosticTone;r+=float(std::sin(tonePhaseR))*.08f*diagnosticTone;tonePhaseL+=6.283185307179586*440/rate;tonePhaseR+=6.283185307179586*660/rate;if(tonePhaseL>6.283185307179586)tonePhaseL-=6.283185307179586;if(tonePhaseR>6.283185307179586)tonePhaseR-=6.283185307179586;}
+        else tonePhaseL=tonePhaseR=0;
+        l*=volume;r*=volume;
         outputLimiter.process(l,r);
     }
 }

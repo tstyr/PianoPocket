@@ -92,6 +92,10 @@ int main(){try{
     }
 
     {
+        e.install(bank(),{},48000);e.send({12,0,2});double sum=0;float peak=0;for(int b=0;b<40;++b){render(e,out,256);sum+=energy(out,256);for(float value:out)peak=std::max(peak,std::abs(value));}
+        check(sum>1 && peak<.09f,"diagnostic tone is audible, bounded, allocation-free and independent of notes");e.send({12,0,0});for(int b=0;b<80;++b)render(e,out,256);check(energy(out,256)<1e-10,"diagnostic tone smoothly ends on normal mode");
+    }
+    {
         auto layers=bank();layers->regions.resize(6,layers->regions.front());layers->prepare();
         e.install(std::move(layers),{},48000);e.send({8,0,32});
         for(int key=60;key<65;++key)e.send({0,0,key,100});render(e,out,256);

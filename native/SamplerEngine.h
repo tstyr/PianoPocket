@@ -34,6 +34,9 @@ class SamplerEngine {
     std::atomic<bool> panic{false};
     float rate=48000,volume=.7f,targetVolume=.7f;
     float instrumentVolume=1,targetInstrumentVolume=1;
+    int diagnosticMode=0;
+    float diagnosticFx=1,diagnosticTone=0;
+    double tonePhaseL=0,tonePhaseR=0;
     int limit=512;
     uint64_t nextId=0;
     std::vector<TimedEvent> timeline;

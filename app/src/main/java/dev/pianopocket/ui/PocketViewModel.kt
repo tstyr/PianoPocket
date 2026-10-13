@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val diagnosticMode: Int = 0, val diagnosticRecording: Boolean = false,
     val targetFps: Int = 60,
     val showFps: Boolean = false,
     val aacAvailable: Boolean = false, val videoOptions: List<VideoOptions> = emptyList(),
@@ -41,6 +42,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val preferences=Preferences(app)
     private val midiLibrary=MidiLibrary(app)
     private val recorder=MidiRecorder()
+    private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
     private val live=LiveNotes()
     private val exportCancelled=AtomicBoolean(false)
     @Volatile private var exportStage=0
@@ -66,7 +68,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
             while(isActive){delay(100);if(foreground && !displayFramesActive)displayFrame()}
         }
         viewModelScope.launch {
-            while(isActive){delay(500);if(foreground)withContext(worker){val values=NativeAudio.stats().toList();val pss=android.os.Debug.getPss()/1024f;mutable.update { it.copy(stats=values,processMiB=pss) };refreshOutputs()}}
+            while(isActive){delay(500);if(foreground)withContext(worker){val values=NativeAudio.stats().toList();val pss=android.os.Debug.getPss()/1024f;val recording=diagnostics.capture(System.nanoTime(),state.value.diagnosticMode,values);mutable.update { it.copy(stats=values,processMiB=pss,diagnosticRecording=recording) };refreshOutputs()}}
         }
     }
     @Volatile var displayFramesActive=false
@@ -81,7 +83,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun foreground(active: Boolean) {
         if(foreground==active)return
         foreground=active
-        if(!active && state.value.sequence.recording)stopRecording()
+        if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
         work {
             if(!active){NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update { it.copy(ready=false) };return@work}
             check(NativeAudio.start(state.value.device,state.value.bursts)) { "オーディオ出力を開始できません" }
@@ -97,6 +99,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     }
     fun load(entry: LibraryEntry) = work { loadInternal(entry) }
     private fun loadInternal(entry: LibraryEntry) {
+        diagnosticMode(0)
         NativeAudio.event(10,0,0,0,0f);live.clear()
         mutable.update { it.copy(busy=true,message="XMLと参照WAVを確認中") }
         val preset=repository.parse(entry)
@@ -176,7 +179,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun showFps(value: Boolean){preferences.showFps=value;mutable.update { it.copy(showFps=value) }}
     fun landscapePerformance(value: Boolean){preferences.landscapePerformance=value;mutable.update { it.copy(landscapePerformance=value) }}
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
-    fun panic(){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
+    fun panic(){diagnosticMode(0);mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
     fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
     fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(viewport=if(value)KeyboardViewport()else KeyboardViewport.middleTwoOctaves())) }}
     fun zoomKeyboard(factor: Float,anchor: Float,pan: Float){mutable.update { it.copy(sequence=it.sequence.copy(viewport=it.sequence.viewport.transform(factor,anchor,pan))) }}
@@ -215,8 +218,13 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(uiPedal=false,sequence=it.sequence.copy(recording=false)) }
         work {val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date());val entry=midiLibrary.save(name,song);selectSong(entry,song);mutable.update { it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。") }}
     }
+    fun diagnosticMode(mode: Int){if(mode !in 0..2)return;NativeAudio.event(12,0,mode,0,0f);mutable.update { it.copy(diagnosticMode=mode) }}
+    fun startDiagnosis(){val s=state.value;diagnostics.start(System.nanoTime(),"${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}, Android ${android.os.Build.VERSION.RELEASE}, app ${dev.pianopocket.BuildConfig.VERSION_NAME}\npreset=${s.preset?.name}, Output=${s.volume}, voices=${s.voices}, memoryMiB=${s.memoryMiB}, selectedOutputId=${s.device}, availableOutputs=${s.outputs.joinToString { it.label }}");mutable.update { it.copy(diagnosticRecording=true) }}
+    fun stopDiagnosis(){diagnostics.stop();mutable.update { it.copy(diagnosticRecording=false) }}
+    fun diagnosticReport()=diagnostics.report()
     fun cancelExport(){exportCancelled.set(true);NativeAudio.cancelExport()}
     fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions=VideoOptions())=work {
+        diagnosticMode(0)
         val snapshot=state.value;val song=snapshot.sequence.song ?: error("MIDIを選択してください")
         val context=getApplication<Application>();val temp=File(context.cacheDir,"render-${android.os.Process.myPid()}-${System.nanoTime()}.wav")
         val encoded=File(context.cacheDir,temp.nameWithoutExtension+".${format.extension}")
