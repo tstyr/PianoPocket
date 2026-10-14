@@ -215,3 +215,11 @@ READMEと過去のリリース説明を、使い方・変更点・ダウンロ�
 曲ごとの設定保存と、内蔵音源・外部MIDI・両方の出力切り替えも含まれます。READMEと過去のリリース説明は、使い方と変更点を中心に整理しました。
 
 117 JVM tests・Androidビルド・Lint PASS。APK 64592830 bytes / SHA-256 `1624950fd5781e6591d395f1a3fab2d68c25f449c7ddb543c447bbc40aa3ff25`。117件の自動テスト、Androidビルド、Lintを確認済み。背景での継続・録音保存を検査する端末テストAPKも作成していますが、開発環境でのAndroid実機試験は未実施です。通話などの音声割り込みやイヤホンの取り外しでは演奏を停止します。OSによる強制停止後の自動再開には対応していません。使い方と確認手順は[背景演奏](https://github.com/tstyr/PianoPocket/blob/v0.19.0-alpha/docs/BACKGROUND_PLAYBACK.md)をご覧ください。 開発環境の実機／エミュレーター未接続。
+
+## 0.20.0-alpha — SoundFont SF2に対応
+
+音源ライブラリからSF2を読み込めます。含まれる音色をBank・Program番号付きで追加し、画面鍵盤やMIDIで演奏できます。インポート後はオフラインで利用できます。
+
+Galaxy S26での利用者による動作確認報告をREADMEに追記しました。
+
+120 JVM tests・Androidビルド・Lint PASS。APK 63805210 bytes / SHA-256 `4f091486f00e8e1ea4c0709572fb34a254acdf6dc4ed48d08578468f5ad7b68f`。Androidビルド・120件の自動テスト・Lintを確認済み。TimGM6mbの136音色を解析し、展開したピアノでネイティブ音声生成も確認しました。SF2の変調や内蔵エフェクトには未対応部分があり、警告を表示します。SF2機能のAndroid実機試験は未実施です。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.20.0-alpha/docs/SOUNDFONT.md)。 開発環境の実機／エミュレーター未接続。

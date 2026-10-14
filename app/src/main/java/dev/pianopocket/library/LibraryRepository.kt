@@ -40,7 +40,7 @@ class LibraryRepository(private val context: Context) {
     }
     fun parse(entry: LibraryEntry, progress: (String)->Unit = {}): Preset = (if(entry.preset.endsWith(".sfz",true)) {
         SfzParser().parse(readSfz(presetFile(entry)),entry.name,entry.preset) { relative -> readSfz(source(entry,relative)) }
-    } else presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }).also { preset ->
+    } else presetFile(entry).inputStream().use { DspresetParser().parse(it,entry.name) }).let {preset -> val warningFile=File(presetFile(entry).path+".warnings");preset.copy(warnings=preset.warnings+if(warningFile.isFile && warningFile.length()<=65536)warningFile.readLines()else emptyList())}.also { preset ->
         val refs=preset.regions.map {it.path}.distinct()
         refs.forEachIndexed { index,path -> progress("サンプル準備 ${index+1}/${refs.size}");resolve(entry,path) }
         preset.effects.filter { it.ir.isNotEmpty() }.forEach { resolve(entry,it.ir) }
@@ -55,7 +55,7 @@ class LibraryRepository(private val context: Context) {
             val bytes=folder.walkTopDown().filter { it.isFile }.sumOf { it.length() }
             folder.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(folder).invariantSeparatorsPath) }.map { file ->
                 val path=file.relativeTo(folder).invariantSeparatorsPath
-                old["${folder.name}/$path"] ?: LibraryEntry(UUID.randomUUID().toString(),folder.name,path,file.nameWithoutExtension,bytes)
+                old["${folder.name}/$path"] ?: LibraryEntry(UUID.randomUUID().toString(),folder.name,path,displayName(file),bytes)
             }.toList()
         };save(list);return list
     }
@@ -123,16 +123,26 @@ class LibraryRepository(private val context: Context) {
         }
       }.sortedBy { it.preset!=primary }
     }
-    private fun transaction(copy: (File) -> Unit): List<LibraryEntry> {
+    fun importSoundFont(uri: Uri,progress: (String)->Unit): List<LibraryEntry> = transaction(progress) {dir ->
+        val file=File(dir,"Imported.sf2")
+        context.contentResolver.openInputStream(uri)?.use {input->file.outputStream().use {out->copyBounded(input,512L*1024*1024){b,n->out.write(b,0,n)}}} ?: error("SoundFontを開けません")
+        progress("SoundFontを展開しています")
+    }
+    private fun displayName(file: File): String {val sidecar=File(file.path+".name");return if(sidecar.isFile && sidecar.length()<=4096)sidecar.readText().take(160)else file.nameWithoutExtension}
+    private fun transaction(progress: (String)->Unit = {},copy: (File) -> Unit): List<LibraryEntry> {
         val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending");activeStages.add(stage.absolutePath);stage.mkdirs();val destination=File(home,id)
         try {
             copy(stage)
+            val fonts=stage.walkTopDown().filter {it.isFile && it.extension.equals("sf2",true)}.toList();require(fonts.size<=32){"SoundFontは1回につき32ファイルまでです"};var expandedFonts=0L
+            fonts.forEach {source ->
+                val target=File(source.parentFile,source.name+".pocket");require(!target.exists()){ "SoundFontの展開先が重複しています" };SoundFontReader.import(source,target,progress,2L*1024*1024*1024-expandedFonts);expandedFonts+=target.walkTopDown().filter {it.isFile && it.extension=="wav"}.sumOf {it.length()-44}
+            }
             val presets=stage.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(stage).invariantSeparatorsPath) }.toList()
-            require(presets.isNotEmpty() && presets.size<=128) { "No .dspreset / .sfz found, or too many presets" }
+            require(presets.isNotEmpty() && presets.size<=2048) { "対応する音源がないか、音色数が上限を超えています" }
             // Validate syntax now; unsupported variants remain visible with an error on selection.
             presets.forEach { require(it.length()<=4*1024*1024) { "Preset too large" } }
             val bytes=stage.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-            val added=presets.map { LibraryEntry(UUID.randomUUID().toString(),id,it.relativeTo(stage).invariantSeparatorsPath,it.nameWithoutExtension,bytes) }
+            val added=presets.map { LibraryEntry(UUID.randomUUID().toString(),id,it.relativeTo(stage).invariantSeparatorsPath,displayName(it),bytes) }
             require(stage.renameTo(destination)) { "Import commit failed" };save(entries()+added);return added
         } catch(e: Throwable) { stage.deleteRecursively();destination.deleteRecursively();throw e }
         finally {activeStages.remove(stage.absolutePath)}
