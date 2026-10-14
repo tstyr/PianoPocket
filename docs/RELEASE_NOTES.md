@@ -1,16 +1,16 @@
-# PianoPocket 0.24.1 — SoundFont対応と音程の調整
+# PianoPocket 0.25.0 — スマホで使えるMIDI編集
 
-SF2・SF3の読み込み、SFZの奏法・排他グループ、再生速度・ミュート・A–B区間を反映した書き出し、トラック別の音源選択に対応しています。
+MIDIライブラリの「⋮ → 編集」または演奏画面の「その他 → MIDIを編集」から、音符を移動・削除し、長さとベロシティを調整できます。縦横両対応、2本指の拡大・縮小、トラック絞り込み、グリッドへの吸着、64操作の取り消し・やり直しに対応しています。
 
-SoundFontでルート音程に既定値−1が明示されている場合、録音したサンプルの音程を使うよう修正しました。以前の版で該当するSoundFontを読み込んだ場合は、再インポートしてください。
+編集結果はコピーとして保存し、元のMIDIとペダル・テンポ・その他のイベントを保持します。同音程・同チャンネルを複数トラックで使ったときのロールのノート終了も修正しました。
 
 ## ダウンロード
 
-- [APKをダウンロード（Android ARM64）](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.1-arm64.apk)
-- [ソースコード ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.1-source.zip)
-- [テスト結果 ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.1-validation.zip)
-- [SHA-256](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.24.1.txt)
+- [APKをダウンロード（Android ARM64）](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.25.0-arm64.apk)
+- [ソースコード ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.25.0-source.zip)
+- [テスト結果 ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.25.0-validation.zip)
+- [SHA-256](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.25.0.txt)
 
 Android 10以降・ARM64用。デバッグ署名の試用版です。
 
-136件の自動テスト、Androidビルド、Lintを確認済み。SF2・SF3の136音色の解析とネイティブ音声生成を確認しています。0.23.0でネイティブ音声テスト・ASan／UBSanを通過しており、以降ネイティブコードは変更していません。追加機能のAndroid実機試験は未実施です。[SoundFontの対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/SOUNDFONT.md)・[トラック別音源](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/TRACK_INSTRUMENTS.md)。
+141件のJVMテスト、Androidビルド、Lintを確認済み。実機でのタッチ操作は未検証です。音符の新規追加・一括編集・編集画面での試聴・途中の自動保存は未対応です。[MIDI編集の使い方](https://github.com/tstyr/PianoPocket/blob/v0.25.0-alpha/docs/MIDI_EDITOR.md)。

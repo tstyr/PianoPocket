@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 40
-        versionName = "0.24.1-alpha"
+        versionCode = 41
+        versionName = "0.25.0-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

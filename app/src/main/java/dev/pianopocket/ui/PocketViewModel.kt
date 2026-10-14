@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val midiEdit: MidiEditSession? = null,val midiEditSaving: Boolean=false,val midiEditError: String="",
     val downloadPack: dev.pianopocket.download.DownloadPack?=null,val download:dev.pianopocket.download.DownloadStatus=dev.pianopocket.download.DownloadStatus(),val downloadedInstrument: String="",
     val soundFavorites: List<String> = emptyList(),
     val backgroundPlayback: Boolean = false,
@@ -393,6 +394,26 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
 
     fun importMidi(uri: Uri)=work { if(state.value.sequence.recording)stopRecording();mutable.update { it.copy(busy=true) };val (entry,song)=midiLibrary.import(uri);selectSong(entry,song);mutable.update { it.copy(busy=false) } }
     fun selectMidi(entry: MidiEntry)=work { selectSong(entry,midiLibrary.load(entry)) }
+    fun editMidi(entry: MidiEntry?=state.value.sequence.library.firstOrNull {it.id==state.value.sequence.selected}) {
+        if(entry==null || state.value.busy || state.value.sequence.recording || state.value.sequence.exporting || state.value.midiEdit!=null)return
+        work {saveCurrentSong();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()
+            val document=dev.pianopocket.editor.MidiEditDocument(midiLibrary.load(entry))
+            mutable.update {it.copy(midiEdit=MidiEditSession(entry,document),midiEditError="",sequence=it.sequence.copy(playing=false))}
+        }
+    }
+    fun closeMidiEditor(){if(!state.value.midiEditSaving)mutable.update {it.copy(midiEdit=null,midiEditError="")}}
+    fun saveMidiEdit(document: dev.pianopocket.editor.MidiEditDocument){
+        val session=state.value.midiEdit ?: return
+        if(state.value.midiEditSaving || session.document!==document || !document.dirty)return
+        mutable.update {it.copy(midiEditSaving=true,midiEditError="")}
+        viewModelScope.launch {withContext(worker){try {
+            val song=document.song();val entry=midiLibrary.save(session.entry.name.substringBeforeLast('.').take(140)+" · 編集.mid",song)
+            val old=songStore.read(session.entry.id);if(old!=null)songStore.write(entry.id,old.copy(position=0,looping=false))
+            selectSong(entry,song)
+            mutable.update {it.copy(midiEdit=null,midiEditSaving=false,message="編集したコピーをMIDIライブラリに保存しました")}
+        }catch(e: Exception){mutable.update {it.copy(midiEditSaving=false,midiEditError=e.message ?: "保存できませんでした")}}
+        catch(e: OutOfMemoryError){mutable.update {it.copy(midiEditSaving=false,midiEditError="メモリが不足しています。ほかのアプリを閉じて再試行してください。")}}}}
+    }
     fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,sourceSong=null,transpose=0,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };songStore.delete(entry.id);if(lastSongSave?.first==entry.id)lastSongSave=null;midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
     fun play()=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work

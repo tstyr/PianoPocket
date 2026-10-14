@@ -116,7 +116,9 @@ private fun makeNotes(messages: List<SongMessage>, duration: Long): List<RollNot
     messages.forEach { e ->
         val ch=e.status and 15
         when(e.status and 0xf0){
-            0x90,0x80 -> if(e.status and 0xf0==0x90 && e.b>0)down[ch][e.a].addLast(Start(e)) else down[ch][e.a].pollFirst()?.let { s->s.released=e.micros;if(pedal[ch])pending[ch]+=s else finish(s,e.micros) }
+            0x90,0x80 -> if(e.status and 0xf0==0x90 && e.b>0)down[ch][e.a].addLast(Start(e)) else {
+                val q=down[ch][e.a];q.firstOrNull {it.message.track==e.track}?.let {s->q.remove(s);s.released=e.micros;if(pedal[ch])pending[ch]+=s else finish(s,e.micros)}
+            }
             0xb0 -> if(e.a==64){pedal[ch]=e.b>=64;if(!pedal[ch]){pending[ch].forEach { finish(it,e.micros) };pending[ch].clear()}}else if(e.a in listOf(120,121,123)){
                 pending[ch].forEach { finish(it,e.micros) };pending[ch].clear();pedal[ch]=false
                 if(e.a!=121)down[ch].forEach { q->while(q.isNotEmpty())finish(q.removeFirst(),e.micros) }

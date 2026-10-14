@@ -17,7 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 // Original vector drawings, with 48dp targets and accessible names / long-press hints.
-enum class PocketIcon { Back, Forward, Play, Pause, Stop, Record, Export, Mixer, Settings, Midi, Library, Close, More, Zoom, Pedal, Roll, Info, Eye }
+enum class PocketIcon { Back, Forward, Play, Pause, Stop, Record, Export, Mixer, Settings, Midi, Library, Close, More, Zoom, Pedal, Roll, Info, Eye, Undo, Redo, Delete }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PocketIconButton(icon: PocketIcon,label: String,modifier: Modifier=Modifier,enabled: Boolean=true,selected: Boolean=false,onClick:()->Unit) {
@@ -30,6 +30,14 @@ fun PocketIconButton(icon: PocketIcon,label: String,modifier: Modifier=Modifier,
                 fun line(x: Float,y: Float,xx: Float,yy: Float)=drawLine(color,point(x,y),point(xx,yy),1.7f*unit,StrokeCap.Round)
                 fun rect(x: Float,y: Float,w: Float,h: Float,fill: Boolean=false)=drawRect(color,point(x,y),Size(w*unit,h*unit),style=if(fill)androidx.compose.ui.graphics.drawscope.Fill else Stroke(1.7f*unit))
                 when(icon) {
+                    PocketIcon.Undo, PocketIcon.Redo -> {
+                        val flip=icon==PocketIcon.Redo
+                        fun xp(x: Float)=if(flip)24f-x else x
+                        line(xp(4f),8f,xp(13f),8f);line(xp(4f),8f,xp(8f),4f);line(xp(4f),8f,xp(8f),12f)
+                        drawArc(color,if(flip)90f else -90f,if(flip)-180f else 180f,false,point(if(flip)5f else 11f,8f),Size(8*unit,10*unit),style=Stroke(1.7f*unit))
+                        line(xp(15f),18f,xp(9f),18f)
+                    }
+                    PocketIcon.Delete -> {line(5f,6f,19f,6f);line(9f,3f,15f,3f);rect(7f,6f,10f,15f);line(10f,10f,10f,17f);line(14f,10f,14f,17f)}
                     PocketIcon.Eye -> {
                         drawPath(Path().apply {moveTo(2*unit,12*unit);cubicTo(7*unit,3*unit,17*unit,3*unit,22*unit,12*unit);cubicTo(17*unit,21*unit,7*unit,21*unit,2*unit,12*unit);close()},color,style=Stroke(1.7f*unit))
                         drawCircle(color,3*unit,point(12f,12f),style=Stroke(1.7f*unit))

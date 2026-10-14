@@ -69,7 +69,15 @@ fun MidiLibraryPanel(state: PocketState,model: PocketViewModel,importMidi:()->Un
                         Text(entry.name,style=MaterialTheme.typography.titleSmall,maxLines=3)
                         Text("${"%.1f".format(entry.bpm)} BPM · ${durationLabel(entry.duration)}",style=MaterialTheme.typography.labelMedium)
                         Text(DateFormat.getDateInstance(DateFormat.SHORT).format(Date(entry.imported)),style=MaterialTheme.typography.labelSmall)
-                        Row { TextButton(onClick={model.selectMidi(entry);onOpen()},enabled=!state.busy && !seq.recording){Text(if(entry.id==seq.selected)"選択中"else "開く")};TextButton(onClick={deleting=entry},enabled=!state.busy && !seq.recording){Text("削除")}}
+                        var menu by remember(entry.id){mutableStateOf(false)}
+                        Row {TextButton(onClick={model.selectMidi(entry);onOpen()},enabled=!state.busy && !seq.recording){Text(if(entry.id==seq.selected)"選択中"else "開く")}
+                            Box {PocketIconButton(PocketIcon.More,"MIDIの編集・削除",enabled=!state.busy && !seq.recording && !seq.exporting,onClick={menu=true})
+                                DropdownMenu(expanded=menu,onDismissRequest={menu=false}){
+                                    DropdownMenuItem(text={Text("編集")},onClick={menu=false;model.editMidi(entry)})
+                                    DropdownMenuItem(text={Text("削除")},onClick={menu=false;deleting=entry})
+                                }
+                            }
+                        }
                     }
                 }
             }

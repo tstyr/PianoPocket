@@ -42,9 +42,9 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
     val activity=LocalActivity.current
     val window=LocalWindowInfo.current.containerSize
     val landscape=window.width>window.height
-    DisposableEffect(activity,tab,state.landscapePerformance) {
+    DisposableEffect(activity,tab,state.landscapePerformance,state.midiEdit!=null) {
         if(activity==null)return@DisposableEffect onDispose {}
-        activity.requestedOrientation=if(tab==0 && state.landscapePerformance)ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        activity.requestedOrientation=if(tab==0 && state.landscapePerformance && state.midiEdit==null)ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         val bars=WindowCompat.getInsetsController(activity.window,activity.window.decorView)
         bars.systemBarsBehavior=WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         if(tab==0)bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
@@ -56,7 +56,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         else if(tab==3 && settingsPage.parent!=null)settingsPage=settingsPage.parent!!
         else tab=0
     }
-    BackHandler(tab!=0 || instrument || uiHidden,onBack=back)
+    BackHandler(state.midiEdit==null && (tab!=0 || instrument || uiHidden),onBack=back)
     var lastMidi by rememberSaveable { mutableStateOf(state.sequence.selected) }
     LaunchedEffect(state.sequence.selected){
         if(state.sequence.selected!=lastMidi && tab==1 && state.sequence.selected.isNotBlank())tab=0
@@ -66,7 +66,9 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         state.sequence.previewPath?.let {VideoPreview(it,model)}
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
-                if(tab==0) {
+                if(state.midiEdit!=null) {
+                    MidiEditor(state.midiEdit!!,state.midiEditSaving,state.midiEditError,model::closeMidiEditor,model::saveMidiEdit)
+                } else if(tab==0) {
                     PerformanceFrameClock(activity,model,state.targetFps)
                     BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
                         val panelWidth=if(landscape) minOf(420.dp,maxWidth*.6f) else maxWidth

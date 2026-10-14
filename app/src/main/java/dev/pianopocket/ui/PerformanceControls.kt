@@ -56,6 +56,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                         if(!inlineSeek)DropdownMenuItem(text={Text("すべての音を停止")},onClick={more=false;model.panic()})
                         if(seq.song!=null && !seq.recording)DropdownMenuItem(text={Text("再生位置")},enabled=!state.busy && !seq.exporting,onClick={more=false;seekDialog=true})
                         DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
+                        DropdownMenuItem(text={Text("MIDIを編集")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;model.editMidi()})
                         DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
                         DropdownMenuItem(text={Text("転調${if(seq.transpose==0)""else " · ${if(seq.transpose>0)"+"else ""}${seq.transpose}"}")},enabled=seq.song!=null && state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;transposing=true})
                         DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})

@@ -263,3 +263,11 @@ SF2・SF3の読み込み、SFZの奏法・排他グループ、再生速度・�
 SoundFontでルート音程に既定値−1が明示されている場合、録音したサンプルの音程を使うよう修正しました。以前の版で該当するSoundFontを読み込んだ場合は、再インポートしてください。
 
 136 JVM tests・Androidビルド・Lint PASS。APK 63751103 bytes / SHA-256 `e411d6fe46bbef52d5941c7e5dd0c814fd3dc0a30e6827d121c2578025ae8c44`。136件の自動テスト、Androidビルド、Lintを確認済み。SF2・SF3の136音色の解析とネイティブ音声生成を確認しています。0.23.0でネイティブ音声テスト・ASan／UBSanを通過しており、以降ネイティブコードは変更していません。追加機能のAndroid実機試験は未実施です。[SoundFontの対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/SOUNDFONT.md)・[トラック別音源](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/TRACK_INSTRUMENTS.md)。 開発環境の実機／エミュレーター未接続。
+
+## 0.25.0-alpha — スマホで使えるMIDI編集
+
+MIDIライブラリの「⋮ → 編集」または演奏画面の「その他 → MIDIを編集」から、音符を移動・削除し、長さとベロシティを調整できます。縦横両対応、2本指の拡大・縮小、トラック絞り込み、グリッドへの吸着、64操作の取り消し・やり直しに対応しています。
+
+編集結果はコピーとして保存し、元のMIDIとペダル・テンポ・その他のイベントを保持します。同音程・同チャンネルを複数トラックで使ったときのロールのノート終了も修正しました。
+
+141 JVM tests・Androidビルド・Lint PASS。APK 64183882 bytes / SHA-256 `d1decab9a9c6ba47a76e6e44fc3d54032f9b470d25a32c5b6f70825e4c26deba`。141件のJVMテスト、Androidビルド、Lintを確認済み。実機でのタッチ操作は未検証です。音符の新規追加・一括編集・編集画面での試聴・途中の自動保存は未対応です。[MIDI編集の使い方](https://github.com/tstyr/PianoPocket/blob/v0.25.0-alpha/docs/MIDI_EDITOR.md)。 開発環境の実機／エミュレーター未接続。
