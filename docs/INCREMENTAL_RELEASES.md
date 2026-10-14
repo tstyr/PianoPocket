@@ -255,3 +255,11 @@ SFZのキースイッチで奏法を切り替えられます。音源パネル�
 SF2対応、SFZの奏法・排他グループ、再生設定を反映した書き出し、トラック別音源も含まれます。
 
 135 JVM tests・Androidビルド・Lint PASS。APK 63974686 bytes / SHA-256 `df87c1cdc5d07373129feadd73080a30e1df0a52a7e9ad980b862f9a9735fc87`。135件の自動テスト、Androidビルド、Lintを確認済み。検証用に生成したSF3の520個のVorbisサンプルを本番デコーダーで復号し、136音色の解析とピアノの音声生成を確認しました。SF3は展開用の空き容量が必要です。追加機能のAndroid実機試験は未実施です。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.24.0-alpha/docs/SOUNDFONT.md)。 開発環境の実機／エミュレーター未接続。
+
+## 0.24.1-alpha — SoundFont対応と音程の調整
+
+SF2・SF3の読み込み、SFZの奏法・排他グループ、再生速度・ミュート・A–B区間を反映した書き出し、トラック別の音源選択に対応しています。
+
+SoundFontでルート音程に既定値−1が明示されている場合、録音したサンプルの音程を使うよう修正しました。以前の版で該当するSoundFontを読み込んだ場合は、再インポートしてください。
+
+136 JVM tests・Androidビルド・Lint PASS。APK 63751103 bytes / SHA-256 `e411d6fe46bbef52d5941c7e5dd0c814fd3dc0a30e6827d121c2578025ae8c44`。136件の自動テスト、Androidビルド、Lintを確認済み。SF2・SF3の136音色の解析とネイティブ音声生成を確認しています。0.23.0でネイティブ音声テスト・ASan／UBSanを通過しており、以降ネイティブコードは変更していません。追加機能のAndroid実機試験は未実施です。[SoundFontの対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/SOUNDFONT.md)・[トラック別音源](https://github.com/tstyr/PianoPocket/blob/v0.24.1-alpha/docs/TRACK_INSTRUMENTS.md)。 開発環境の実機／エミュレーター未接続。

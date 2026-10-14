@@ -64,6 +64,12 @@ class SoundFontTest {
         assertEquals(1,data.getShort(22).toInt());assertEquals(48000,data.getInt(24));assertEquals(512*2,data.getInt(40));assertTrue(data.getShort(44+32).toInt()>9000)
         assertTrue(File(imported[0].file.path+".warnings").readText().contains("近似"))
     }}
+    @Test fun explicitUnsetRootOverrideUsesTheRecordedSamplePitch(){exercise {file,target->
+        val bytes=SoundFontFixture.bank();val text=bytes.toString(Charsets.ISO_8859_1);val gen=text.indexOf("igen")+8;val shdr=text.indexOf("shdr")+8
+        val b=ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);b.putShort(gen+16,58);b.putShort(gen+18,-1);b.put(shdr+40,72)
+        file.writeBytes(bytes);val preset=SoundFontReader.import(file,target).first()
+        val region=SfzParser().parse(preset.file.readText(),"A").regions.single();assertEquals(72,region.ints[3])
+    }}
     @Test fun rejectsOutOfBoundsSamplesAndRomSamples(){exercise {file,target->
         file.writeBytes(SoundFontFixture.bank(sampleEnd=1000000));assertTrue(runCatching {SoundFontReader.import(file,target)}.isFailure)
         file.writeBytes(SoundFontFixture.bank(rom=true));assertTrue(runCatching {SoundFontReader.import(file,target)}.isFailure)

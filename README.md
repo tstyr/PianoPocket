@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを聴く、演奏を録る。
 無料・広告なし・アカウント不要。音源の追加ダウンロードを除き、オフラインで使えます。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.24.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.1-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.24.1-alpha)
 
-Android 10以降・ARM64対応。現在は **0.24.0 alpha**、デバッグ署名の試用版です。
+Android 10以降・ARM64対応。現在は **0.24.1 alpha**、デバッグ署名の試用版です。
 
 ## はじめる
 
