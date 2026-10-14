@@ -1,12 +1,14 @@
 #pragma once
 #include "SampleCache.h"
+#include "Effects.h"
 #include <array>
 #include <memory>
 #include <stdexcept>
 namespace pocket {
+constexpr int BankCount=9;
 enum class Trigger:int {Attack=0,Release=1,PedalDown=2,PedalUp=3};
 struct Region {
-    unsigned sample=0,group=0;
+    unsigned sample=0,group=0,bank=0;
     int low=0,high=127,root=60,lowVel=1,highVel=127;
     Trigger trigger=Trigger::Attack;
     float gain=1,pan=0,tune=0,attack=.003f,decay=.1f,sustain=1,release=.25f,velTrack=1,keyTrack=1;
@@ -30,16 +32,22 @@ struct Instrument {
     std::unique_ptr<SampleCache> cache;
     std::array<std::vector<unsigned>,128> switchLookup;
     int switchDefault=-1;
+    std::array<int,BankCount> switchDefaults{};
+    std::array<std::array<bool,128>,BankCount> controlKeys{};
+    std::array<int,256> trackBanks{};
+    std::array<std::vector<EffectSpec>,BankCount> bankEffects;
+    std::array<float,BankCount> bankMaster{};
+    int banks=1;
     size_t residentBytes=0,memoryBudget=0;
-    Instrument(){for(auto& curve:velocityGains)curve.fill(1);}
+    Instrument(){for(auto& curve:velocityGains)curve.fill(1);switchDefaults.fill(-1);bankMaster.fill(1);}
     void prepare(bool offline=false){
         for(auto& kind:lookup)for(auto& notes:kind)notes.clear();
         for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];
             if(r.trigger==Trigger::PedalDown || r.trigger==Trigger::PedalUp)lookup[int(r.trigger)][60].push_back(i);
             else for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);
         }
-        switchDefault=-1;for(auto& notes:switchLookup)notes.clear();
-        for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];if(r.switchDefault>=0)switchDefault=r.switchDefault;for(int k=r.switchLow;k>=0 && k<=r.switchHigh;++k)switchLookup[k].push_back(i);}
+        switchDefault=-1;switchDefaults.fill(-1);for(auto& row:controlKeys)row.fill(false);for(auto& notes:switchLookup)notes.clear();
+        for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];if(r.bank>=BankCount)throw std::runtime_error("Instrument bank limit exceeded");banks=std::max(banks,int(r.bank)+1);if(r.switchDefault>=0){switchDefaults[r.bank]=r.switchDefault;if(r.bank==0)switchDefault=r.switchDefault;}for(int k=r.switchLow;k>=0 && k<=r.switchHigh;++k){switchLookup[k].push_back(i);controlKeys[r.bank][k]=true;}}
         size_t heads=0,streamPages=0;
         for(auto& s:samples){
             heads+=s.head.size()*sizeof(float);

@@ -21,8 +21,10 @@ object ExportRenderer {
             require(context.cacheDir.usableSpace>needed+128*1048576){"書き出し用の空き容量が不足しています"}
             NativeAudio.exportBegin(r.memoryMiB,r.rate)
             r.regions.forEach {cancelled();NativeAudio.region(it.path,it.ints,it.floats)};r.curves.forEach { (g,c)->NativeAudio.velocityCurve(g,c) };r.effects.forEach {cancelled();NativeAudio.effect(it.type,it.params,it.ir)}
+            r.banks.forEach {bank->bank.regions.forEach {cancelled();NativeAudio.region(it.path,it.ints,it.floats)};bank.curves.forEach {(g,c)->NativeAudio.velocityCurve(g,c)};bank.effects.forEach {cancelled();NativeAudio.bankEffect(bank.bank,it.type,it.params,it.ir)};NativeAudio.bankMaster(bank.bank,bank.master);bank.groups.forEach {(g,v)->NativeAudio.exportControl(6,g,0,v)}}
+            r.trackBanks.forEach {(track,bank)->NativeAudio.trackRoute(track,bank)}
             NativeAudio.exportControl(4,0,0,r.volume);NativeAudio.exportControl(8,r.voices,0,0f);r.groups.forEachIndexed {i,g->NativeAudio.exportControl(6,i,0,g)};r.master.forEach {NativeAudio.exportControl(9,0,0,it)}
-            val messages=r.song.messages;val times=LongArray(messages.size){messages[it].micros};val data=IntArray(messages.size*3);messages.forEachIndexed {i,e->data[i*3]=e.status;data[i*3+1]=e.a;data[i*3+2]=e.b}
+            val messages=r.song.messages;val times=LongArray(messages.size){messages[it].micros};val data=IntArray(messages.size*4);messages.forEachIndexed {i,e->data[i*4]=e.status;data[i*4+1]=e.a;data[i*4+2]=e.b;data[i*4+3]=e.track}
             val pcmWeight=if(r.format.compressed).35f else .95f
             ExportCoordinator.native(id,10,"音声生成",0f,pcmWeight){NativeAudio.exportWav(temp.path,times,data,r.song.duration,r.format.bits,r.tail)}
             var rendered=temp;cancelled()

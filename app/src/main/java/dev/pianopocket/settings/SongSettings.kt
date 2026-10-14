@@ -10,7 +10,7 @@ data class SongSettings(
     val instrument: String = "", val transpose: Int = 0, val speed: Float = 1f,
     val position: Long = 0, val loopA: Long = 0, val loopB: Long = 0, val looping: Boolean = false,
     val viewport: KeyboardViewport = KeyboardViewport(),
-    val mutedTracks: Set<Int> = emptySet(), val hiddenTracks: Set<Int> = emptySet()
+    val mutedTracks: Set<Int> = emptySet(), val hiddenTracks: Set<Int> = emptySet(), val trackInstruments: Map<Int,String> = emptyMap()
 ) {
     fun restore(sequence: SequenceState): SequenceState {
         val song = checkNotNull(sequence.song)
@@ -19,12 +19,12 @@ data class SongSettings(
         return sequence.copy(transpose = transpose, speed = speed, position = position.coerceIn(0, song.duration),
             loopA = a, loopB = b, looping = looping && b - a >= 100000,
             viewport = viewport, mutedTracks = mutedTracks.filter { it < song.tracks }.toSet(),
-            hiddenTracks = hiddenTracks.filter { it < song.tracks }.toSet(), playing = false)
+            hiddenTracks = hiddenTracks.filter { it < song.tracks }.toSet(), trackInstruments = trackInstruments.filterKeys {it < song.tracks}, playing = false)
     }
     companion object {
         fun capture(instrument: String, sequence: SequenceState) = SongSettings(instrument, sequence.transpose,
             sequence.speed, sequence.position, sequence.loopA, sequence.loopB, sequence.looping,
-            sequence.viewport, sequence.mutedTracks, sequence.hiddenTracks)
+            sequence.viewport, sequence.mutedTracks, sequence.hiddenTracks,sequence.trackInstruments)
     }
 }
 
@@ -35,7 +35,7 @@ class SongSettingsStore(private val home: File) {
         val source = file(id)
         if (!source.exists()) return null
         try {
-            require(source.length() <= 16384)
+            require(source.length() <= 131072)
             return decode(source.readBytes())
         } catch (error: Exception) {
             // Retain corrupt data for inspection, and allow the original MIDI to open normally.
@@ -59,20 +59,22 @@ class SongSettingsStore(private val home: File) {
             require(view.zoom.isFinite() && view.zoom in 1f..6.5f && view.start.isFinite() && view.start in 0f..view.maxStart)
             val bytes = ByteArrayOutputStream()
             DataOutputStream(bytes).use { out ->
-                out.writeInt(0x50505331); out.writeUTF(settings.instrument); out.writeInt(settings.transpose)
+                out.writeInt(0x50505332); out.writeUTF(settings.instrument); out.writeInt(settings.transpose)
                 out.writeFloat(settings.speed); out.writeLong(settings.position); out.writeLong(settings.loopA)
                 out.writeLong(settings.loopB); out.writeBoolean(settings.looping); out.writeFloat(view.zoom); out.writeFloat(view.start)
                 listOf(settings.mutedTracks, settings.hiddenTracks).forEach { tracks ->
                     require(tracks.size <= 1024 && tracks.all { it in 0..1023 })
                     out.writeInt(tracks.size); tracks.sorted().forEach(out::writeInt)
                 }
+                require(settings.trackInstruments.size<=256);out.writeInt(settings.trackInstruments.size)
+                settings.trackInstruments.toSortedMap().forEach {(track,id)->require(track in 0..255 && id.isNotBlank() && id.length<=256);out.writeInt(track);out.writeUTF(id)}
             }
-            return bytes.toByteArray()
+            return bytes.toByteArray().also {require(it.size<=131072)}
         }
         fun decode(bytes: ByteArray): SongSettings {
-            require(bytes.size <= 16384)
+            require(bytes.size <= 131072)
             DataInputStream(bytes.inputStream()).use { input ->
-                require(input.readInt() == 0x50505331)
+                val version=input.readInt();require(version in listOf(0x50505331,0x50505332))
                 val instrument = input.readUTF(); val transpose = input.readInt(); val speed = input.readFloat()
                 val position = input.readLong(); val a = input.readLong(); val b = input.readLong(); val loop = input.readBoolean()
                 val viewport = KeyboardViewport(input.readFloat(), input.readFloat())
@@ -82,7 +84,8 @@ class SongSettingsStore(private val home: File) {
                     require(list.distinct().size == count)
                     return list.toSet()
                 }
-                val settings = SongSettings(instrument, transpose, speed, position, a, b, loop, viewport, tracks(), tracks())
+                val muted=tracks();val hidden=tracks();val choices=linkedMapOf<Int,String>();if(version==0x50505332){val n=input.readInt();require(n in 0..256);repeat(n){val track=input.readInt();val id=input.readUTF();require(choices.put(track,id)==null)}}
+                val settings = SongSettings(instrument, transpose, speed, position, a, b, loop, viewport, muted, hidden,choices)
                 require(input.read() == -1); encode(settings) // Validate all values before restoration.
                 return settings
             }

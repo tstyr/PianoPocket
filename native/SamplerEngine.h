@@ -8,7 +8,7 @@
 #include "MidiOutputQueue.h"
 #include <mutex>
 namespace pocket {
-struct Event {int type=0,channel=0,a=0,b=0;float value=0;};
+struct Event {int type=0,channel=0,a=0,b=0;float value=0;int track=-1;};
 struct TimedEvent {int64_t frame=0;Event event;};
 struct PracticeGate {int64_t frame=0;std::array<uint64_t,2> keys{};};
 struct PracticeBeat {int64_t frame=0;bool accent=false;};
@@ -24,17 +24,20 @@ struct Voice {
     VoiceFilter filter;
 };
 class SamplerEngine {
-    struct Key { uint64_t id=0; int velocity=0; bool down=false,pending=false; };
+    struct Key { uint64_t id=0; int velocity=0; bool down=false,pending=false;int track=-1; };
     std::unique_ptr<Instrument> instrument;
     Effects effects;
+    std::array<Effects,BankCount-1> extraEffects;
+    std::array<std::array<float,512>,BankCount> busAudio{};
     OutputLimiter outputLimiter;
     static constexpr int MaxVoices=1024;
     std::vector<Voice> voices=std::vector<Voice>(MaxVoices); // allocated before audio starts
-    std::array<std::array<std::array<Key,4>,128>,33> keys{};
+    std::vector<std::array<std::array<Key,16>,128>> keys=std::vector<std::array<std::array<Key,16>,128>>(33);
     std::array<std::array<int,128>,33> controllers{};
     std::array<float,33> bends{};
-    std::array<int,33> switches{};
-    std::array<int,16> loopSwitches{};
+    std::array<std::array<int,33>,BankCount> switches{};
+    std::array<std::array<int,16>,BankCount> loopSwitches{};
+    std::array<int,16> channelBanks{};
     std::array<std::array<bool,120>,33> controllerSeen{};
     std::array<int,33> programs{};
     std::array<int,16> loopPrograms{};
@@ -91,8 +94,8 @@ class SamplerEngine {
     void rewindLoop() noexcept;
     void dispatch(const Event&) noexcept;
     void clearKeys() noexcept {for(auto& channel:keys)for(auto& note:channel)for(auto& key:note)key=Key{};}
-    void trigger(Trigger,int channel,int note,int velocity,uint64_t id) noexcept;
-    void releaseId(int channel,int note,uint64_t id,int velocity) noexcept;
+    void trigger(Trigger,int channel,int note,int velocity,uint64_t id,int track=-1,int bank=-1) noexcept;
+    void releaseId(int channel,int note,uint64_t id,int velocity,int track=-1) noexcept;
 public:
     std::atomic<int> activeVoices{0};
     std::atomic<uint64_t> droppedEvents{0},stolenVoices{0};

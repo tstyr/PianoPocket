@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを聴く、演奏を録る。
 無料・広告なし・アカウント不要。音源の追加ダウンロードを除き、オフラインで使えます。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.22.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.22.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.23.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.23.0-alpha)
 
-Android 10以降・ARM64対応。現在は **0.22.0 alpha**、デバッグ署名の試用版です。
+Android 10以降・ARM64対応。現在は **0.23.0 alpha**、デバッグ署名の試用版です。
 
 ## はじめる
 
@@ -21,11 +21,14 @@ MIDIライブラリに `.mid` / `.midi` を追加すると、降ってくるノ�
 
 - USB / Bluetooth MIDIの入力と出力、サステイン、MIDI録音。
 - 再生速度の変更、±2オクターブの転調、A–Bリピート、トラックのミュート。
+- トラックごとの音源選択。ピアノ・弦・ドラムを別々の音色で鳴らせます。
 - 正しい鍵盤を押すまで待つ練習、左右別の伴奏、メトロノーム。
 - マイクミキサー、エフェクト、音源設定のお気に入り。SFZの奏法は音源パネルやキースイッチで選べます。
 - ロールビューとドレミの切り替え、操作ボタンの非表示、最大120fpsの画面更新。
 
 転調はMIDI再生と書き出しに反映します。ドラムチャンネル、画面鍵盤、入力キーボードの音程は変わりません。[MIDI出力の使い方](docs/MIDI_OUTPUT.md)。
+
+「その他 → 練習・メトロノーム」のトラック欄で、各トラックの音源を選べます。指定しなければ主音源を使います。[使い方と上限](docs/TRACK_INSTRUMENTS.md)。
 
 「その他 → 鳴らす音」で内蔵音源・外部MIDI・両方を切り替えできます。外部MIDIの送信先は「設定 → MIDI入出力」で選びます。接続が切れたときは内蔵音源に戻ります。書き出しは選択した音源と保存済みの音量を使います。
 

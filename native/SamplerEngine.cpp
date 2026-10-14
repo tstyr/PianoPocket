@@ -4,27 +4,31 @@
 namespace pocket {
 void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr){
     Effects prepared;prepared.prepare(fx,sr);
+    const std::vector<EffectSpec> empty;std::array<Effects,BankCount-1> extraPrepared;for(int i=1;i<BankCount;++i)extraPrepared[i-1].prepare(bank?bank->bankEffects[i]:empty,sr);
+    if(bank)for(auto& chain:bank->bankEffects)chain.clear();
     if(rate!=sr){for(auto& e:timeline)e.frame=int64_t(std::llround(e.frame*double(sr)/rate));for(auto& g:gates)g.frame=int64_t(std::llround(g.frame*double(sr)/rate));for(auto& b:beats)b.frame=int64_t(std::llround(b.frame*double(sr)/rate));playFrame=playFrame*double(sr)/rate;totalFrames=int64_t(std::llround(totalFrames*double(sr)/rate));loopStartFrame=int64_t(std::llround(loopStartFrame*double(sr)/rate));loopEndFrame=int64_t(std::llround(loopEndFrame*double(sr)/rate));}
     instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
     sequenceCounts.assign(instrument?instrument->regions.size():0,0);randomState=0x8a341316;
     if(instrument)for(auto& r:instrument->regions)r.filterCoefficients=VoiceFilter::coefficients(r.filterType,r.cutoff,r.resonance,sr);
-    switches.fill(instrument?instrument->switchDefault:-1);
+    for(int bank=0;bank<BankCount;++bank)switches[bank].fill(instrument?instrument->switchDefaults[bank]:-1);
+    channelBanks.fill(1);
     clearKeys();
     controllerSeen={};programs.fill(-1);midiTimestamp=0;midiOut->reset(0xffff,false,0);
     resetPracticePosition(int64_t(playFrame));metroRemaining=0;metroCountdown=0;
     instrumentVolume=targetInstrumentVolume=1;
     diagnosticMode=0;diagnosticFx=1;diagnosticTone=0;tonePhaseL=tonePhaseR=0;
     for(auto& c:controllers){c.fill(0);c[7]=c[11]=127;}bends.fill(0);groupGains.fill(1);
-    effects=std::move(prepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);stolenVoices.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
+    effects=std::move(prepared);extraEffects=std::move(extraPrepared);outputLimiter.prepare(sr);inputPeak.store(0);gainReductionDb.store(0);stolenVoices.store(0);Event discard;while(events.pop(discard)){}panic.store(false);
     playing=false;reportedPlaying.store(false);
 }
 bool SamplerEngine::send(Event e){std::lock_guard<std::mutex> lock(producer);if(events.push(e))return true;droppedEvents.fetch_add(1);panic.store(true);return false;}
-void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) noexcept {
+void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id,int track,int forcedBank) noexcept {
     if(!instrument)return;
+    const int destination=forcedBank>=0?forcedBank:(track>=0 && track<256?instrument->trackBanks[track]:0);
     randomState^=randomState<<13;randomState^=randomState>>17;randomState^=randomState<<5;
     const double random=randomState/4294967296.;
     for(auto index:instrument->lookup[int(kind)][note]){
-        auto& r=instrument->regions[index];if((r.switchLast>=0 && switches[ch]!=r.switchLast) || !r.enabled || vel<r.lowVel || vel>r.highVel || (r.cc>=0 && (controllers[ch][r.cc]<r.ccLow || controllers[ch][r.cc]>r.ccHigh)))continue;
+        auto& r=instrument->regions[index];if(r.bank!=unsigned(destination) || (r.switchLast>=0 && switches[r.bank][ch]!=r.switchLast) || !r.enabled || vel<r.lowVel || vel>r.highVel || (r.cc>=0 && (controllers[ch][r.cc]<r.ccLow || controllers[ch][r.cc]>r.ccHigh)))continue;
         auto& sequence=sequenceCounts[index];unsigned position=sequence+1;if(++sequence>=unsigned(r.sequenceLength))sequence=0;
         if(position!=unsigned(r.sequencePosition) || random<r.randomLow || random>=r.randomHigh)continue;
         float fade=1;
@@ -32,7 +36,7 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         if(r.fadeInLow>=0 && r.fadeInHigh>r.fadeInLow)fade*=std::clamp(float(vel-r.fadeInLow)/(r.fadeInHigh-r.fadeInLow),0.f,1.f);
         if(r.fadeOutLow>=0 && r.fadeOutHigh>r.fadeOutLow)fade*=std::clamp(float(r.fadeOutHigh-vel)/(r.fadeOutHigh-r.fadeOutLow),0.f,1.f);
         if(fade<=0)continue;
-        if(r.offGroup!=0)for(auto& victim:voices)if(victim.active && victim.id!=id && victim.channel==ch && instrument->regions[victim.region].offBy==r.offGroup){
+        if(r.offGroup!=0)for(auto& victim:voices)if(victim.active && victim.id!=id && victim.channel==ch && instrument->regions[victim.region].bank==r.bank && instrument->regions[victim.region].offBy==r.offGroup){
             auto& old=instrument->regions[victim.region];victim.held=false;victim.pending=false;
             if(old.offMode==1)victim.envelope.off(rate);else {victim.envelope.stage=Envelope::Release;victim.envelope.releaseStep=victim.envelope.value/(rate*.005f);}
         }
@@ -58,43 +62,44 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         instrument->cache->prefetch(r.sample,r.start+4096);instrument->cache->prefetch(r.sample,r.start+8192);
     }
 }
-void SamplerEngine::releaseId(int ch,int note,uint64_t id,int velocity) noexcept {
+void SamplerEngine::releaseId(int ch,int note,uint64_t id,int velocity,int track) noexcept {
     for(auto& key:keys[ch][note])if(key.id==id)key=Key{};
     for(auto& v:voices)if(v.active && v.id==id && v.channel==ch){v.pending=false;if(!instrument->regions[v.region].oneShot)v.envelope.off(rate);}
-    trigger(Trigger::Release,ch,note,velocity,++nextId);
+    trigger(Trigger::Release,ch,note,velocity,++nextId,track);
 }
 void SamplerEngine::dispatch(const Event& input) noexcept {
-    const Event e{input.type&255,input.channel,input.a,input.b,input.value};
+    const Event e{input.type&255,input.channel,input.a,input.b,input.value,input.track};
+    const int destination=instrument && e.track>=0 && e.track<256?instrument->trackBanks[e.track]:0;
     int ch=std::clamp(e.channel,0,32),a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);
     if(!midiChasing && !(input.type&256)){
         if(e.type==0 || e.type==1 || e.type==2)midiOut->message(ch,e.type==0?0x90:e.type==1?0x80:0xb0,a,b,midiTimestamp);
         else if(e.type==3){int pitch=std::clamp(int(std::lround(e.value*4096+8192)),0,16383);midiOut->message(ch,0xe0,pitch&127,pitch>>7,midiTimestamp);}
         else if(e.type==14)midiOut->message(ch,int(e.value),a,b,midiTimestamp);
     }
-    if(instrument && (e.type==0 || e.type==1) && !instrument->switchLookup[a].empty()){
-        if(e.type==0 && b>0)switches[ch]=a;
+    if(instrument && (e.type==0 || e.type==1) && instrument->controlKeys[destination][a]){
+        if(e.type==0 && b>0)switches[destination][ch]=a;
         return;
     }
     if(e.type==0 && b>0 && ch<=16){++liveSerial[a];liveOnFrame[a]=audioFrame;}
     if(e.type==0 && b>0){
         auto& stack=keys[ch][a];Key* key=&stack[0];
         for(auto& candidate:stack)if(!candidate.id){key=&candidate;break;}else if(candidate.id<key->id)key=&candidate;
-        if(key->id)releaseId(ch,a,key->id,key->velocity);
-        *key={++nextId,b,true,false};trigger(Trigger::Attack,ch,a,b,key->id);
+        if(key->id)releaseId(ch,a,key->id,key->velocity,key->track);
+        *key={++nextId,b,true,false,e.track};trigger(Trigger::Attack,ch,a,b,key->id,e.track);
     }
     else if(e.type==1 || (e.type==0 && b==0)){
-        Key* key=nullptr;for(auto& candidate:keys[ch][a])if(candidate.id && candidate.down && (!key || candidate.id<key->id))key=&candidate;
+        Key* key=nullptr;for(auto& candidate:keys[ch][a])if(candidate.id && candidate.down && candidate.track==e.track && (!key || candidate.id<key->id))key=&candidate;
         if(key){key->down=false;key->pending=controllers[ch][64]>=64;for(auto& v:voices)if(v.active && v.id==key->id){v.held=false;v.pending=key->pending;}
-            if(!key->pending)releaseId(ch,a,key->id,key->velocity);}
+            if(!key->pending)releaseId(ch,a,key->id,key->velocity,key->track);}
     }else if(e.type==2){
         if(a<120)controllerSeen[ch][a]=true;
         int previous=controllers[ch][a];controllers[ch][a]=b;
         if(a==64 && (previous>=64)!=(b>=64)){
-            trigger(b>=64?Trigger::PedalDown:Trigger::PedalUp,ch,60,b>=64?127:64,++nextId);
-            if(b<64){for(int note=0;note<128;++note)for(auto& key:keys[ch][note])if(key.id && key.pending){auto id=key.id;auto vel=key.velocity;releaseId(ch,note,id,vel);}}
+            const int mask=ch>=17?channelBanks[ch-17]:1;for(int bank=0;bank<BankCount;++bank)if(mask&(1<<bank))trigger(b>=64?Trigger::PedalDown:Trigger::PedalUp,ch,60,b>=64?127:64,++nextId,-1,bank);
+            if(b<64){for(int note=0;note<128;++note)for(auto& key:keys[ch][note])if(key.id && key.pending){auto id=key.id;auto vel=key.velocity;auto track=key.track;releaseId(ch,note,id,vel,track);}}
         }
         if(a==120 || a==123){keys[ch]={};controllers[ch][64]=0;for(auto& v:voices)if(v.channel==ch){v.held=false;v.pending=false;if(a==120)v.active=false;else v.envelope.off(rate);}}
-        if(a==121){int bank0=controllers[ch][0],bank32=controllers[ch][32];bool seen0=controllerSeen[ch][0],seen32=controllerSeen[ch][32];controllerSeen[ch]={};controllerSeen[ch][0]=seen0;controllerSeen[ch][32]=seen32;controllers[ch].fill(0);controllers[ch][0]=bank0;controllers[ch][32]=bank32;controllers[ch][7]=controllers[ch][11]=127;bends[ch]=0;for(int note=0;note<128;++note)for(auto& key:keys[ch][note])if(key.id && key.pending)releaseId(ch,note,key.id,key.velocity);for(auto& v:voices)if(v.channel==ch && !v.held)v.envelope.off(rate);}
+        if(a==121){int bank0=controllers[ch][0],bank32=controllers[ch][32];bool seen0=controllerSeen[ch][0],seen32=controllerSeen[ch][32];controllerSeen[ch]={};controllerSeen[ch][0]=seen0;controllerSeen[ch][32]=seen32;controllers[ch].fill(0);controllers[ch][0]=bank0;controllers[ch][32]=bank32;controllers[ch][7]=controllers[ch][11]=127;bends[ch]=0;for(int note=0;note<128;++note)for(auto& key:keys[ch][note])if(key.id && key.pending)releaseId(ch,note,key.id,key.velocity,key.track);for(auto& v:voices)if(v.channel==ch && !v.held)v.envelope.off(rate);}
     }else if(e.type==3)bends[ch]=std::clamp(e.value,-2.f,2.f);
     else if(e.type==4)targetVolume=std::clamp(e.value,0.f,1.f);
     else if(e.type==5){midiOut->reset(0xffff,false,0);clearKeys();for(auto& v:voices){v.held=false;v.pending=false;v.envelope.off(rate);}for(auto& c:controllers)c[64]=0;}
@@ -150,7 +155,7 @@ float SamplerEngine::metronomeSample(int offset) noexcept {
 }
 void SamplerEngine::setTimeline(std::vector<TimedEvent> source,int64_t duration){
     midiOut->reset(fileChannels,false,0);
-    midiTimestamp=0;fileChannels=0;for(const auto& event:source)if(event.event.channel>=17 && event.event.channel<33)fileChannels|=1<<(event.event.channel-17);
+    midiTimestamp=0;fileChannels=0;channelBanks.fill(0);for(const auto& event:source)if(instrument && event.event.type==0 && event.event.b>0 && event.event.channel>=17 && event.event.channel<33){int track=event.event.track;channelBanks[event.event.channel-17]|=1<<(track>=0 && track<256?instrument->trackBanks[track]:0);}for(auto& mask:channelBanks)if(!mask)mask=1;for(const auto& event:source)if(event.event.channel>=17 && event.event.channel<33)fileChannels|=1<<(event.event.channel-17);
     looping=false;playbackSpeed=1;gates.clear();beats.clear();waitForKeys=false;
     timeline=std::move(source);std::stable_sort(timeline.begin(),timeline.end(),[](const auto& a,const auto& b){return a.frame<b.frame;});
     totalFrames=std::max<int64_t>(duration,timeline.empty()?0:timeline.back().frame);playing=false;transportOverload.store(false);seekTimeline(0);reportedPlaying.store(false);
@@ -160,12 +165,12 @@ void SamplerEngine::configureLoop(int64_t begin,int64_t end,bool enabled){
     if(!enabled){looping=false;return;}
     if(begin<0 || end>totalFrames || end-begin<int64_t(rate*.1))throw std::runtime_error("A-B loop must be within the song and at least 100ms");
     loopStartFrame=begin;loopEndFrame=end;loopCursor=0;loopBends.fill(0);
-    loopSeen={};loopPrograms.fill(-1);loopSwitches.fill(instrument?instrument->switchDefault:-1);
+    loopSeen={};loopPrograms.fill(-1);for(int bank=0;bank<BankCount;++bank)loopSwitches[bank].fill(instrument?instrument->switchDefaults[bank]:-1);
     for(auto& c:loopControllers){c.fill(0);c[7]=c[11]=127;}
     // Only before A: events exactly at A are dispatched normally on every pass.
     while(loopCursor<timeline.size() && timeline[loopCursor].frame<begin){const auto& e=timeline[loopCursor++].event;int ch=e.channel-17;if(ch<0 || ch>=16)continue;
         if(e.type==2){int a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);if(a<120)loopSeen[ch][a]=true;loopControllers[ch][a]=b;if(a==120 || a==123)loopControllers[ch][64]=0;if(a==121){int bank0=loopControllers[ch][0],bank32=loopControllers[ch][32];bool seen0=loopSeen[ch][0],seen32=loopSeen[ch][32];loopSeen[ch]={};loopSeen[ch][0]=seen0;loopSeen[ch][32]=seen32;loopControllers[ch].fill(0);loopControllers[ch][0]=bank0;loopControllers[ch][32]=bank32;loopControllers[ch][7]=loopControllers[ch][11]=127;loopBends[ch]=0;}}
-        else if(e.type==0 && e.b>0 && instrument && !instrument->switchLookup[e.a].empty())loopSwitches[ch]=e.a;
+        else if(e.type==0 && e.b>0 && instrument){int bank=e.track>=0 && e.track<256?instrument->trackBanks[e.track]:0;if(instrument->controlKeys[bank][e.a])loopSwitches[bank][ch]=e.a;}
         else if(e.type==3)loopBends[ch]=std::clamp(e.value,-2.f,2.f);
         else if(e.type==14 && int(e.value)==0xc0)loopPrograms[ch]=std::clamp(e.a,0,127);
     }
@@ -173,7 +178,7 @@ void SamplerEngine::configureLoop(int64_t begin,int64_t end,bool enabled){
 }
 void SamplerEngine::rewindLoop() noexcept {
     midiOut->reset(fileChannels,true,midiTimestamp);
-    for(int ch=17;ch<33;++ch){keys[ch]={};controllers[ch]=loopControllers[ch-17];bends[ch]=loopBends[ch-17];controllerSeen[ch]=loopSeen[ch-17];programs[ch]=loopPrograms[ch-17];switches[ch]=loopSwitches[ch-17];}
+    for(int ch=17;ch<33;++ch){keys[ch]={};controllers[ch]=loopControllers[ch-17];bends[ch]=loopBends[ch-17];controllerSeen[ch]=loopSeen[ch-17];programs[ch]=loopPrograms[ch-17];for(int bank=0;bank<BankCount;++bank)switches[bank][ch]=loopSwitches[bank][ch-17];}
     midiSnapshot();
     for(auto& v:voices)if(v.active && v.channel>=17){v.held=false;v.pending=false;v.envelope.stage=Envelope::Release;v.envelope.releaseStep=v.envelope.value/(rate*.005f);}
     cursor=loopCursor;playFrame=loopStartFrame;reportedFrame.store(loopStartFrame);
@@ -183,9 +188,9 @@ void SamplerEngine::seekTimeline(int64_t frame) noexcept {
     // Seek restores controllers and pitch but intentionally starts only future notes.
     midiOut->reset(fileChannels,true,0);midiChasing=true;for(int ch=17;ch<33;++ch){programs[ch]=-1;controllers[ch][0]=controllers[ch][32]=0;controllerSeen[ch][0]=controllerSeen[ch][32]=false;}
     for(int ch=17;ch<33;++ch){dispatch({2,ch,120,0});dispatch({2,ch,121,0});}
-    for(int ch=17;ch<33;++ch)switches[ch]=instrument?instrument->switchDefault:-1;
+    for(int bank=0;bank<BankCount;++bank)for(int ch=17;ch<33;++ch)switches[bank][ch]=instrument?instrument->switchDefaults[bank]:-1;
     cursor=0;playFrame=frame;
-    while(cursor<timeline.size() && timeline[cursor].frame<frame){const auto& e=timeline[cursor++].event;if(e.type==2 || e.type==3 || e.type==14 || (e.type==0 && instrument && !instrument->switchLookup[e.a].empty()))dispatch(e);}
+    while(cursor<timeline.size() && timeline[cursor].frame<frame){const auto& e=timeline[cursor++].event;if(e.type==2 || e.type==3 || e.type==14 || (e.type==0 && instrument && instrument->controlKeys[e.track>=0 && e.track<256?instrument->trackBanks[e.track]:0][e.a]))dispatch(e);}
     midiChasing=false;midiSnapshot();
     for(auto& v:voices)if(v.channel>=17)v=Voice{};
     reportedFrame.store(playFrame);
@@ -202,7 +207,7 @@ void SamplerEngine::render(float* output,int count,int64_t midiStartNanos) noexc
         if(playing){
             if(looping && (playFrame>=loopEndFrame || playFrame<loopStartFrame))rewindLoop();
             holding=practiceHold();
-            if(holding){int n=count-done;renderBlock(output+done*2,n);done+=n;continue;}
+            if(holding){int n=std::min(256,count-done);renderBlock(output+done*2,n);done+=n;continue;}
             while(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed<2048){dispatch(timeline[cursor++].event);++timelineProcessed;}
             if(cursor<timeline.size() && timeline[cursor].frame<=playFrame && timelineProcessed==2048){
                 playing=false;reportedPlaying.store(false);transportOverload.store(true);droppedEvents.fetch_add(1);
@@ -212,7 +217,7 @@ void SamplerEngine::render(float* output,int count,int64_t midiStartNanos) noexc
             }
             if(!looping && playFrame>=totalFrames && cursor==timeline.size()){playing=false;reportedPlaying.store(false);midiOut->reset(fileChannels,false,midiTimestamp);midiChasing=true;for(int ch=17;ch<33;++ch){dispatch({2,ch,123,0});dispatch({2,ch,64,0});}midiChasing=false;}
         }
-        int n=count-done;
+        int n=std::min(256,count-done);
         if(playing){auto next=cursor<timeline.size()?timeline[cursor].frame:totalFrames;if(looping)next=std::min(next,loopEndFrame);if(waitForKeys && gateCursor<gates.size())next=std::min(next,gates[gateCursor].frame);n=int(std::min<double>(n,std::max(1.,std::ceil((next-playFrame)/playbackSpeed))));}
         renderBlock(output+done*2,n);done+=n;if(playing)playFrame+=n*double(playbackSpeed);
     }
@@ -221,7 +226,7 @@ void SamplerEngine::render(float* output,int count,int64_t midiStartNanos) noexc
     inputPeak.store(outputLimiter.peak(),std::memory_order_relaxed);gainReductionDb.store(outputLimiter.reductionDb(),std::memory_order_relaxed);
 }
 void SamplerEngine::renderBlock(float* output,int count) noexcept {
-    std::fill(output,output+count*2,0.f);
+    std::fill(output,output+count*2,0.f);for(auto& bus:busAudio)std::fill(bus.begin(),bus.begin()+count*2,0.f);
     if(instrument)for(auto& v:voices){if(!v.active)continue;auto& r=instrument->regions[v.region];auto& s=instrument->samples[r.sample];
         SampleCache::View view;uint64_t attemptedPage=UINT64_MAX;int retry=0;double step=v.baseStep*std::pow(2.,bends[v.channel]*r.keyTrack/12.);float channelGain=controllers[v.channel][7]/127.f*controllers[v.channel][11]/127.f;
         uint64_t end=r.end>=0?std::min<uint64_t>(r.end+1,s.frames):s.frames;
@@ -242,15 +247,20 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
             if(r.loopStart<0 || v.envelope.stage==Envelope::Release)gain*=std::clamp(float(end-v.position)/128.f,0.f,1.f);
             l*=gain*gl;rr*=gain*gr;
             if(v.stealRemaining>0){float fade=v.stealRemaining/128.f;l=l*(1-fade)+v.stealL*fade;rr=rr*(1-fade)+v.stealR*fade;--v.stealRemaining;}
-            v.lastL=l;v.lastR=rr;output[i*2]+=l;output[i*2+1]+=rr;v.position+=step;
+            v.lastL=l;v.lastR=rr;busAudio[r.bank][i*2]+=l;busAudio[r.bank][i*2+1]+=rr;v.position+=step;
         }
     }
     int active=0;for(auto& v:voices)if(v.active)++active;activeVoices.store(active,std::memory_order_relaxed);
-    for(int i=0;i<count;++i){float& l=output[i*2];float& r=output[i*2+1];const float dryL=l,dryR=r;effects.process(l,r);volume+=(targetVolume-volume)*.001f;instrumentVolume+=(targetInstrumentVolume-instrumentVolume)*.001f;
+    for(int i=0;i<count;++i){float& l=output[i*2];float& r=output[i*2+1];
+        volume+=(targetVolume-volume)*.001f;instrumentVolume+=(targetInstrumentVolume-instrumentVolume)*.001f;
         diagnosticFx+=((diagnosticMode==1?0.f:1.f)-diagnosticFx)*.0015f;
         diagnosticTone+=((diagnosticMode==2?1.f:0.f)-diagnosticTone)*.0015f;
-        l=(diagnosticFx==1?l:dryL+(l-dryL)*diagnosticFx)*instrumentVolume*(1-diagnosticTone);
-        r=(diagnosticFx==1?r:dryR+(r-dryR)*diagnosticFx)*instrumentVolume*(1-diagnosticTone);
+        const int banks=instrument?instrument->banks:1;
+        for(int bank=0;bank<banks;++bank){float left=busAudio[bank][i*2],right=busAudio[bank][i*2+1],dryL=left,dryR=right;
+            if(bank==0)effects.process(left,right);else extraEffects[bank-1].process(left,right);
+            float gain=bank==0?instrumentVolume:instrument->bankMaster[bank];
+            l+=(dryL+(left-dryL)*diagnosticFx)*gain*(1-diagnosticTone);r+=(dryR+(right-dryR)*diagnosticFx)*gain*(1-diagnosticTone);
+        }
         if(diagnosticTone>1e-6f){l+=float(std::sin(tonePhaseL))*.08f*diagnosticTone;r+=float(std::sin(tonePhaseR))*.08f*diagnosticTone;tonePhaseL+=6.283185307179586*440/rate;tonePhaseR+=6.283185307179586*660/rate;if(tonePhaseL>6.283185307179586)tonePhaseL-=6.283185307179586;if(tonePhaseR>6.283185307179586)tonePhaseR-=6.283185307179586;}
         else tonePhaseL=tonePhaseR=0;
         float click=metronomeSample(i);l=(l+click)*volume;r=(r+click)*volume;

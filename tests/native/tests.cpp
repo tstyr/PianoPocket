@@ -216,6 +216,16 @@ int main(){try{
         check(four<two*.1f,"four-pole filter has stronger above-cutoff attenuation");
     }
     {
+        auto engine=std::make_unique<SamplerEngine>();auto b=bank();auto other=b->regions[0];other.bank=1;other.pan=1;b->regions[0].pan=-1;b->regions.push_back(other);b->trackBanks[1]=1;b->prepare();engine->install(std::move(b),{},48000);
+        engine->setTimeline({{0,{0,17,60,100,0,0}},{0,{0,17,60,100,0,1}},{2000,{1,17,60,0,0,1}},{8000,{1,17,60,0,0,0}}},16000);engine->send({10,0,1});
+        for(int n=0;n<12;++n)render(*engine,out,256);
+        check(engine->noteVoiceCount(60,17)==1,"same channel/key tracks release only their own note");float left=0,right=0;for(int n=0;n<256;++n){left+=out[n*2]*out[n*2];right+=out[n*2+1]*out[n*2+1];}check(left>right*100 && left>.001f,"surviving track uses the selected source and pan");
+        b=bank();other=b->regions[0];other.bank=1;other.pan=1;b->regions[0].pan=-1;b->regions.push_back(other);b->trackBanks[1]=1;EffectSpec gain;gain.type=EffectType::Gain;gain.p={0,0,0,0,1};b->bankEffects[1].push_back(gain);b->prepare();engine->install(std::move(b),{},48000);
+        engine->send({0,17,60,100,0,0});engine->send({0,17,60,100,0,1});for(int n=0;n<8;++n)render(*engine,out,256);left=right=0;for(int n=0;n<256;++n){left+=out[n*2]*out[n*2];right+=out[n*2+1]*out[n*2+1];}check(left>.001f && right<1e-10f,"per-bank gain effect does not mute another instrument");
+        b=bank();other=b->regions[0];other.bank=1;other.switchLow=24;other.switchHigh=24;other.switchLast=24;other.switchDefault=-1;b->regions.push_back(other);b->trackBanks[1]=1;b->prepare();engine->install(std::move(b),{},48000);
+        engine->send({0,17,24,100,0,1});engine->send({0,17,60,100,0,1});engine->send({0,17,60,100,0,0});for(int n=0;n<4;++n)render(*engine,out,256);check(engine->noteVoiceCount(60,17)==2 && engine->noteVoiceCount(24,17)==0,"keyswitch selection belongs to its instrument bank");
+    }
+    {
         SamplerEngine p;p.install(bank(),{},48000);p.setTimeline({},48000);
         p.configurePractice({{100,{uint64_t(1)<<60,1}},{600,{uint64_t(1)<<60,0}}},{},true,false,120,.3f,true);p.send({10,0,1});render(p,out,256);
         check(p.practiceStatus()[0]==1 && std::abs(p.transport()[0]*48000-100)<.01,"guided practice freezes at the note onset");

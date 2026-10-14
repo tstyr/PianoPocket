@@ -11,6 +11,8 @@ import dev.pianopocket.sequencer.Practice
 import dev.pianopocket.sequencer.PracticeHand
 
 @Composable fun PracticeDialog(state: PocketState,model: PocketViewModel,close:()->Unit) {
+    var choosingTrack by remember {mutableStateOf<Int?>(null)}
+    choosingTrack?.let {TrackInstrumentPicker(it,state,model){choosingTrack=null}}
     val seq=state.sequence;val song=seq.song;val enabled=state.ready && !state.busy && !seq.recording && !seq.exporting
     AlertDialog(onDismissRequest=close,title={Text("練習")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
         Row {Text("メトロノーム",Modifier.weight(1f));Switch(checked=seq.metronome,onCheckedChange=model::metronome,enabled=enabled)}
@@ -38,10 +40,12 @@ import dev.pianopocket.sequencer.PracticeHand
         (0 until song.tracks).forEach { track->
             Column {
                 Text(Practice.trackName(song,track),maxLines=2)
+                val playable=remember(song){song.notes.map {it.track}.toSet()}
+                if(track in playable)TextButton(onClick={choosingTrack=track},enabled=enabled){Text("音源："+(state.library.firstOrNull {it.id==seq.trackInstruments[track]}?.name ?: "主音源"))}
                 Row {FilterChip(selected=track !in seq.hiddenTracks,onClick={model.trackVisible(track,track in seq.hiddenTracks)},enabled=enabled,label={Text("表示")});Spacer(Modifier.width(8.dp));FilterChip(selected=track in seq.mutedTracks,onClick={model.trackMuted(track,track !in seq.mutedTracks)},enabled=enabled,label={Text("ミュート")});Spacer(Modifier.width(8.dp));val targets=seq.guided.tracks ?: (0 until song.tracks).toSet();FilterChip(selected=track in targets,onClick={model.guidedPractice(seq.guided.copy(tracks=if(track in targets)targets-track else targets+track))},enabled=enabled,label={Text("練習")})}
             }
         }
-        Text("ミュートしたノートは灰色で表示。共有チャンネルのペダル・音量CCは有効です。練習設定は再生用で、書き出しは元のMIDI全体・通常速度です。",style=MaterialTheme.typography.bodySmall)
+        Text("ミュートしたノートは灰色で表示。共有チャンネルのペダル・音量CCは有効です。書き出し画面で速度・ミュートを反映できます。音源はトラックごとに選べます。",style=MaterialTheme.typography.bodySmall)
         }
     }},confirmButton={TextButton(onClick=close){Text("閉じる")}})
 }

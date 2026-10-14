@@ -30,8 +30,8 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         if(!staged)throw std::runtime_error("No import transaction");
         auto length=e->GetArrayLength(ints);
         auto floatLength=e->GetArrayLength(floats);
-        if(!((length==19 || length==20) && floatLength==9) && !((length==24 || length==31) && (floatLength==13 || floatLength==141)))throw std::runtime_error("Invalid mapping");
-        jint a[31]={};jfloat f[141]={};e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,floatLength,f);
+        if(!((length==19 || length==20) && floatLength==9) && !((length==24 || length==31 || length==32) && (floatLength==13 || floatLength==141)))throw std::runtime_error("Invalid mapping");
+        jint a[32]={};jfloat f[141]={};e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,floatLength,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
             if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::MinPages*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
@@ -48,7 +48,8 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
             if(r.randomLow<0 || r.randomHigh>1 || r.randomLow>=r.randomHigh)throw std::runtime_error("Invalid random range");
             if(r.customVelocity)for(int i=0;i<128;++i){if(f[13+i]<0 || f[13+i]>1)throw std::runtime_error("Invalid velocity curve");r.velocityCurve[i]=f[13+i];}
         }
-        if(length==31){r.switchLow=a[24];r.switchHigh=a[25];r.switchLast=a[26];r.switchDefault=a[27];r.offGroup=a[28];r.offBy=a[29];r.offMode=a[30];if(r.switchLow < -1 || r.switchHigh>127 || r.switchLow>r.switchHigh || r.switchLast < -1 || r.switchLast>127 || r.switchDefault < -1 || r.switchDefault>127 || r.offMode<0 || r.offMode>1)throw std::runtime_error("Invalid SFZ switching mapping");}
+        if(length>=31){r.switchLow=a[24];r.switchHigh=a[25];r.switchLast=a[26];r.switchDefault=a[27];r.offGroup=a[28];r.offBy=a[29];r.offMode=a[30];if(r.switchLow < -1 || r.switchHigh>127 || r.switchLow>r.switchHigh || r.switchLast < -1 || r.switchLast>127 || r.switchDefault < -1 || r.switchDefault>127 || r.offMode<0 || r.offMode>1)throw std::runtime_error("Invalid SFZ switching mapping");}
+        if(length==32){if(a[31]<0 || a[31]>=BankCount)throw std::runtime_error("Invalid sound bank");r.bank=a[31];}
         auto frames=staged->samples[sample].frames;
         if(r.group>=256 || r.low<0 || r.high>127 || r.low>r.high || r.root<0 || r.root>127 || a[6]<0 || a[6]>3 || r.start<0 || uint64_t(r.start)>=frames || (r.end>=0 && (uint64_t(r.end)>frames || r.end<r.start)) || (r.loopStart>=0 && (r.loopEnd<=r.loopStart || uint64_t(r.loopEnd)>=frames)))throw std::runtime_error("Region boundaries outside WAV or invalid mapping");
         staged->regions.push_back(r);
@@ -62,6 +63,12 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_effect(
         effects.push_back(std::move(s));
     }catch(const std::exception& x){fail(e,x);}
 }
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_trackRoute(JNIEnv* e,jobject,jint track,jint bank){if(!staged || track<0 || track>=256 || bank<0 || bank>=BankCount){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),"Invalid track bank");return;}staged->trackBanks[track]=bank;}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_bankMaster(JNIEnv* e,jobject,jint bank,jfloat value){if(!staged || bank<1 || bank>=BankCount || !std::isfinite(value) || value<0 || value>8){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),"Invalid bank gain");return;}staged->bankMaster[bank]=value;}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_bankEffect(JNIEnv* e,jobject,jint bank,jint type,jfloatArray params,jstring ir){try{
+    if(!staged || bank<1 || bank>=BankCount || type<0 || type>11 || e->GetArrayLength(params)!=5 || staged->bankEffects[bank].size()>=8)throw std::runtime_error("Invalid bank effect");
+    EffectSpec s;s.type=EffectType(type);e->GetFloatArrayRegion(params,0,5,s.p.data());if(type==7)s.ir=loadImpulse(string(e,ir),exportRate?exportRate:engine.sampleRate());staged->bankEffects[bank].push_back(std::move(s));
+}catch(const std::exception& x){fail(e,x);}}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_velocityCurve(JNIEnv* e,jobject,jint group,jfloatArray curve){
     if(!staged || group<0 || group>=256 || e->GetArrayLength(curve)!=128){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),"Invalid velocity curve");return;}
     e->GetFloatArrayRegion(curve,0,128,staged->velocityGains[group].data());
@@ -80,10 +87,10 @@ extern "C" JNIEXPORT jint JNICALL Java_dev_pianopocket_audio_NativeAudio_drainMi
     if(count)e->SetLongArrayRegion(target,0,count*4,data);return count;
 }
 static std::vector<TimedEvent> songEvents(JNIEnv* e,jlongArray times,jintArray data,float sr){
-    int n=e->GetArrayLength(times);if(n>200000 || e->GetArrayLength(data)!=n*3)throw std::runtime_error("Invalid MIDI timeline");
-    std::vector<jlong> t(n);std::vector<jint> d(n*3);if(n){e->GetLongArrayRegion(times,0,n,t.data());e->GetIntArrayRegion(data,0,n*3,d.data());}
+    int n=e->GetArrayLength(times);const int width=n>0?e->GetArrayLength(data)/n:3;if(n>200000 || (width!=3 && width!=4) || e->GetArrayLength(data)!=n*width)throw std::runtime_error("Invalid MIDI timeline");
+    std::vector<jlong> t(n);std::vector<jint> d(n*width);if(n){e->GetLongArrayRegion(times,0,n,t.data());e->GetIntArrayRegion(data,0,n*width,d.data());}
     std::vector<TimedEvent> out;out.reserve(n);
-    for(int i=0;i<n;++i){if(t[i]<0 || t[i]>7200000000LL)throw std::runtime_error("MIDI time limit exceeded");int status=d[i*3],a=d[i*3+1],b=d[i*3+2];if(status<0x80 || status>0xef || a<0 || a>127 || b<0 || b>127)throw std::runtime_error("Invalid MIDI message");Event event;event.channel=(status&15)+17;event.a=a;event.b=b;
+    for(int i=0;i<n;++i){if(t[i]<0 || t[i]>7200000000LL)throw std::runtime_error("MIDI time limit exceeded");int status=d[i*width],a=d[i*width+1],b=d[i*width+2];if(status<0x80 || status>0xef || a<0 || a>127 || b<0 || b>127)throw std::runtime_error("Invalid MIDI message");Event event;event.channel=(status&15)+17;event.a=a;event.b=b;if(width==4){event.track=d[i*width+3];if(event.track<0 || event.track>=256)throw std::runtime_error("Invalid MIDI track");}
         switch(status&0xf0){case 0x90:event.type=b?0:1;break;case 0x80:event.type=1;break;case 0xb0:event.type=2;break;case 0xe0:event.type=3;event.value=((b*128+a)-8192)/8192.f*2;break;case 0xa0:case 0xc0:case 0xd0:event.type=14;event.value=status&0xf0;break;default:continue;}
         out.push_back({int64_t(std::llround(t[i]*double(sr)/1000000)),event});
     }return out;

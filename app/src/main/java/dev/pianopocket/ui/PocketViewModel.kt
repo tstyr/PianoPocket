@@ -62,6 +62,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val preferences=Preferences(app)
     private val soundStore=SoundSettingsStore(File(app.filesDir,"sound-settings"))
     private var soundSaveJob: Job?=null
+    private var trackBanks: List<TrackBank> = emptyList()
     private val songStore=SongSettingsStore(File(app.filesDir,"song-settings"))
     private var lastSongSave: Pair<String,SongSettings>?=null
     private val midiLibrary=MidiLibrary(app)
@@ -189,7 +190,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(outputs=listOf(OutputDevice(0,"システム既定"))+devices.map { d->OutputDevice(d.id,d.productName.toString()) }) }
     }
     fun load(entry: LibraryEntry) = work { loadInternal(entry) }
-    private fun loadInternal(entry: LibraryEntry,override: SoundSettings?=null,factory: Boolean=false) {
+    private fun loadInternal(entry: LibraryEntry,override: SoundSettings?=null,factory: Boolean=false,tracks: Map<Int,String> = state.value.sequence.trackInstruments) {
         soundSaveJob?.cancel();saveCurrentSound()
         diagnosticMode(0)
         NativeAudio.event(10,0,0,0,0f);live.clear()
@@ -214,12 +215,14 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         preset.menus.forEach { menu->val option=menu.options[menu.selected];configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->if(i==option.effectIndex)fx.copy(ir=option.path)else fx }) }
         if(saved!=null){initialGroups=saved.groups;configured=configured.copy(effects=configured.effects.mapIndexed { i,fx->fx.copy(params=saved.effects[i].toFloatArray()) })}
         configured.effects.forEach { fx -> NativeAudio.effect(fx.type,fx.params,if(fx.ir.isBlank())"" else repository.resolve(entry,fx.ir).path) }
-        NativeAudio.commit()
+        val extras=stageTrackBanks(configured,entry.id,tracks)
+        NativeAudio.commit();trackBanks=extras
+        configured=configured.copy(warnings=configured.warnings+extras.flatMap {bank->bank.preset.warnings.map {"${bank.entry.name}: $it"}})
         ExportCoordinator.performanceRestored()
         val voices=(saved?.voices ?: preferences.voiceLimit).coerceIn(32,1024)
         val output=saved?.output ?: .7f
         NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,state.value.outputMode.localVolume(output,state.value.midiOutput!="none"))
-        initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) }
+        initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) };extras.forEach {bank->bank.groups.forEachIndexed {i,v->NativeAudio.event(6,0,bank.offset+i,0,v)}}
         configured.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
         if(state.value.sequence.song!=null)NativeAudio.seekTimeline(state.value.sequence.position)
         repository.used(entry);preferences.lastInstrument=entry.id
@@ -227,10 +230,53 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(articulation=configured.regions.map {r->r.ints.getOrElse(27){-1}}.firstOrNull {it>=0} ?: -1,preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=performanceActive,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
         saveCurrentSound();syncBackgroundService()
     }
+    private fun stageTrackBanks(main: Preset,mainId: String,choices: Map<Int,String>): List<TrackBank>{
+        val routing=TrackRouting.plan(mainId,choices);var offset=main.groups.size
+        val result=routing.instruments.mapIndexed {index,id ->
+            val entry=state.value.library.firstOrNull {it.id==id} ?: error("トラックに指定した音源がありません。主音源を選び直してください。")
+            val base=repository.parse(entry){p->mutable.update {it.copy(message=p)}}
+            val saved=runCatching {soundStore.read(id,SoundSettings.schema(base)).last}.getOrNull()?.takeIf {it.valid(base)}
+            var preset=base.copy(controls=base.controls.mapIndexed {i,c->c.copy(value=saved?.controls?.get(i) ?: c.value)},menus=base.menus.mapIndexed {i,m->m.copy(selected=saved?.menus?.get(i) ?: m.selected)})
+            var groups=preset.groupVolumes
+            preset.controls.forEach {c->val reflected=reflectTargets(preset,groups,c,c.value);preset=reflected.first;groups=reflected.second}
+            preset.menus.forEach {menu->val selected=menu.options[menu.selected];preset=preset.copy(effects=preset.effects.mapIndexed {i,fx->if(i==selected.effectIndex)fx.copy(ir=selected.path)else fx})}
+            if(saved!=null){groups=saved.groups;preset=preset.copy(effects=preset.effects.mapIndexed {i,fx->fx.copy(params=saved.effects[i].toFloatArray())})}
+            require(offset+groups.size<=256){"マイク・グループの合計が256を超えています。音源を減らしてください。"}
+            val bank=index+1
+            preset.regions.forEach {r->val mapped=TrackRouting.region(r,offset,bank);NativeAudio.region(repository.resolve(entry,r.path).path,mapped.ints,mapped.floats)}
+            preset.velocityCurves.forEach {(g,curve)->NativeAudio.velocityCurve(offset+g,curve)}
+            preset.effects.forEach {fx->NativeAudio.bankEffect(bank,fx.type,fx.params,if(fx.ir.isBlank())""else repository.resolve(entry,fx.ir).path)}
+            val master=(preset.controls.flatMap {c->c.bindings.filter {it.type=="master"}.map {bindingValue(it,c,c.value)}}.lastOrNull() ?: 1f).coerceIn(0f,8f)
+            NativeAudio.bankMaster(bank,master)
+            TrackBank(bank,entry,preset,groups,offset,master).also {offset+=groups.size}
+        }
+        routing.tracks.forEach {(track,bank)->NativeAudio.trackRoute(track,bank)}
+        return result
+    }
+    fun trackInstrument(track: Int,id: String)=work {
+        val s=state.value;val song=s.sequence.song ?: return@work
+        require(track in 0 until song.tracks);if(s.busy || s.sequence.exporting || s.sequence.recording)return@work
+        require(id.isEmpty() || s.library.any {it.id==id})
+        val choices=if(id.isEmpty())s.sequence.trackInstruments-track else s.sequence.trackInstruments+(track to id)
+        TrackRouting.plan(s.selected,choices)
+        val entry=s.library.first {it.id==s.selected};loadInternal(entry,tracks=choices)
+        rebuildPractice(s.sequence.copy(trackInstruments=choices));saveCurrentSong()
+        mutable.update {it.copy(message="トラックの音源を変更しました")}
+    }
     fun importSoundFont(uri: Uri)=work {mutable.update {it.copy(busy=true)};val added=repository.importSoundFont(uri){p->mutable.update {it.copy(message=p)}};refreshLibrary();loadInternal(added.first())}
     fun importArchive(uri: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importArchive(uri){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false,message="${imported.size} プリセットをインポートしました。ライブラリで選択してください。") } }
     fun importPreset(uri: Uri, tree: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importPreset(uri,tree){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false) };loadInternal(imported.first()) }
-    fun delete(entry: LibraryEntry)=work { if(state.value.library.any { it.id==state.value.selected && it.root==entry.root }) { NativeAudio.suspendPerformance();live.clear();mutable.update { it.copy(preset=null,selected="",ready=false,uiPedal=false) } };soundSaveJob?.cancel();state.value.library.filter {it.root==entry.root}.forEach {soundStore.delete(it.id)};repository.delete(entry);refreshLibrary();mutable.update { it.copy(message="音源フォルダーを削除しました") } }
+    fun delete(entry: LibraryEntry)=work {
+        val old=state.value;val removed=old.library.filter {it.root==entry.root}.map {it.id}.toSet()
+        val mainRemoved=old.selected in removed;val mappedRemoved=old.sequence.trackInstruments.values.any {it in removed}
+        if(mainRemoved || mappedRemoved){NativeAudio.suspendPerformance();live.clear();mutable.update {it.copy(ready=false,uiPedal=false)}}
+        soundSaveJob?.cancel();removed.forEach(soundStore::delete);repository.delete(entry);refreshLibrary()
+        val sequence=old.sequence.copy(trackInstruments=old.sequence.trackInstruments.filterValues {it !in removed},playing=false)
+        mutable.update {it.copy(sequence=sequence,preset=if(mainRemoved)null else it.preset,selected=if(mainRemoved)""else it.selected)}
+        if(mappedRemoved && !mainRemoved){state.value.library.firstOrNull {it.id==old.selected}?.let {loadInternal(it)};rebuildPractice(sequence)}
+        saveCurrentSong();mutable.update {it.copy(message="音源フォルダーを削除しました")}
+    }
+
     fun rescan()=work { repository.rescan();refreshLibrary();mutable.update {it.copy(message="再スキャン完了")} }
     private fun refreshLibrary(){val pack=state.value.downloadPack;mutable.update {it.copy(library=repository.entries(),downloadedInstrument=pack?.let {p->repository.findDownloaded(p.id)?.id} ?: "")}}
     fun downloadPiano(){if(!state.value.busy && !ExportCoordinator.running)dev.pianopocket.download.DownloadCoordinator.start(getApplication())}
@@ -316,21 +362,21 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun lookAhead(value: Float){preferences.lookAhead=value;mutable.update { it.copy(sequence=it.sequence.copy(lookAhead=value)) }}
     private fun arrays(song: MidiSong,muted: Set<Int> = emptySet(),guided: dev.pianopocket.sequencer.GuidedPractice=dev.pianopocket.sequencer.GuidedPractice()): Pair<LongArray,IntArray> {
         val messages=Practice.messages(song,muted,guided)
-        val times=LongArray(messages.size){messages[it].micros};val data=IntArray(times.size*3)
-        messages.forEachIndexed { i,e->data[i*3]=e.status;data[i*3+1]=e.a;data[i*3+2]=e.b };return times to data
+        val times=LongArray(messages.size){messages[it].micros};val data=IntArray(times.size*4)
+        messages.forEachIndexed { i,e->data[i*4]=e.status;data[i*4+1]=e.a;data[i*4+2]=e.b;data[i*4+3]=e.track };return times to data
     }
     private fun selectSong(entry: MidiEntry,song: MidiSong){
         saveCurrentSong()
         val saved=songStore.read(entry.id)
-        if(saved!=null && saved.instrument!=state.value.selected){
-            state.value.library.firstOrNull {it.id==saved.instrument}?.let {loadInternal(it)}
-        }
+        val desiredEntry=state.value.library.firstOrNull {it.id==saved?.instrument} ?: state.value.library.firstOrNull {it.id==state.value.selected}
         val transposed=SongTranspose.apply(song,saved?.transpose ?: 0)
         var fresh=state.value.sequence.copy(library=midiLibrary.entries(),song=transposed,sourceSong=song,
             transpose=0,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,
-            loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),
+            loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),trackInstruments=emptyMap(),
             guided=GuidedPractice(),waiting=false,waitingKeys=emptySet())
         if(saved!=null)fresh=saved.restore(fresh)
+        fresh=fresh.copy(trackInstruments=fresh.trackInstruments.filterValues {id->state.value.library.any {it.id==id}})
+        if(desiredEntry!=null && (desiredEntry.id!=state.value.selected || fresh.trackInstruments!=state.value.sequence.trackInstruments))loadInternal(desiredEntry,tracks=fresh.trackInstruments)
         rebuildPractice(fresh)
         preferences.lastMidi=entry.id
         mutable.update {it.copy(message=if(saved!=null)"曲の設定を復元しました" else "${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}")}
@@ -435,7 +481,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         val s=state.value;val seq=s.sequence;val original=seq.song ?: error("MIDIを選択してください")
         val options=seq.exportSelection;val speed=if(options.usePlayback)seq.speed else 1f
         val start=if(options.loopOnly)seq.loopA else 0;val end=if(options.loopOnly)seq.loopB else original.duration
-        val source=SongExportSettings.apply(original,speed,if(options.usePlayback)seq.mutedTracks else emptySet(),start,end,mapOf(-1 to s.preset?.articulations?.map {it.key}.orEmpty().toSet()))
+        val source=SongExportSettings.apply(original,speed,if(options.usePlayback)seq.mutedTracks else emptySet(),start,end,(seq.trackInstruments.mapValues {(_,id)->trackBanks.firstOrNull {it.entry.id==id}?.preset?.articulations?.map {it.key}.orEmpty().toSet()} + (-1 to s.preset?.articulations?.map {it.key}.orEmpty().toSet())))
         val previewPosition=((seq.position-start).coerceAtLeast(0)/speed).toLong()
         val song=if(preview)PreviewSong.slice(source,previewPosition)else source
         val preset=if(format.bits>0)s.preset ?: error("音源を読み込んでください")else null
@@ -443,7 +489,8 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         return ExportRequest(uri,format,rate,tail,bitrate,video,song,s.sequence.title,s.memoryMiB,s.volume,s.voices,
             preset?.regions?.map {r->ExportRegion(repository.resolve(checkNotNull(entry),r.path).path,r.ints.copyOf(),r.floats.copyOf())}.orEmpty(),
             preset?.effects?.map {fx->ExportEffect(fx.type,fx.params.copyOf(),if(fx.ir.isBlank())""else repository.resolve(checkNotNull(entry),fx.ir).path)}.orEmpty(),
-            preset?.velocityCurves?.mapValues {it.value.copyOf()}.orEmpty(),s.groups.toList(),preset?.controls?.flatMap {c->c.bindings.filter {it.type=="master"}.map {b->bindingValue(b,c,c.value)}}.orEmpty(),s.sequence.noteLabels,s.sequence.viewport,s.sequence.lookAhead,preview)
+            preset?.velocityCurves?.mapValues {it.value.copyOf()}.orEmpty(),s.groups.toList(),preset?.controls?.flatMap {c->c.bindings.filter {it.type=="master"}.map {b->bindingValue(b,c,c.value)}}.orEmpty(),s.sequence.noteLabels,s.sequence.viewport,s.sequence.lookAhead,preview,
+            TrackRouting.plan(s.selected,seq.trackInstruments).tracks,if(preset==null)emptyList()else trackBanks.map {bank->dev.pianopocket.video.ExportBank(bank.bank,bank.preset.regions.map {r->val mapped=TrackRouting.region(r,bank.offset,bank.bank);ExportRegion(repository.resolve(bank.entry,r.path).path,mapped.ints,mapped.floats)},bank.preset.effects.map {fx->ExportEffect(fx.type,fx.params.copyOf(),if(fx.ir.isBlank())""else repository.resolve(bank.entry,fx.ir).path)},bank.preset.velocityCurves.mapKeys {it.key+bank.offset}.mapValues {it.value.copyOf()},bank.groups.mapIndexed {i,v->bank.offset+i to v},bank.master)})
     }
     fun export(uri: Uri,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions=VideoOptions())=work {
         try{diagnosticMode(0);stopDiagnosis();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear();ExportCoordinator.submit(getApplication(),exportRequest(uri,format,rate,tail,bitrate,video,false))}
