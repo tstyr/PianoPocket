@@ -85,11 +85,11 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 
 横画面優先・全画面ロール、48dpアイコン操作と長押し説明、3本ずつ並ぶ実XMLマイクフェーダー、鍵盤を保持する音源パネルを実装。MIDI選択済みのライブラリで回転時に勝手に戻る可能性を修正。ドレミ設定・録音・WAV/MIDI書き出しを維持。[操作と実機検証項目](PERFORMANCE_UI.md)。
 
-`assembleDebug testDebugUnitTest lintDebug` PASS、JUnit 36 / failures 0 / errors 0 / skipped 0、Lint errors 0。native suite PASS。今回はUI変更で、DSPコードに変更はなく、0.3.1の60ケース・ASan / UBSan実音源検証を再実行したとは扱いません。
+`assembleDebug testDebugUnitTest lintDebug` PASS、JUnit 36 / failures 0 / errors 0 / skipped 0、Lint errors 0。native suite PASS。UI変更のみで、DSPコードに変更はなく、0.3.1の60ケース・ASan / UBSan実音源検証を再実行したとは扱いません。
 
 APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署名PASS、zipalign 16KiB PASS、3つのELFのLOAD整列が16384。旧版と同じ証明書SHA-256 `d2b4e0c9de24c4a5ec51e6e05651e526aee3da3e3a720f756c2027789b132761`。APK SHA-256 `b0e177b3b0f209e717b66a2ed59060dca7337f43ca16a31de0ea3a9bd5eef027`、27481758 bytes。開発環境の実機・エミュレーターは未接続で、スクリーンショット・UI操作・Galaxy S26での更新成功を検証済みとは主張しません。
 
-0.4.0のmain / tag / release-artifactsとプリリリースを公開済み。Assets直接添付は今回もHTTP 401で未完了。公開先から27481758 bytesのAPKを再取得し、上記SHA-256と一致しました。ソース・検証ZIP・checksum一覧も公開先から取得可能と確認。新しいActions実行は行っておらず、既存billing lockの解消やホステッドCI成功を主張しません。
+0.4.0のmain / tag / release-artifactsとプリリリースを公開済み。APKはrelease-artifactsブランチで配布しています。公開先から27481758 bytesのAPKを再取得し、上記SHA-256と一致しました。ソース・検証ZIP・checksum一覧も公開先から取得可能と確認。新しいActions実行は行っておらず、既存billing lockの解消やホステッドCI成功を主張しません。
 
 ## 0.4.1 sustain / labels / compressed audio
 
@@ -108,17 +108,17 @@ APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署�
 
 MIDI SAFのワイルドカードを削除し、streamを開く前に拡張子を確認。ドレミは不透明の太い白文字・暗い縁取り、一行の共通ベースラインへ変更。ファを縦に並べず、横幅のみ調整。ロールも不透明な色へ変更。音声エンジン・コーデックは変更なし。
 
-`assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS。JUnit42 / failures0 / errors0 / skipped0、Lint errors0。MIDI拡張子の受入／拒否・ワイルドカードなしを検査し、既存のファ一行回帰テストを更新。今回はUI・ファイル選択の変更で、C++・codec・ASan/UBSanの再実行とは扱いません。Android test APKはビルドのみで端末未接続のため未実行。新しい表示・SAFピッカーは実機未検証です。
+`assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS。JUnit42 / failures0 / errors0 / skipped0、Lint errors0。MIDI拡張子の受入／拒否・ワイルドカードなしを検査し、既存のファ一行回帰テストを更新。UI・ファイル選択の変更のみで、C++・codec・ASan/UBSanの再実行とは扱いません。Android test APKはビルドのみで端末未接続のため未実行。新しい表示・SAFピッカーは実機未検証です。
 
 versionCode7 / 0.4.2-alpha / ARM64、旧版と同じdebug v2署名。zipalign16KiB・4 ELF LOAD>=16384 PASS。APK 27686877bytes / SHA-256 `f77301301575998d26700bdb95d49323dcfc72c010b223d7ce79f43804fc66d4`。
 
-0.4.2のmain / tag / release-artifactsとプリリリースを公開。Assets添付は今回もHTTP 401で未完了。公開されたAPK・対応ソース・検証ZIP・自作fixture/MIDIを取得し、checksum一覧とSHA-256一致を確認しました。ホステッドCI／実機UI／M4Aの新しい成功は報告しません。
+0.4.2のmain / tag / release-artifactsとプリリリースを公開。APKはrelease-artifactsブランチで配布しています。公開されたAPK・対応ソース・検証ZIP・自作fixture/MIDIを取得し、checksum一覧とSHA-256一致を確認しました。ホステッドCI／実機UI／M4Aの新しい成功は報告しません。
 
 ## 0.4.3 falling labels / linked pinch viewport
 
 ロールの文字のベースラインを画面下端へclampする処理を撤去。文字はノートの元の矩形と共に移動し、Canvas境界でクリップ。ロール上のピンチ・横ドラッグを追加。52白鍵／88鍵の同じ座標系でロール・鍵盤・タッチ判定を変換し、倍率1..6.5、範囲A0..C8へ制限。音声・MIDIスケジュール・エンコード処理は変更なし。
 
-Android `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS、JUnit45 / failures0 / errors0 / skipped0、Lint errors0。ピンチ中心の音程維持、拡大した全キーの描画／hit一致、画面外のタッチ拒否、拡大縮小と左右移動の範囲、100%復帰を検査。ジェスチャーイベント・描画の実機／エミュレーター試験は未実施。旧版のnative／codec試験を今回の新規実行として扱いません。
+Android `assembleDebug testDebugUnitTest lintDebug assembleDebugAndroidTest` PASS、JUnit45 / failures0 / errors0 / skipped0、Lint errors0。ピンチ中心の音程維持、拡大した全キーの描画／hit一致、画面外のタッチ拒否、拡大縮小と左右移動の範囲、100%復帰を検査。ジェスチャーイベント・描画の実機／エミュレーター試験は未実施。旧版のnative／codec試験をこの版の新規実行として扱いません。
 
 APK versionCode8 / 0.4.3-alpha / ARM64 / min29 / target36、旧版と同じdebug v2署名。zipalign16KiB、4 ELF LOAD>=16384 PASS。28259860 bytes / SHA-256 `aee18608d1732b0556f68c8485d62d2ed94de844c8536efb36260613d930edab`。
 

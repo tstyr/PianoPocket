@@ -4,7 +4,7 @@
 
 設定からFPS表示をオン／オフし、演奏画面の左下に小さく表示。設定を保存します。表示はWindow FrameMetricsで得た描画フレームの実測値で、画面の公称HzをFPSとして表示しません。
 
-47 JVM tests・Androidビルド・Lint PASS。APK 27703265 bytes / SHA-256 `89cda023e36d773dc4baf5af461298251bc7720f00ab7ac169c1278819b59364`。FPS表示・端末上の実測値は実機未検証。120Hz更新は次の機能として実装します。 開発環境の実機／エミュレーター未接続。
+47 JVM tests・Androidビルド・Lint PASS。APK 27703265 bytes / SHA-256 `89cda023e36d773dc4baf5af461298251bc7720f00ab7ac169c1278819b59364`。FPS表示・端末上の実測値は実機未検証。120Hz更新は0.4.6で追加しました。 開発環境の実機／エミュレーター未接続。
 
 ## 0.4.6-alpha — 最大120FPSの表示更新
 
@@ -40,7 +40,7 @@ MP4はisom、MOVはQuickTime qtコンテナ。独立したFFmpegによる30fps/4
 
 通常／FXなし／左右別テスト音を比較。60秒の有界診断でXRun・キャッシュミス・ボイス置換・負荷をコピーできます。未取得値とカウンターリセットを区別。
 
-利用者から有線で0.6.0のノイズが残っていないとの報告を受けています。開発環境では実機未接続。詳細はdocs/AUDIO_DIAGNOSTICS.md。Native tests・ASan/UBSan PASS。
+開発環境での有線出力の実機試験は未実施です。詳細はdocs/AUDIO_DIAGNOSTICS.md。Native tests・ASan/UBSan PASS。
 
 53 JVM tests・Androidビルド・Lint PASS。APK 28817347 bytes / SHA-256 `c0ac8ff0b62800b0f1ef02c346005f6a151b245974b923ec5311ae009c6025c7`。 診断UIと出力経路の実機比較は未実施。FXなしでも残響維持のためFX処理は継続。 開発環境の実機／エミュレーター未接続。
 
@@ -74,7 +74,7 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 
 62 JVM tests、Native tests・ASan/UBSan、Androidビルド・Lint・実機テストAPKビルドPASS。Activity破棄後の実動画生成とキャンセルを検査するAndroid testsは用意済み／未実行。詳細はdocs/BACKGROUND_EXPORT.md。
 
-今回選択された改善1・2・3・4・6を、0.6.1（診断）、0.6.2（安定優先）、0.7.0（音源設定）、0.8.0（練習）、0.9.0（書き出し）としてそれぞれコミット・プッシュ・公開しました。
+診断、安定優先、音源設定、練習機能、書き出しを0.6.1から0.9.0で追加しました。
 
 62 JVM tests・Androidビルド・Lint PASS。APK 29091090 bytes / SHA-256 `5adc7a57800d7264f1c9b7afb8042da82995efebb2d69c8c9755c83b31781e04`。 通知・画面オフ・タスク除去・実Codec・VideoViewの実機成功は未確認。OS／省電力による終了・強制停止を超えて継続を保証せず、プロセス死亡後の自動再開は未対応。プレビューの長音再構築は近似。 開発環境の実機／エミュレーター未接続。
 
@@ -159,7 +159,7 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 
 更新後、エラーになった音源をもう一度読み込んでください。インポート自体が完了していない場合は、ファイルを選び直してください。
 
-97 JVM tests・Androidビルド・Lint PASS。APK 63538966 bytes / SHA-256 `3f7e43f3ee06804e1ac38fb1e8bfbed286ac5030abb279141e63bde8894a4a67`。97件のJVMテスト・Androidビルド・Lint・ネイティブ音声テスト・ASan/UBSanを通過。今回の音源の実ファイル全体とAndroid実機は未検証です。DSPはPianoPocketの実装で、純正との録音比較は未実施です。 開発環境の実機／エミュレーター未接続。
+97 JVM tests・Androidビルド・Lint PASS。APK 63538966 bytes / SHA-256 `3f7e43f3ee06804e1ac38fb1e8bfbed286ac5030abb279141e63bde8894a4a67`。97件のJVMテスト・Androidビルド・Lint・ネイティブ音声テスト・ASan/UBSanを通過。任意の音源全体とAndroid実機での動作は未検証です。DSPはPianoPocketの実装で、純正との録音比較は未実施です。 開発環境の実機／エミュレーター未接続。
 
 ## 0.15.0-alpha — MIDIの転調に対応
 
@@ -191,3 +191,11 @@ USB機器を接続、またはBluetooth MIDIを検索・接続してから送信
 外部MIDI出力は起動時にオフです。MIDIファイルのチャンネルを維持し、画面鍵盤の送信チャンネルを選べます。
 
 111 JVM tests・Androidビルド・Lint PASS。APK 63485227 bytes / SHA-256 `f6288aaa314eb4967b0ee0e6348f1defcbe7c1236c1073c8a98187d87e554c8d`。111件のJVMテスト・Androidビルド・Lintを通過。0.16.0でネイティブ音声／MIDIテスト・ASan/UBSanを通過しており、この版のネイティブコードは同一です。USB／Bluetooth MIDI機器での実機送信と遅延・同期の測定は未実施です。SysEx・MIDI Clock・MIDI 2.0 UMPは送信しません。 開発環境の実機／エミュレーター未接続。
+
+## 0.17.0-alpha — 曲の設定を自動保存
+
+曲ごとに音源、転調、再生速度、A–Bリピート、鍵盤の表示範囲、トラックの表示・ミュート、再開位置を保存します。別の曲を選んだりアプリを再起動したりしても、停止状態で復元します。
+
+READMEと過去のリリース説明を、使い方・変更点・ダウンロード先を中心に整理しました。
+
+115 JVM tests・Androidビルド・Lint PASS。APK 63501615 bytes / SHA-256 `4b4d1d2b068399b58a52ef21ccdb5d322f9621c7b682f661583a39cb92b93a16`。Androidビルド・自動テスト・Lintを確認済み。開発環境でのAndroid実機試験は未実施です。削除された音源は復元せず、現在の音源を使います。 開発環境の実機／エミュレーター未接続。

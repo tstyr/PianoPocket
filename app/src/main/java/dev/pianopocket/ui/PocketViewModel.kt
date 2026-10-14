@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import dev.pianopocket.audio.NativeAudio
 import dev.pianopocket.library.*
 import dev.pianopocket.midi.*
+import dev.pianopocket.settings.SongSettings
+import dev.pianopocket.settings.SongSettingsStore
 import dev.pianopocket.settings.Preferences
 import dev.pianopocket.settings.SoundSettings
 import dev.pianopocket.settings.SoundSettingsStore
@@ -55,6 +57,8 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val preferences=Preferences(app)
     private val soundStore=SoundSettingsStore(File(app.filesDir,"sound-settings"))
     private var soundSaveJob: Job?=null
+    private val songStore=SongSettingsStore(File(app.filesDir,"song-settings"))
+    private var lastSongSave: Pair<String,SongSettings>?=null
     private val midiLibrary=MidiLibrary(app)
     private val recorder=MidiRecorder()
     private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
@@ -92,6 +96,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
             }
         }
         viewModelScope.launch {
+            while(isActive){delay(1000);withContext(worker){runCatching {saveCurrentSong(throttled=true)}}}
+        }
+        viewModelScope.launch {
             while(isActive){delay(100);if(foreground && !displayFramesActive)displayFrame()}
         }
         viewModelScope.launch {
@@ -114,7 +121,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         midi.performanceActive(active && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)
         if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
         if(active){if(!ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)work {openAudioWorker()} }
-        else work {soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
+        else work {saveCurrentSong();soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
     }
     private fun openAudioWorker(forceReload: Boolean=false) {
         if(!foreground || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
@@ -249,15 +256,34 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         messages.forEachIndexed { i,e->data[i*3]=e.status;data[i*3+1]=e.a;data[i*3+2]=e.b };return times to data
     }
     private fun selectSong(entry: MidiEntry,song: MidiSong){
-        val (times,data)=arrays(song);NativeAudio.timeline(times,data,song.duration)
-        val fresh=state.value.sequence.copy(song=song,guided=dev.pianopocket.sequencer.GuidedPractice(),mutedTracks=emptySet());installPractice(fresh)
-        if(!foreground)NativeAudio.stop()
+        saveCurrentSong()
+        val saved=songStore.read(entry.id)
+        if(saved!=null && saved.instrument!=state.value.selected){
+            state.value.library.firstOrNull {it.id==saved.instrument}?.let {loadInternal(it)}
+        }
+        val transposed=SongTranspose.apply(song,saved?.transpose ?: 0)
+        var fresh=state.value.sequence.copy(library=midiLibrary.entries(),song=transposed,sourceSong=song,
+            transpose=0,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,
+            loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),
+            guided=GuidedPractice(),waiting=false,waitingKeys=emptySet())
+        if(saved!=null)fresh=saved.restore(fresh)
+        rebuildPractice(fresh)
         preferences.lastMidi=entry.id
-        mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries(),song=song,sourceSong=song,transpose=0,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet()),message="${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}") }
+        mutable.update {it.copy(message=if(saved!=null)"曲の設定を復元しました" else "${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}")}
+        saveCurrentSong()
     }
+    private fun saveCurrentSong(s: PocketState=state.value,throttled: Boolean=false){
+        val seq=s.sequence;if(seq.song==null || seq.selected.isBlank())return
+        val record=SongSettings.capture(s.selected,seq)
+        val previous=lastSongSave?.takeIf {it.first==seq.selected}?.second
+        if(record==previous)return
+        if(throttled && seq.playing && previous!=null && record.copy(position=0)==previous.copy(position=0) && kotlin.math.abs(record.position-previous.position)<5_000_000)return
+        songStore.write(seq.selected,record);lastSongSave=seq.selected to record
+    }
+
     fun importMidi(uri: Uri)=work { if(state.value.sequence.recording)stopRecording();mutable.update { it.copy(busy=true) };val (entry,song)=midiLibrary.import(uri);selectSong(entry,song);mutable.update { it.copy(busy=false) } }
     fun selectMidi(entry: MidiEntry)=work { selectSong(entry,midiLibrary.load(entry)) }
-    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,sourceSong=null,transpose=0,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
+    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,sourceSong=null,transpose=0,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };songStore.delete(entry.id);if(lastSongSave?.first==entry.id)lastSongSave=null;midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
     fun play()=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work
         if(seq.recording || seq.exporting || !state.value.ready)return@work
@@ -347,5 +373,5 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun exportSelection(value: ExportSelection){preferences.exportSelection=value;mutable.update {it.copy(sequence=it.sequence.copy(exportSelection=value))}}
     fun previewVideo(rate: Int,bitrate: Int,video: VideoOptions)=work {diagnosticMode(0);stopDiagnosis();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear();ExportCoordinator.submit(getApplication(),exportRequest(null,ExportFormat.MP4,rate,1,bitrate,video,true))}
     fun closePreview()=ExportCoordinator.clearPreview()
-    override fun onCleared() { midi.close();val snapshot=state.value;executor.execute {runCatching {saveCurrentSound(snapshot)};if(AudioWorkQueue.isCurrentUi(audioOwner)){NativeAudio.stop();NativeAudio.abort()} };super.onCleared() }
+    override fun onCleared() { midi.close();val snapshot=state.value;executor.execute {runCatching {saveCurrentSong(snapshot);saveCurrentSound(snapshot)};if(AudioWorkQueue.isCurrentUi(audioOwner)){NativeAudio.stop();NativeAudio.abort()} };super.onCleared() }
 }
