@@ -68,7 +68,7 @@ object MidiFileCodec {
                     require(data.all { it.toInt()>=0 }){"MIDIデータバイトが不正です"}
                     records+=MidiRecord(tick,track,status,data)
                     if(status and 0xf0 in listOf(0xa0,0xc0,0xd0))warnings+="Program Change / pressureは内蔵音源には適用しません。MIDI出力へは送信します。"
-                    if(status and 0xf0 == 0xb0 && data[0].toInt() !in listOf(7,11,64,120,121,123))warnings+="CC7 / CC11 / CC64 / CC120 / CC121 / CC123以外のCCは保存しますが再生には適用しません。"
+                    if(status and 0xf0 == 0xb0 && data[0].toInt() !in listOf(7,11,64,120,121,123))warnings+="追加のCCは音源に対応するサンプル選択条件がある場合に適用します。連続した変調は未対応です。"
                     if(status and 0xf0 == 0x90 && (status and 15)==9)warnings+="ドラムチャンネルも現在の音源で演奏します。GM音源切替は未対応です。"
                 }
                 require(records.size<=MAX_EVENTS){"MIDIイベントは20万件までです"}

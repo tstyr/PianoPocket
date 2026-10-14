@@ -48,9 +48,20 @@ class SfzTest {
         val r=p.regions.single();assertEquals(64,r.ints[11]);assertEquals(64,r.ints[12]);assertEquals(1,r.ints[14]);assertEquals(1200f,r.floats[2]);assertEquals(0f,r.floats[7]);assertEquals(0f,r.floats[8])
     }
     @Test fun unsupportedVariantsDoNotStack() {
-        val p=parse("<region> sample=first.wav key=60 <region> sample=keyswitch.wav key=60 sw_last=24 <region> sample=filtered.wav cutoff=8000 fil_type=lpf_4p")
-        assertEquals(2,p.regions.size);assertTrue(p.warnings.any {"sw_last" in it});assertTrue(p.warnings.any {"skipped" in it});assertTrue(p.warnings.any {"lpf_4p" in it})
+        val p=parse("<region> sample=first.wav key=60 <region> sample=keyswitch.wav key=60 sw_down=24 <region> sample=filtered.wav cutoff=8000 fil_type=lpf_6p")
+        assertEquals(2,p.regions.size);assertTrue(p.warnings.any {"sw_down" in it});assertTrue(p.warnings.any {"skipped" in it});assertTrue(p.warnings.any {"lpf_6p" in it})
     }
+    @Test fun keyswitchDefaultsLabelsExclusiveGroupsAndFourPoleFilter() {
+        val p=parse("<global> sw_lokey=24 sw_hikey=25 sw_default=24 <region> sample=a.wav sw_last=24 sw_label=通常 group=3 off_by=4 off_mode=normal fil_type=lpf_4p cutoff=2500 <region> sample=b.wav sw_last=25 sw_label=短音")
+        val r=p.regions.first();assertEquals(31,r.ints.size);assertEquals(listOf(24,25,24,24,3,4,1),r.ints.drop(24));assertEquals(7,r.ints[22])
+        assertEquals(listOf("通常","短音"),p.articulations.map {it.label});assertFalse(p.warnings.any {"unsupported" in it || "skipped" in it})
+    }
+    @Test fun singleControllerConditionSupportsOtherCcButMultipleConditionsAreSkipped() {
+        val p=parse("<region> sample=a.wav locc1=64 hicc1=100 <region> sample=b.wav locc1=20 hicc64=80")
+        assertEquals(1,p.regions.size);assertEquals(1,p.regions[0].ints[11]);assertEquals(64,p.regions[0].ints[12]);assertEquals(100,p.regions[0].ints[13])
+        assertTrue(p.warnings.any {"multiple controller" in it})
+    }
+    @Test(expected=IllegalArgumentException::class) fun keyswitchOutsideRangeRejected(){parse("<region> sample=a.wav sw_lokey=24 sw_hikey=25 sw_last=26")}
     @Test fun quotedUnicodeAndMacroExpansion() {
         val p=parse("#define ${'$'}A ${'$'}B\n#define ${'$'}B C4\n<region> key=${'$'}A sample=\"ピアノ 音.wav\" /* x */")
         assertEquals("ピアノ 音.wav",p.regions.single().path);assertEquals(60,p.regions[0].ints[3])

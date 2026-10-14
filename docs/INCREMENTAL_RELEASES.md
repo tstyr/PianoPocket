@@ -223,3 +223,11 @@ READMEと過去のリリース説明を、使い方・変更点・ダウンロ�
 Galaxy S26での利用者による動作確認報告をREADMEに追記しました。
 
 120 JVM tests・Androidビルド・Lint PASS。APK 63805210 bytes / SHA-256 `4f091486f00e8e1ea4c0709572fb34a254acdf6dc4ed48d08578468f5ad7b68f`。Androidビルド・120件の自動テスト・Lintを確認済み。TimGM6mbの136音色を解析し、展開したピアノでネイティブ音声生成も確認しました。SF2の変調や内蔵エフェクトには未対応部分があり、警告を表示します。SF2機能のAndroid実機試験は未実施です。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.20.0-alpha/docs/SOUNDFONT.md)。 開発環境の実機／エミュレーター未接続。
+
+## 0.21.0-alpha — SFZの奏法と排他グループ
+
+SFZのキースイッチで奏法を切り替えられます。音源パネルから画面鍵盤の奏法も選べます。
+
+排他グループ、4ポールのフィルター、単一CC条件のサンプル選択を追加しました。シークやA–Bリピートでも内部の奏法状態を復元します。
+
+123 JVM tests・Androidビルド・Lint PASS。APK 64671506 bytes / SHA-256 `7b15a78207b36d61c50c9ea6ecb838fcb95d8a8c3cc4211b7493410316198d6e`。123件の自動テスト、Androidビルド、Lint、ネイティブ音声テスト、ASan／UBSanを確認済み。音声処理内の動的確保は0。新機能のAndroid実機試験は未実施です。フィルターは近似処理です。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.21.0-alpha/docs/SFZ.md)。 開発環境の実機／エミュレーター未接続。

@@ -17,6 +17,7 @@ struct Region {
     bool oneShot=false,loopDuringRelease=false,sfzVelocity=false;
     int sequenceLength=1,sequencePosition=1,filterType=0;
     float randomLow=0,randomHigh=1,cutoff=20000,resonance=0;
+    int switchLow=-1,switchHigh=-1,switchLast=-1,switchDefault=-1,offGroup=0,offBy=0,offMode=0;
     bool customVelocity=false;
     std::array<float,128> velocityCurve{};
     std::array<double,5> filterCoefficients{1,0,0,0,0};
@@ -27,6 +28,8 @@ struct Instrument {
     std::vector<Region> regions;
     std::array<std::array<std::vector<unsigned>,128>,4> lookup;
     std::unique_ptr<SampleCache> cache;
+    std::array<std::vector<unsigned>,128> switchLookup;
+    int switchDefault=-1;
     size_t residentBytes=0,memoryBudget=0;
     Instrument(){for(auto& curve:velocityGains)curve.fill(1);}
     void prepare(bool offline=false){
@@ -35,6 +38,8 @@ struct Instrument {
             if(r.trigger==Trigger::PedalDown || r.trigger==Trigger::PedalUp)lookup[int(r.trigger)][60].push_back(i);
             else for(int k=r.low;k<=r.high;++k)lookup[int(r.trigger)][k].push_back(i);
         }
+        switchDefault=-1;for(auto& notes:switchLookup)notes.clear();
+        for(unsigned i=0;i<regions.size();++i){auto& r=regions[i];if(r.switchDefault>=0)switchDefault=r.switchDefault;for(int k=r.switchLow;k>=0 && k<=r.switchHigh;++k)switchLookup[k].push_back(i);}
         size_t heads=0,streamPages=0;
         for(auto& s:samples){
             heads+=s.head.size()*sizeof(float);

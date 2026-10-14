@@ -197,6 +197,25 @@ int main(){try{
         for(int velocity:{127,64}){b=bank();b->regions[0].sfzVelocity=true;b->regions[0].customVelocity=true;b->regions[0].velocityCurve.fill(1);b->regions[0].velocityCurve[64]=.2f;s.install(std::move(b),{},48000);s.send({0,0,60,velocity});for(int i=0;i<4;++i)render(s,out,256);if(velocity==127)loud=energy(out,256);else soft=energy(out,256);}check(std::abs(soft/loud-.04f)<.002f,"custom velocity points are normalized amplitude");
     }
     {
+        auto engine=std::make_unique<SamplerEngine>();auto b=bank();b->regions[0].switchLow=24;b->regions[0].switchHigh=25;b->regions[0].switchLast=24;b->regions[0].switchDefault=24;b->regions[0].gain=.2f;
+        auto other=b->regions[0];other.switchLast=25;other.gain=.4f;b->regions.push_back(other);b->prepare();engine->install(std::move(b),{},48000);
+        engine->send({0,0,60,127});for(int n=0;n<4;++n)render(*engine,out,256);float normal=energy(out,256);check(engine->noteVoiceCount(60,0)==1,"default keyswitch selects one articulation");
+        engine->send({2,0,120,0});engine->send({0,0,25,127});engine->send({1,0,25,0});engine->send({0,0,60,127});for(int n=0;n<4;++n)render(*engine,out,256);
+        check(engine->noteVoiceCount(25,0)==0 && engine->noteVoiceCount(60,0)==1 && energy(out,256)>normal*3.9f,"sticky switch changes real audio without sounding the control key");
+        engine->send({0,1,60,127});render(*engine,out,256);check(engine->noteVoiceCount(60,1)==1,"keyswitch states are independent per MIDI source/channel");
+        engine->setTimeline({{0,{0,17,25,100}},{1000,{1,17,25,0}},{4000,{0,17,60,100}}},48000);engine->seek(3000);engine->send({10,0,1});for(int n=0;n<12;++n)render(*engine,out,256);
+        check(engine->noteVoiceCount(60,17)==1,"seek restores earlier keyswitch notes before playback");
+    }
+    {
+        auto engine=std::make_unique<SamplerEngine>();auto b=bank();b->regions[0].offBy=2;b->regions[0].release=1;
+        auto closer=b->regions[0];closer.low=closer.high=61;closer.offBy=0;closer.offGroup=2;b->regions[0].low=b->regions[0].high=60;b->regions.push_back(closer);b->prepare();engine->install(std::move(b),{},48000);
+        engine->send({0,0,60,100});engine->send({0,1,60,100});for(int n=0;n<4;++n)render(*engine,out,256);engine->send({0,0,61,100});for(int n=0;n<4;++n)render(*engine,out,256);
+        check(engine->noteVoiceCount(60,0)==0 && engine->noteVoiceCount(61,0)==1 && engine->noteVoiceCount(60,1)==1,"off_by chokes the right group without stopping another channel");
+        float two=0,four=0;
+        for(int type:{2,7}){b=bank();b->regions[0].filterType=type;b->regions[0].cutoff=80;engine->install(std::move(b),{},48000);engine->send({0,0,60,127});for(int n=0;n<24;++n)render(*engine,out,256);if(type==2)two=energy(out,256);else four=energy(out,256);}
+        check(four<two*.1f,"four-pole filter has stronger above-cutoff attenuation");
+    }
+    {
         SamplerEngine p;p.install(bank(),{},48000);p.setTimeline({},48000);
         p.configurePractice({{100,{uint64_t(1)<<60,1}},{600,{uint64_t(1)<<60,0}}},{},true,false,120,.3f,true);p.send({10,0,1});render(p,out,256);
         check(p.practiceStatus()[0]==1 && std::abs(p.transport()[0]*48000-100)<.01,"guided practice freezes at the note onset");

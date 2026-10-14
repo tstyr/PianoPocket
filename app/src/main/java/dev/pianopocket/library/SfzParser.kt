@@ -10,7 +10,8 @@ class SfzParser {
         "ampeg_attack", "ampeg_decay", "ampeg_sustain", "ampeg_release", "offset", "end",
         "loop_start", "loop_end", "loop_mode", "trigger", "group_label", "region_label", "label",
         "locc64", "hicc64", "xfade_velcurve", "xfin_lovel", "xfin_hivel", "xfout_lovel", "xfout_hivel",
-        "seq_length", "seq_position", "lorand", "hirand", "cutoff", "resonance", "fil_type")
+        "seq_length", "seq_position", "lorand", "hirand", "cutoff", "resonance", "fil_type",
+        "sw_lokey", "sw_hikey", "sw_last", "sw_default", "sw_label", "group", "off_by", "off_mode")
 
     fun parse(text: String, name: String, file: String = "Instrument.sfz", include: (String) -> String = { error("Missing SFZ include: $it") }): Preset {
         warnings.clear()
@@ -62,6 +63,8 @@ class SfzParser {
 
         val source = preprocess(text.removePrefix("\uFEFF"), main, setOf(main))
         val regions = mutableListOf<Region>()
+        val articulations = linkedMapOf<Int,String>()
+        var switchRange: Pair<Int,Int>?=null
         val groups = mutableListOf<String>()
         var global = linkedMapOf<String, String>()
         var master = linkedMapOf<String, String>()
@@ -78,8 +81,13 @@ class SfzParser {
                 groupIndex = groups.size
                 groups += group["group_label"] ?: "Piano ${groups.size + 1}"
             }
+            if("sw_lokey" in attributes && "sw_hikey" in attributes){
+                val range=noteNumber(attributes.getValue("sw_lokey")) to noteNumber(attributes.getValue("sw_hikey"))
+                if(switchRange!=null && switchRange!=range){warn("SFZ region skipped: multiple independent keyswitch ranges are unsupported");return}
+                switchRange=range
+            }
             require(regions.size < 30000) { "SFZ region limit exceeded" }
-            toRegion(attributes, groupIndex, base, control["default_path"] ?: "")?.let { regions += it }
+            toRegion(attributes, groupIndex, base, control["default_path"] ?: "")?.let { regions += it;attributes["sw_last"]?.let {key->articulations[noteNumber(key)]=attributes["sw_label"] ?: key} }
         }
         tokenize(source) { header, key, value ->
             if (header != null) {
@@ -100,13 +108,13 @@ class SfzParser {
                     require(target.size < 512 || key in target) { "SFZ opcode count exceeded" }
                     target[key!!] = value!!
                     if (scope == "control") { if (key != "default_path") warn("SFZ <control> $key is unsupported") }
-                    else if (key !in supported && !key.matches(Regex("amp_velcurve_\\d{1,3}"))) warn("SFZ opcode $key is unsupported")
+                    else if (key !in supported && !key.matches(Regex("(?:amp_velcurve_|locc|hicc)\\d{1,3}"))) warn("SFZ opcode $key is unsupported")
                 }
             }
         }
         flush()
         require(regions.isNotEmpty()) { "SFZに再生可能なサンプルリージョンがありません。" }
-        return Preset(name, regions, groups, emptyList(), emptyList(), warnings.toList(), groups.map { 1f })
+        return Preset(name, regions, groups, emptyList(), emptyList(), warnings.toList(), groups.map { 1f },articulations=articulations.map {Articulation(it.key,it.value)})
     }
 
     private fun toRegion(a: Map<String, String>, group: Int, base: String, defaultPath: String): Region? {
@@ -140,8 +148,8 @@ class SfzParser {
             else -> { warn("SFZ trigger=${a["trigger"]}: region skipped"); return null }
         }
         // Selecting all unsupported random/sequence variants would stack them and distort the sound.
-        if (a.keys.any { it.startsWith("sw_") || it.matches(Regex("(?:lo|hi)cc(?!64$)\\d+")) || it.startsWith("on_lo") || it.startsWith("on_hi") }) {
-            warn("SFZ $sample skipped: unsupported keyswitch or controller selection")
+        if (a.keys.any { it.startsWith("sw_") && it !in supported || it.startsWith("on_lo") || it.startsWith("on_hi") }) {
+            warn("SFZ $sample skipped: unsupported keyswitch or controller trigger")
             return null
         }
         val loop = a["loop_mode"] ?: "no_loop"
@@ -153,15 +161,23 @@ class SfzParser {
         val end = if ("end" in a) integer("end", 0, start) else -1 // Native end is inclusive too.
         val loopStart = if (explicit) integer("loop_start", 0, start) else -1
         val loopEnd = if (explicit) integer("loop_end", 0, loopStart + 1) else -1
-        val cc = if ("locc64" in a || "hicc64" in a) 64 else -1
-        val ccLow = integer("locc64", 0, 0, 127); val ccHigh = integer("hicc64", 127, ccLow, 127)
+        val ccs=a.keys.mapNotNull {Regex("(?:lo|hi)cc(\\d+)").matchEntire(it)?.groupValues?.get(1)?.toInt()}.distinct()
+        if(ccs.size>1){warn("SFZ $sample skipped: multiple controller conditions are unsupported");return null}
+        require(ccs.all {it in 0..127});val cc=ccs.firstOrNull() ?: -1
+        val ccLow=integer("locc$cc",0,0,127);val ccHigh=integer("hicc$cc",127,ccLow,127)
+        val swLast=note("sw_last",-1);val swLow=note("sw_lokey",swLast);val swHigh=note("sw_hikey",swLast);val swDefault=note("sw_default",-1)
+        require(swLast in -1..127 && swLow in -1..127 && swHigh>=swLow && swHigh<=127 && swDefault in -1..127)
+        require(swLast<0 || swLast in swLow..swHigh);require(swDefault<0 || swDefault in swLow..swHigh)
+        val offGroup=integer("group",0,Int.MIN_VALUE,Int.MAX_VALUE);val offBy=integer("off_by",0,Int.MIN_VALUE,Int.MAX_VALUE)
+        val offMode=when(a["off_mode"] ?: "fast"){"fast"->0;"normal"->1;else->error("Unsupported SFZ off_mode")}
+
         val velocity = number("amp_veltrack", 100f, -100f, 100f)
         val sequenceLength=integer("seq_length",1,0,1024).coerceAtLeast(1)
         val sequencePosition=integer("seq_position",1,1,sequenceLength)
         val randomLow=number("lorand",0f,0f,1f);val randomHigh=number("hirand",1f,randomLow,1f)
         require(randomHigh>randomLow) { "Empty SFZ random range" }
         val filter=if(a.keys.any {it in setOf("cutoff","resonance","fil_type")})when(a["fil_type"] ?: "lpf_2p") {
-            "lpf_1p"->1;"lpf_2p"->2;"hpf_1p"->3;"hpf_2p"->4;"bpf_2p"->5;"brf_2p"->6
+            "lpf_1p"->1;"lpf_2p"->2;"hpf_1p"->3;"hpf_2p"->4;"bpf_2p"->5;"brf_2p"->6;"lpf_4p"->7;"hpf_4p"->8;"bpf_4p"->9
             else->{warn("SFZ filter ${a["fil_type"]} is unsupported; filter bypassed");0}
         }else 0
         if(filter>0)warn("SFZ filter uses a biquad approximation; resonance-to-Q mapping can differ between players")
@@ -176,7 +192,7 @@ class SfzParser {
         val flags = 4 or (if (loop == "one_shot") 1 else 0) or (if (loop == "loop_continuous") 2 else 0)
         val ints = intArrayOf(group, low, high, root.coerceAtLeast(0), lovel, hivel, trigger, start, end, loopStart, loopEnd,
             cc, ccLow, ccHigh, integer("xfin_lovel", -1, -1, 127), integer("xfin_hivel", -1, -1, 127),
-            integer("xfout_lovel", -1, -1, 127), integer("xfout_hivel", -1, -1, 127), 1, flags,sequenceLength,sequencePosition,filter,if(customVelocity)1 else 0)
+            integer("xfout_lovel", -1, -1, 127), integer("xfout_hivel", -1, -1, 127), 1, flags,sequenceLength,sequencePosition,filter,if(customVelocity)1 else 0,swLow,swHigh,swLast,swDefault,offGroup,offBy,offMode)
         val gain = 10.0.pow(number("volume", 0f, -144f, 48f) / 20.0).toFloat() * number("amplitude", 100f, 0f, 100f) / 100f
         val floats = floatArrayOf(gain, number("pan", 0f, -100f, 100f) / 100f,
             number("tune", 0f, -1200f, 1200f) + number("transpose", 0f, -127f, 127f) * 100f,

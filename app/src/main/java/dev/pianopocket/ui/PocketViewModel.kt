@@ -42,6 +42,7 @@ data class PocketState(
     val targetFps: Int = 60,
     val showFps: Boolean = false,
     val aacAvailable: Boolean = false, val videoOptions: List<VideoOptions> = emptyList(),
+    val articulation: Int = -1,
     val landscapePerformance: Boolean = true, val uiPedal: Boolean = false,
     val library: List<LibraryEntry> = emptyList(), val selected: String = "", val preset: Preset? = null,
     val busy: Boolean = false, val message: String = "準備中", val midi: String = "MIDI未接続",
@@ -223,7 +224,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(state.value.sequence.song!=null)NativeAudio.seekTimeline(state.value.sequence.position)
         repository.used(entry);preferences.lastInstrument=entry.id
         if(!performanceActive)NativeAudio.stop()
-        mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=performanceActive,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
+        mutable.update { it.copy(articulation=configured.regions.map {r->r.ints.getOrElse(27){-1}}.firstOrNull {it>=0} ?: -1,preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=performanceActive,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
         saveCurrentSound();syncBackgroundService()
     }
     fun importSoundFont(uri: Uri)=work {mutable.update {it.copy(busy=true)};val added=repository.importSoundFont(uri){p->mutable.update {it.copy(message=p)}};refreshLibrary();loadInternal(added.first())}
@@ -291,6 +292,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     }
     fun showFps(value: Boolean){preferences.showFps=value;mutable.update { it.copy(showFps=value) }}
     fun landscapePerformance(value: Boolean){preferences.landscapePerformance=value;mutable.update { it.copy(landscapePerformance=value) }}
+    fun articulation(key: Int){if(state.value.preset?.articulations?.none {it.key==key}!=false)return;key(key,100);key(key,0);mutable.update {it.copy(articulation=key)}}
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
     fun panic(){diagnosticMode(0);mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
     fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}

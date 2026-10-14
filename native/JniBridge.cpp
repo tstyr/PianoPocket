@@ -30,8 +30,8 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         if(!staged)throw std::runtime_error("No import transaction");
         auto length=e->GetArrayLength(ints);
         auto floatLength=e->GetArrayLength(floats);
-        if(!((length==19 || length==20) && floatLength==9) && !(length==24 && (floatLength==13 || floatLength==141)))throw std::runtime_error("Invalid mapping");
-        jint a[24]={};jfloat f[141]={};e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,floatLength,f);
+        if(!((length==19 || length==20) && floatLength==9) && !((length==24 || length==31) && (floatLength==13 || floatLength==141)))throw std::runtime_error("Invalid mapping");
+        jint a[31]={};jfloat f[141]={};e->GetIntArrayRegion(ints,0,length,a);e->GetFloatArrayRegion(floats,0,floatLength,f);
         auto path=string(e,file);auto found=paths.find(path);unsigned sample;
         if(found==paths.end()){
             if(staged->samples.size()>=4096 || staged->residentBytes+8193*8+SampleCache::MinPages*sizeof(SampleCache::Page)+SampleCache::DirectoryBytes>budget)throw std::runtime_error("Sample-head memory budget exceeded; increase budget or use fewer samples");
@@ -41,13 +41,14 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_region(
         r.gain=f[0];r.pan=f[1];r.tune=f[2];r.attack=f[3];r.decay=f[4];r.sustain=f[5];r.release=f[6];r.velTrack=f[7];r.keyTrack=f[8];
         if(a[19]<0 || a[19]>7)throw std::runtime_error("Invalid SFZ flags");
         r.oneShot=a[19]&1;r.loopDuringRelease=a[19]&2;r.sfzVelocity=a[19]&4;
-        if(length==24){
-            if(a[20]<1 || a[20]>1024 || a[21]<1 || a[21]>a[20] || a[22]<0 || a[22]>6 || (a[23]!=0 && a[23]!=1) || (a[23] && floatLength!=141))throw std::runtime_error("Invalid SFZ extension");
+        if(length>=24){
+            if(a[20]<1 || a[20]>1024 || a[21]<1 || a[21]>a[20] || a[22]<0 || a[22]>9 || (a[23]!=0 && a[23]!=1) || (a[23] && floatLength!=141))throw std::runtime_error("Invalid SFZ extension");
             for(int i=9;i<floatLength;++i)if(!std::isfinite(f[i]))throw std::runtime_error("Non-finite SFZ parameter");
             r.sequenceLength=a[20];r.sequencePosition=a[21];r.filterType=a[22];r.customVelocity=a[23];r.randomLow=f[9];r.randomHigh=f[10];r.cutoff=f[11];r.resonance=f[12];
             if(r.randomLow<0 || r.randomHigh>1 || r.randomLow>=r.randomHigh)throw std::runtime_error("Invalid random range");
             if(r.customVelocity)for(int i=0;i<128;++i){if(f[13+i]<0 || f[13+i]>1)throw std::runtime_error("Invalid velocity curve");r.velocityCurve[i]=f[13+i];}
         }
+        if(length==31){r.switchLow=a[24];r.switchHigh=a[25];r.switchLast=a[26];r.switchDefault=a[27];r.offGroup=a[28];r.offBy=a[29];r.offMode=a[30];if(r.switchLow < -1 || r.switchHigh>127 || r.switchLow>r.switchHigh || r.switchLast < -1 || r.switchLast>127 || r.switchDefault < -1 || r.switchDefault>127 || r.offMode<0 || r.offMode>1)throw std::runtime_error("Invalid SFZ switching mapping");}
         auto frames=staged->samples[sample].frames;
         if(r.group>=256 || r.low<0 || r.high>127 || r.low>r.high || r.root<0 || r.root>127 || a[6]<0 || a[6]>3 || r.start<0 || uint64_t(r.start)>=frames || (r.end>=0 && (uint64_t(r.end)>frames || r.end<r.start)) || (r.loopStart>=0 && (r.loopEnd<=r.loopStart || uint64_t(r.loopEnd)>=frames)))throw std::runtime_error("Region boundaries outside WAV or invalid mapping");
         staged->regions.push_back(r);

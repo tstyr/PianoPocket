@@ -33,6 +33,8 @@ class SamplerEngine {
     std::array<std::array<std::array<Key,4>,128>,33> keys{};
     std::array<std::array<int,128>,33> controllers{};
     std::array<float,33> bends{};
+    std::array<int,33> switches{};
+    std::array<int,16> loopSwitches{};
     std::array<std::array<bool,120>,33> controllerSeen{};
     std::array<int,33> programs{};
     std::array<int,16> loopPrograms{};

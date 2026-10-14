@@ -2,6 +2,7 @@ package dev.pianopocket.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -139,6 +140,12 @@ fun InstrumentPanel(state: PocketState,model: PocketViewModel,close:()->Unit,lib
         TabRow(selectedTabIndex=page) { listOf("ミキサー","エフェクト","情報").forEachIndexed { i,name->Tab(selected=page==i,onClick={page=i},text={Text(name)}) } }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             if(preset!=null)SavedSoundsPanel(state,model)
+            if(preset?.articulations?.isNotEmpty()==true){
+                Text("画面鍵盤の奏法",style=MaterialTheme.typography.titleSmall)
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){
+                    preset.articulations.forEach {a->FilterChip(selected=state.articulation==a.key,onClick={model.articulation(a.key)},enabled=state.ready && !state.busy && !state.sequence.exporting,label={Text(a.label)})}
+                }
+            }
             if(preset==null)OutlinedButton(onClick=library){Text("音源を選択")} else when(page) {
                 0 -> {
                     // Only real XML bindings become microphone strips. No invented Helsinki parameters.

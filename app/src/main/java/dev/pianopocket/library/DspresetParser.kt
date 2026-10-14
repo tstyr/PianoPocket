@@ -11,7 +11,8 @@ data class Binding(val type: String, val index: Int, val slot: Int, val outMin: 
 data class Control(val name: String, val min: Float, val max: Float, var value: Float, val bindings: List<Binding>)
 data class IrChoice(val name: String, val effectIndex: Int, val path: String)
 data class IrMenu(val name: String, val options: List<IrChoice>, val selected: Int)
-data class Preset(val name: String, val regions: List<Region>, val groups: List<String>, val effects: List<Effect>, val controls: List<Control>, val warnings: List<String>, val groupVolumes: List<Float>, val velocityCurves: Map<Int,FloatArray> = emptyMap(), val menus: List<IrMenu> = emptyList(), val voiceLimit: Int? = null)
+data class Articulation(val key: Int,val label: String)
+data class Preset(val name: String, val regions: List<Region>, val groups: List<String>, val effects: List<Effect>, val controls: List<Control>, val warnings: List<String>, val groupVolumes: List<Float>, val velocityCurves: Map<Int,FloatArray> = emptyMap(), val menus: List<IrMenu> = emptyList(), val voiceLimit: Int? = null,val articulations: List<Articulation> = emptyList())
 
 /** Portable XML mapping parser. Rendering never invokes this class. */
 class DspresetParser {

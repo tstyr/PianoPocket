@@ -134,8 +134,7 @@ object SoundFontReader {
                         fun seconds(op: Int)=if(value(op,-12000)<=-32768)0.0 else 2.0.pow(value(op,-12000)/1200.0).coerceIn(0.0,if(op==38)120.0 else 60.0)
                         (p.keys+i.keys).filter {it !in supported}.forEach {localWarnings+="SoundFont generator $it は未対応です。"}
                         if(value(33,-12000)>-12000 || value(35,-12000)>-12000)localWarnings+="SoundFontのエンベロープDelay・Holdは未対応です。"
-                        if((i[57] ?: 0)!=0)localWarnings+="SoundFontの排他クラスはこの版では未対応です。"
-                        text.append("<region> sample=$path lokey=${keys.first} hikey=${keys.second} lovel=${velocities.first} hivel=${velocities.second}")
+                        text.append("<region> sample=$path group=${i[57] ?: 0} off_by=${i[57] ?: 0} off_mode=fast lokey=${keys.first} hikey=${keys.second} lovel=${velocities.first} hivel=${velocities.second}")
                         text.append(" pitch_keycenter=${(i[58] ?: sample.root).let {if(it in 0..127)it else 60}} transpose=${value(51).coerceIn(-120,120)} tune=${value(52)+sample.correction} pitch_keytrack=${value(56,100)}")
                         text.append(" volume=${-value(48).coerceIn(0,1440)/10.0} pan=${value(17).coerceIn(-500,500)/5.0}")
                         text.append(" ampeg_attack=${seconds(34)} ampeg_decay=${seconds(36)} ampeg_sustain=${100*10.0.pow(-value(37).coerceIn(0,1440)/200.0)} ampeg_release=${seconds(38)}")

@@ -8,6 +8,7 @@ void SamplerEngine::install(std::unique_ptr<Instrument> bank,const std::vector<E
     instrument=std::move(bank);rate=sr;reportedRate.store(sr);reportedFrame.store(playFrame);for(auto& v:voices)v=Voice{};
     sequenceCounts.assign(instrument?instrument->regions.size():0,0);randomState=0x8a341316;
     if(instrument)for(auto& r:instrument->regions)r.filterCoefficients=VoiceFilter::coefficients(r.filterType,r.cutoff,r.resonance,sr);
+    switches.fill(instrument?instrument->switchDefault:-1);
     clearKeys();
     controllerSeen={};programs.fill(-1);midiTimestamp=0;midiOut->reset(0xffff,false,0);
     resetPracticePosition(int64_t(playFrame));metroRemaining=0;metroCountdown=0;
@@ -23,7 +24,7 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
     randomState^=randomState<<13;randomState^=randomState>>17;randomState^=randomState<<5;
     const double random=randomState/4294967296.;
     for(auto index:instrument->lookup[int(kind)][note]){
-        auto& r=instrument->regions[index];if(!r.enabled || vel<r.lowVel || vel>r.highVel || (r.cc>=0 && (controllers[ch][r.cc]<r.ccLow || controllers[ch][r.cc]>r.ccHigh)))continue;
+        auto& r=instrument->regions[index];if((r.switchLast>=0 && switches[ch]!=r.switchLast) || !r.enabled || vel<r.lowVel || vel>r.highVel || (r.cc>=0 && (controllers[ch][r.cc]<r.ccLow || controllers[ch][r.cc]>r.ccHigh)))continue;
         auto& sequence=sequenceCounts[index];unsigned position=sequence+1;if(++sequence>=unsigned(r.sequenceLength))sequence=0;
         if(position!=unsigned(r.sequencePosition) || random<r.randomLow || random>=r.randomHigh)continue;
         float fade=1;
@@ -31,6 +32,10 @@ void SamplerEngine::trigger(Trigger kind,int ch,int note,int vel,uint64_t id) no
         if(r.fadeInLow>=0 && r.fadeInHigh>r.fadeInLow)fade*=std::clamp(float(vel-r.fadeInLow)/(r.fadeInHigh-r.fadeInLow),0.f,1.f);
         if(r.fadeOutLow>=0 && r.fadeOutHigh>r.fadeOutLow)fade*=std::clamp(float(r.fadeOutHigh-vel)/(r.fadeOutHigh-r.fadeOutLow),0.f,1.f);
         if(fade<=0)continue;
+        if(r.offGroup!=0)for(auto& victim:voices)if(victim.active && victim.id!=id && victim.channel==ch && instrument->regions[victim.region].offBy==r.offGroup){
+            auto& old=instrument->regions[victim.region];victim.held=false;victim.pending=false;
+            if(old.offMode==1)victim.envelope.off(rate);else {victim.envelope.stage=Envelope::Release;victim.envelope.releaseStep=victim.envelope.value/(rate*.005f);}
+        }
         Voice* voice=nullptr;for(int i=0;i<limit;++i)if(!voices[i].active){voice=&voices[i];break;}
         if(!voice){
             // Never steal a layer just allocated for this same MIDI note / trigger.
@@ -65,6 +70,10 @@ void SamplerEngine::dispatch(const Event& input) noexcept {
         if(e.type==0 || e.type==1 || e.type==2)midiOut->message(ch,e.type==0?0x90:e.type==1?0x80:0xb0,a,b,midiTimestamp);
         else if(e.type==3){int pitch=std::clamp(int(std::lround(e.value*4096+8192)),0,16383);midiOut->message(ch,0xe0,pitch&127,pitch>>7,midiTimestamp);}
         else if(e.type==14)midiOut->message(ch,int(e.value),a,b,midiTimestamp);
+    }
+    if(instrument && (e.type==0 || e.type==1) && !instrument->switchLookup[a].empty()){
+        if(e.type==0 && b>0)switches[ch]=a;
+        return;
     }
     if(e.type==0 && b>0 && ch<=16){++liveSerial[a];liveOnFrame[a]=audioFrame;}
     if(e.type==0 && b>0){
@@ -151,11 +160,12 @@ void SamplerEngine::configureLoop(int64_t begin,int64_t end,bool enabled){
     if(!enabled){looping=false;return;}
     if(begin<0 || end>totalFrames || end-begin<int64_t(rate*.1))throw std::runtime_error("A-B loop must be within the song and at least 100ms");
     loopStartFrame=begin;loopEndFrame=end;loopCursor=0;loopBends.fill(0);
-    loopSeen={};loopPrograms.fill(-1);
+    loopSeen={};loopPrograms.fill(-1);loopSwitches.fill(instrument?instrument->switchDefault:-1);
     for(auto& c:loopControllers){c.fill(0);c[7]=c[11]=127;}
     // Only before A: events exactly at A are dispatched normally on every pass.
     while(loopCursor<timeline.size() && timeline[loopCursor].frame<begin){const auto& e=timeline[loopCursor++].event;int ch=e.channel-17;if(ch<0 || ch>=16)continue;
         if(e.type==2){int a=std::clamp(e.a,0,127),b=std::clamp(e.b,0,127);if(a<120)loopSeen[ch][a]=true;loopControllers[ch][a]=b;if(a==120 || a==123)loopControllers[ch][64]=0;if(a==121){int bank0=loopControllers[ch][0],bank32=loopControllers[ch][32];bool seen0=loopSeen[ch][0],seen32=loopSeen[ch][32];loopSeen[ch]={};loopSeen[ch][0]=seen0;loopSeen[ch][32]=seen32;loopControllers[ch].fill(0);loopControllers[ch][0]=bank0;loopControllers[ch][32]=bank32;loopControllers[ch][7]=loopControllers[ch][11]=127;loopBends[ch]=0;}}
+        else if(e.type==0 && e.b>0 && instrument && !instrument->switchLookup[e.a].empty())loopSwitches[ch]=e.a;
         else if(e.type==3)loopBends[ch]=std::clamp(e.value,-2.f,2.f);
         else if(e.type==14 && int(e.value)==0xc0)loopPrograms[ch]=std::clamp(e.a,0,127);
     }
@@ -163,7 +173,7 @@ void SamplerEngine::configureLoop(int64_t begin,int64_t end,bool enabled){
 }
 void SamplerEngine::rewindLoop() noexcept {
     midiOut->reset(fileChannels,true,midiTimestamp);
-    for(int ch=17;ch<33;++ch){keys[ch]={};controllers[ch]=loopControllers[ch-17];bends[ch]=loopBends[ch-17];controllerSeen[ch]=loopSeen[ch-17];programs[ch]=loopPrograms[ch-17];}
+    for(int ch=17;ch<33;++ch){keys[ch]={};controllers[ch]=loopControllers[ch-17];bends[ch]=loopBends[ch-17];controllerSeen[ch]=loopSeen[ch-17];programs[ch]=loopPrograms[ch-17];switches[ch]=loopSwitches[ch-17];}
     midiSnapshot();
     for(auto& v:voices)if(v.active && v.channel>=17){v.held=false;v.pending=false;v.envelope.stage=Envelope::Release;v.envelope.releaseStep=v.envelope.value/(rate*.005f);}
     cursor=loopCursor;playFrame=loopStartFrame;reportedFrame.store(loopStartFrame);
@@ -173,8 +183,9 @@ void SamplerEngine::seekTimeline(int64_t frame) noexcept {
     // Seek restores controllers and pitch but intentionally starts only future notes.
     midiOut->reset(fileChannels,true,0);midiChasing=true;for(int ch=17;ch<33;++ch){programs[ch]=-1;controllers[ch][0]=controllers[ch][32]=0;controllerSeen[ch][0]=controllerSeen[ch][32]=false;}
     for(int ch=17;ch<33;++ch){dispatch({2,ch,120,0});dispatch({2,ch,121,0});}
+    for(int ch=17;ch<33;++ch)switches[ch]=instrument?instrument->switchDefault:-1;
     cursor=0;playFrame=frame;
-    while(cursor<timeline.size() && timeline[cursor].frame<frame){const auto& e=timeline[cursor++].event;if(e.type==2 || e.type==3 || e.type==14)dispatch(e);}
+    while(cursor<timeline.size() && timeline[cursor].frame<frame){const auto& e=timeline[cursor++].event;if(e.type==2 || e.type==3 || e.type==14 || (e.type==0 && instrument && !instrument->switchLookup[e.a].empty()))dispatch(e);}
     midiChasing=false;midiSnapshot();
     for(auto& v:voices)if(v.channel>=17)v=Voice{};
     reportedFrame.store(playFrame);
@@ -225,7 +236,7 @@ void SamplerEngine::renderBlock(float* output,int count) noexcept {
             float l=v.sourceL,rr=v.sourceR,t=float(v.position-pos);
             if(view.data){auto off=(pos-view.start)*2;l=view.data[off]*(1-t)+view.data[off+2]*t;rr=view.data[off+1]*(1-t)+view.data[off+3]*t;v.sourceL=l;v.sourceR=rr;}
             v.streamGain+=((view.data?1.f:0.f)-v.streamGain)*.04f;
-            if(r.filterType)v.filter.process(l,rr,r.filterCoefficients);
+            if(r.filterType)v.filter.process(l,rr,r.filterCoefficients,r.filterType>=7);
             v.mixGain+=(channelGain*groupGains[r.group]-v.mixGain)*.002f;
             float gain=v.gain*v.envelope.next(rate)*v.mixGain*v.streamGain;
             if(r.loopStart<0 || v.envelope.stage==Envelope::Release)gain*=std::clamp(float(end-v.position)/128.f,0.f,1.f);
