@@ -169,3 +169,15 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 - 元のMIDIファイルとテンポ・時間は保持。別のMIDIを選ぶと転調は0に戻ります。画面鍵盤・リアルタイム入力は元の音程です。MIDI音域外へ移るノートは除外し、警告を表示します。
 
 104 JVM tests・Androidビルド・Lint PASS。APK 63408995 bytes / SHA-256 `8bd26da5a1b41aec36fbd3e95c6293b54a45b0c63c85e7bdef601d625b9f4ea9`。104件のJVMテスト・Androidビルド・Lintを通過。Android実機での画面・演奏操作は未検証です。 開発環境の実機／エミュレーター未接続。
+
+## 0.16.0-alpha — 転調と外部MIDI出力
+
+- 「その他 → 転調」で半音ずつ±24半音。再生・ロール・練習・MIDI／音声／動画の書き出しに反映します。
+- 「その他 → MIDI出力」、または「設定 → MIDI入出力」で、USB／Bluetooth MIDI機器の送信先を選べます。MIDI再生・画面鍵盤を送信し、入力キーボードの転送も切り替えできます。
+- ノート・ベロシティ・CC・Pitch Bend・Program Change・pressureを送信。ファイルのチャンネルを維持し、画面鍵盤の送信チャンネルを選べます。
+- 一時停止・シーク・リピート・曲の切り替え・接続解除・背景移行で残音を止めます。シークとリピートではバンク・音色・ペダル等の状態を復元します。
+- 接続先を変えたときの古いイベントを除外し、出力先から戻る入力の再送を抑止。MIDI送信があふれても、内蔵音源の再生を維持します。
+
+USB機器を接続、またはBluetooth MIDIを検索・接続してから送信先を選んでください。外部MIDI出力は起動時にオフです。
+
+110 JVM tests・Androidビルド・Lint PASS。APK 63730622 bytes / SHA-256 `e46e29e54717a40d56971a326a7b8611ea2ca4fdce53df49f8f286cff6c500b6`。110件のJVMテスト・Androidビルド・Lint・ネイティブ音声／MIDIテスト・ASan/UBSanを通過。音声処理中の動的確保は0。USB／Bluetooth MIDI機器での実機送信と遅延・同期の測定は未実施です。SysEx・MIDI Clock・MIDI 2.0 UMPは送信しません。 開発環境の実機／エミュレーター未接続。

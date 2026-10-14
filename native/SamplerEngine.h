@@ -5,6 +5,7 @@
 #include "OutputLimiter.h"
 #include "SpscQueue.h"
 #include "VoiceFilter.h"
+#include "MidiOutputQueue.h"
 #include <mutex>
 namespace pocket {
 struct Event {int type=0,channel=0,a=0,b=0;float value=0;};
@@ -32,6 +33,15 @@ class SamplerEngine {
     std::array<std::array<std::array<Key,4>,128>,33> keys{};
     std::array<std::array<int,128>,33> controllers{};
     std::array<float,33> bends{};
+    std::array<std::array<bool,120>,33> controllerSeen{};
+    std::array<int,33> programs{};
+    std::array<int,16> loopPrograms{};
+    std::array<std::array<bool,120>,16> loopSeen{};
+    int fileChannels=0;
+    bool midiChasing=false;
+    int64_t midiTimestamp=0;
+    std::unique_ptr<MidiOutputQueue> midiOut=std::make_unique<MidiOutputQueue>(); // prepared before render
+    void midiSnapshot() noexcept;
     std::array<float,256> groupGains{};
     SpscQueue<Event,2048> events;
     std::mutex producer; // producers ONLY; never taken by render
@@ -78,6 +88,7 @@ class SamplerEngine {
     void seekTimeline(int64_t frame) noexcept;
     void rewindLoop() noexcept;
     void dispatch(const Event&) noexcept;
+    void clearKeys() noexcept {for(auto& channel:keys)for(auto& note:channel)for(auto& key:note)key=Key{};}
     void trigger(Trigger,int channel,int note,int velocity,uint64_t id) noexcept;
     void releaseId(int channel,int note,uint64_t id,int velocity) noexcept;
 public:
@@ -88,13 +99,15 @@ public:
     float currentRate() const noexcept {return reportedRate.load();}
     void install(std::unique_ptr<Instrument> bank,const std::vector<EffectSpec>& fx,float sr); // stream stopped
     bool send(Event event); // outside callback; multiple producers serialized
-    void render(float* stereo,int frames) noexcept;
+    void render(float* stereo,int frames,int64_t midiStartNanos=0) noexcept;
+    void midiOutput(bool enabled,bool thru,int screenChannel) noexcept {midiOut->configure(enabled,thru,screenChannel);}
+    int drainMidi(MidiPacket* output,int capacity) noexcept {return midiOut->drain(output,capacity);}
     void initialControls(const std::vector<Event>& values){for(const auto& e:values)dispatch(e);volume=targetVolume;instrumentVolume=targetInstrumentVolume;}
     void setTimeline(std::vector<TimedEvent> events,int64_t duration); // callback stopped
     void configureLoop(int64_t begin,int64_t end,bool enabled); // callback stopped; snapshots prepared here
     void configurePractice(std::vector<PracticeGate>,std::vector<PracticeBeat>,bool wait,bool metro,float bpm,float gain,bool follow); // callback stopped
     std::array<uint64_t,3> practiceStatus() const {return {reportedWaiting.load()?1ULL:0ULL,reportedKeys[0].load(),reportedKeys[1].load()};}
-    void seek(int64_t frame){playing=false;transportOverload.store(false);reportedPlaying.store(false);seekTimeline(frame);}
+    void seek(int64_t frame){midiTimestamp=0;playing=false;transportOverload.store(false);reportedPlaying.store(false);seekTimeline(frame);}
     std::array<double,3> transport() const {return {double(reportedFrame.load())/reportedRate.load(),reportedPlaying.load()?1.:0.,transportOverload.load()?1.:0.};}
     void replaceEffect(int index,std::unique_ptr<Effect> effect){effects.replace(index,std::move(effect));}
     uint64_t misses() const {return instrument?instrument->cache->misses.load():0;}

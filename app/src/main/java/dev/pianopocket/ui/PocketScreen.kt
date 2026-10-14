@@ -77,7 +77,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                 else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
                                 if(!uiHidden)Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
                                     Surface(color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                        PerformanceToolbar(state,model,export,preview,{instrument=false;tab=1},{instrument=false;tab=2},{instrument=!instrument},{instrument=false;settingsPage=SettingsPage.Overview;tab=3},{instrument=false;uiHidden=true})
+                                        PerformanceToolbar(state,model,export,preview,{instrument=false;tab=1},{instrument=false;tab=2},{instrument=!instrument},{instrument=false;settingsPage=SettingsPage.Overview;tab=3},{instrument=false;uiHidden=true},outputSettings={instrument=false;settingsPage=SettingsPage.Midi;tab=3})
                                     }
                                     Column(Modifier.padding(start=12.dp,top=2.dp).widthIn(max=340.dp)) {
                                         Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.live.held.isNotEmpty() && !state.sequence.playing)"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)

@@ -44,7 +44,8 @@ data class PocketState(
     val voices: Int = 512, val memoryMiB: Int = 256, val bursts: Int = 2,
     val ble: List<BleMidiDevice> = emptyList(), val outputs: List<OutputDevice> = emptyList(), val device: Int = 0,
     val channel: Int = -1, val ready: Boolean = false, val processMiB: Float = 0f,
-    val inputs: List<MidiInput> = emptyList(), val midiInput: String = "all", val sequence: SequenceState = SequenceState()
+    val inputs: List<MidiInput> = emptyList(), val midiInput: String = "all", val sequence: SequenceState = SequenceState(),
+    val midiOutputs: List<MidiOutput> = emptyList(),val midiOutput: String="none",val midiOutputStatus: String="MIDI出力オフ",val midiThru: Boolean=false,val screenMidiChannel: Int=15
 )
 class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val executor=AudioWorkQueue.executor
@@ -65,7 +66,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         val removed=state.value.inputs.any { old->list.none { it.id==old.id } }
         if(removed){live.clear();if(state.value.sequence.recording)viewModelScope.launch { stopRecording() }}
         mutable.update { it.copy(inputs=list,midiInput=if(it.midiInput !in listOf("all","none","screen") && list.none { d->d.id==it.midiInput })"none" else it.midiInput) }
-    },::receiveMidi)
+    },::receiveMidi,{available,id,message->mutable.update {it.copy(midiOutputs=available,midiOutput=id,midiOutputStatus=message)}})
     init {
         mutable.update {it.copy(downloadPack=dev.pianopocket.download.DownloadCatalog.load(app))}
         viewModelScope.launch {dev.pianopocket.download.DownloadCoordinator.status.collect {status->
@@ -83,6 +84,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         viewModelScope.launch {
             var previousRunning=false;var previousPreview: String?=null
             ExportCoordinator.status.collect { result->
+                midi.performanceActive(foreground && !result.running && result.previewPath==null)
                 val resume=previousRunning && !result.running && result.previewPath==null || previousPreview!=null && result.previewPath==null && !result.running
                 mutable.update { it.copy(uiPedal=if(result.running)false else it.uiPedal,busy=if(result.running)true else if(previousRunning)false else it.busy,ready=if(result.running || result.previewPath!=null)false else it.ready,message=if(result.id>0)result.message else it.message,sequence=it.sequence.copy(exporting=result.running,exportProgress=result.progress,exportPhase=result.phase,exportEtaSeconds=result.etaSeconds,previewPath=result.previewPath,playing=if(result.running)false else it.sequence.playing)) }
                 previousRunning=result.running;previousPreview=result.previewPath
@@ -109,6 +111,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun foreground(active: Boolean) {
         if(foreground==active)return
         foreground=active
+        midi.performanceActive(active && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)
         if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
         if(active){if(!ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)work {openAudioWorker()} }
         else work {soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
@@ -208,13 +211,15 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun channel(value: Int){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();live.clear();NativeAudio.panic();midi.channel=value;mutable.update { it.copy(channel=value) }}
     fun scanBluetooth()=midi.scanBluetooth()
     fun bluetooth(address: String)=midi.connectBluetooth(address)
-    private fun receiveMidi(status: Int,a: Int,b: Int,timestamp: Long) {
+    private fun receiveMidi(status: Int,a: Int,b: Int,timestamp: Long,allowOutput: Boolean) {
         if(!foreground || state.value.sequence.exporting || !state.value.ready)return
+        val flags=if(allowOutput)0 else 256
         when(status and 0xf0){
-            0x90 -> if(b==0)NativeAudio.noteOff(a,status and 15)else NativeAudio.noteOn(a,b,status and 15)
-            0x80 -> NativeAudio.noteOff(a,status and 15)
-            0xb0 -> NativeAudio.cc(a,b,status and 15)
-            0xe0 -> NativeAudio.event(3,status and 15,0,0,((b*128+a)-8192)/8192f*2)
+            0x90 -> NativeAudio.event(flags or if(b==0)1 else 0,status and 15,a,b,0f)
+            0x80 -> NativeAudio.event(flags or 1,status and 15,a,b,0f)
+            0xb0 -> NativeAudio.event(flags or 2,status and 15,a,b,0f)
+            0xe0 -> NativeAudio.event(flags or 3,status and 15,0,0,((b*128+a)-8192)/8192f*2)
+            0xa0,0xc0,0xd0 -> NativeAudio.event(flags or 14,status and 15,a,b,(status and 0xf0).toFloat())
         }
         live.event(status,a,b);recorder.capture(status,a,b,timestamp)
     }
@@ -229,6 +234,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
     fun panic(){diagnosticMode(0);mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
     fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
+    fun midiOutput(id: String){if(state.value.sequence.recording || state.value.sequence.exporting)return;panic();midi.selectOutput(id)}
+    fun midiThru(enabled: Boolean){val s=state.value;mutable.update {it.copy(midiThru=enabled)};midi.outputOptions(enabled,s.screenMidiChannel)}
+    fun screenMidiChannel(channel: Int){if(channel !in 0..15)return;mutable.update {it.copy(screenMidiChannel=channel)};midi.outputOptions(state.value.midiThru,channel)}
     fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(viewport=if(value)KeyboardViewport()else KeyboardViewport.middleTwoOctaves())) }}
     fun zoomKeyboard(factor: Float,anchor: Float,pan: Float){mutable.update { it.copy(sequence=it.sequence.copy(viewport=it.sequence.viewport.transform(factor,anchor,pan))) }}
     fun shiftKeyboard(direction: Int){mutable.update { it.copy(sequence=it.sequence.copy(viewport=it.sequence.viewport.shiftOctave(direction))) }}

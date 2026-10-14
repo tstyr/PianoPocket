@@ -71,12 +71,19 @@ extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_replace
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_commit(JNIEnv* e,jobject){try{if(!staged || staged->regions.empty())throw std::runtime_error("No playable regions");staged->prepare();engine.install(std::move(staged),effects);effects.clear();paths.clear();}catch(const std::exception& x){fail(e,x);}}
 extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_event(JNIEnv*,jobject,jint type,jint channel,jint a,jint b,jfloat v){engine.sampler.send({type,channel,a,b,v});}
 extern "C" JNIEXPORT jdoubleArray JNICALL Java_dev_pianopocket_audio_NativeAudio_stats(JNIEnv* e,jobject){auto values=engine.stats();auto a=e->NewDoubleArray(values.size());e->SetDoubleArrayRegion(a,0,values.size(),values.data());return a;}
+extern "C" JNIEXPORT void JNICALL Java_dev_pianopocket_audio_NativeAudio_midiOutput(JNIEnv*,jobject,jboolean enabled,jboolean thru,jint channel){engine.sampler.midiOutput(enabled,thru,channel);}
+extern "C" JNIEXPORT jint JNICALL Java_dev_pianopocket_audio_NativeAudio_drainMidi(JNIEnv* e,jobject,jlongArray target){
+    if(e->GetArrayLength(target)<2048){e->ThrowNew(e->FindClass("java/lang/IllegalArgumentException"),"MIDI output buffer too small");return 0;}
+    MidiPacket messages[512];int count=engine.sampler.drainMidi(messages,512);jlong data[2048];
+    for(int i=0;i<count;++i){data[i*4]=messages[i].status;data[i*4+1]=messages[i].a;data[i*4+2]=messages[i].b;data[i*4+3]=messages[i].nanos;}
+    if(count)e->SetLongArrayRegion(target,0,count*4,data);return count;
+}
 static std::vector<TimedEvent> songEvents(JNIEnv* e,jlongArray times,jintArray data,float sr){
     int n=e->GetArrayLength(times);if(n>200000 || e->GetArrayLength(data)!=n*3)throw std::runtime_error("Invalid MIDI timeline");
     std::vector<jlong> t(n);std::vector<jint> d(n*3);if(n){e->GetLongArrayRegion(times,0,n,t.data());e->GetIntArrayRegion(data,0,n*3,d.data());}
     std::vector<TimedEvent> out;out.reserve(n);
     for(int i=0;i<n;++i){if(t[i]<0 || t[i]>7200000000LL)throw std::runtime_error("MIDI time limit exceeded");int status=d[i*3],a=d[i*3+1],b=d[i*3+2];if(status<0x80 || status>0xef || a<0 || a>127 || b<0 || b>127)throw std::runtime_error("Invalid MIDI message");Event event;event.channel=(status&15)+17;event.a=a;event.b=b;
-        switch(status&0xf0){case 0x90:event.type=b?0:1;break;case 0x80:event.type=1;break;case 0xb0:event.type=2;break;case 0xe0:event.type=3;event.value=((b*128+a)-8192)/8192.f*2;break;default:continue;}
+        switch(status&0xf0){case 0x90:event.type=b?0:1;break;case 0x80:event.type=1;break;case 0xb0:event.type=2;break;case 0xe0:event.type=3;event.value=((b*128+a)-8192)/8192.f*2;break;case 0xa0:case 0xc0:case 0xd0:event.type=14;event.value=status&0xf0;break;default:continue;}
         out.push_back({int64_t(std::llround(t[i]*double(sr)/1000000)),event});
     }return out;
 }

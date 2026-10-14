@@ -12,7 +12,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 internal enum class SettingsPage(val title: String) {
-    Overview("設定"), Display("表示"), Audio("音の設定"), Midi("MIDIキーボード"),
+    Overview("設定"), Display("表示"), Audio("音の設定"), Midi("MIDI入出力"),
     Advanced("詳細設定"), AudioTuning("オーディオの調整"), Status("動作状況"),
     Diagnostics("音のトラブル"), About("アプリについて");
 
@@ -40,7 +40,7 @@ internal fun SettingsPanel(
             SettingsPage.Overview -> {
                 SettingsLink("表示", "ドレミ・ロール・画面の向き") { open(SettingsPage.Display) }
                 SettingsLink("音の設定", if (state.stableAudio) "音切れを抑える" else "反応を優先") { open(SettingsPage.Audio) }
-                SettingsLink("MIDIキーボード", state.midi) { open(SettingsPage.Midi) }
+                SettingsLink("MIDI入出力", state.midi) { open(SettingsPage.Midi) }
                 SettingsLink("アプリについて", "バージョン・ライセンス") { open(SettingsPage.About) }
                 TextButton(onClick = { open(SettingsPage.Advanced) }) { Text("詳細設定") }
             }
@@ -84,6 +84,7 @@ internal fun SettingsPanel(
                 }
                 Text("入力チャンネル", style = MaterialTheme.typography.titleSmall)
                 ChannelMenu(state, model)
+                MidiOutputPanel(state, model)
             }
             SettingsPage.Advanced -> {
                 SettingsLink("オーディオの調整", "バッファ・発音数・メモリ") { open(SettingsPage.AudioTuning) }

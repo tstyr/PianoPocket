@@ -16,6 +16,8 @@ object NativeAudio {
     external fun commit()
     external fun event(type: Int, channel: Int, a: Int, b: Int, value: Float)
     external fun stats(): DoubleArray
+    external fun midiOutput(enabled: Boolean,thru: Boolean,screenChannel: Int)
+    external fun drainMidi(buffer: LongArray): Int
     external fun timeline(times: LongArray, messages: IntArray, duration: Long)
     external fun transport(): DoubleArray
     external fun seekTimeline(micros: Long)

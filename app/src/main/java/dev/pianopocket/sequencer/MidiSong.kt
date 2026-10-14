@@ -60,14 +60,14 @@ object MidiFileCodec {
                     if(type==0x51)require(data.size==3 && data.any { it.toInt()!=0 }){"MIDIテンポが不正です"}
                     records+=MidiRecord(tick,track,status,byteArrayOf(type.toByte())+data)
                 } else if(status==0xf0 || status==0xf7){
-                    running=0;val size=t.vlq();require(size<=t.end-t.pos){"SysEx長が不正です"};records+=MidiRecord(tick,track,status,t.take(size.toInt()));warnings+="SysExは保存しますが、ネイティブ再生には適用しません。"
+                    running=0;val size=t.vlq();require(size<=t.end-t.pos){"SysEx長が不正です"};records+=MidiRecord(tick,track,status,t.take(size.toInt()));warnings+="SysExはファイルに保存しますが、内蔵再生・MIDI出力には適用しません。"
                 } else {
                     require(status in 0x80..0xef){"未対応のMIDIステータス"};running=status
                     val count=if(status and 0xe0 == 0xc0)1 else 2
                     val data=ByteArray(count);data[0]=(if(first>=0)first else t.u8()).toByte();if(count==2)data[1]=t.u8().toByte()
                     require(data.all { it.toInt()>=0 }){"MIDIデータバイトが不正です"}
                     records+=MidiRecord(tick,track,status,data)
-                    if(status and 0xf0 in listOf(0xa0,0xc0,0xd0))warnings+="Program Change / pressureは保存しますが音源切替・演奏表現には未対応です。"
+                    if(status and 0xf0 in listOf(0xa0,0xc0,0xd0))warnings+="Program Change / pressureは内蔵音源には適用しません。MIDI出力へは送信します。"
                     if(status and 0xf0 == 0xb0 && data[0].toInt() !in listOf(7,11,64,120,121,123))warnings+="CC7 / CC11 / CC64 / CC120 / CC121 / CC123以外のCCは保存しますが再生には適用しません。"
                     if(status and 0xf0 == 0x90 && (status and 15)==9)warnings+="ドラムチャンネルも現在の音源で演奏します。GM音源切替は未対応です。"
                 }

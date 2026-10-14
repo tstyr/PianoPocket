@@ -213,5 +213,47 @@ int main(){try{
         metro.setTimeline({},48000);metro.configurePractice({},{{0,true},{12000,false}},false,true,120,1,true);metro.send({10,0,1});render(metro,out,256);metro.send({10,0,0});for(int i=0;i<60;++i)render(metro,out,256);check(energy(out,256)<.000001f,"song metronome pauses with transport");
     }
     check(audioAllocations==0,"no heap allocation in render/effects");std::cout<<"PASS: sampler, streaming, FX, SFZ, guided practice and metronome; audio allocations=0\n";
+    {
+        auto routingOwner=std::make_unique<MidiOutputQueue>();auto& routing=*routingOwner;MidiPacket packets[16];routing.configure(true,false,15);
+        routing.message(0,0x90,60,100,1);routing.message(16,0x90,61,90,2);routing.message(17,0x80,62,0,3);
+        int n=routing.drain(packets,16);check(n==2 && packets[0].status==0x9f && packets[1].status==0x80,"MIDI output excludes input thru by default and preserves file channels");
+        routing.message(16,0x90,63,100,4);routing.configure(true,true,2);routing.message(3,0xb0,64,127,5);
+        n=routing.drain(packets,16);check(n==1 && packets[0].status==0xb3,"output destination change discards old queued notes and enables explicit thru");
+        for(int i=0;i<5000;++i)routing.message(16,0xb0,1,64,0);
+        check(routing.drain(packets,16)==1 && packets[0].status==MidiOutputQueue::Overflow,"MIDI queue overflow requests a terminal external panic");
+        routing.configure(true,false,0);routing.message(16,0x90,60,100,6);check(routing.drain(packets,16)==1 && packets[0].status==0x90,"MIDI queue recovers on explicit reconnection");
+    }
+    {
+        auto midiOwner=std::make_unique<SamplerEngine>();auto& midi=*midiOwner;midi.install(bank(),{},48000);midi.setTimeline({{240,{0,17,60,100}},{480,{1,17,60,0}}},48000);midi.midiOutput(true,false,15);midi.send({10,0,1});
+        MidiPacket packets[128];audioThread=true;midi.render(out,256,1000000000LL);audioThread=false;
+        int n=midi.drainMidi(packets,128);bool found=false;for(int i=0;i<n;++i)if(packets[i].status==0x90){found=true;check(packets[i].a==60 && packets[i].b==100 && packets[i].nanos==1005000000LL,"MIDI note onset uses within-buffer sample offset");}check(found,"file note reaches external output");
+        audioThread=true;midi.render(out,256,1005333333LL);audioThread=false;n=midi.drainMidi(packets,128);found=false;for(int i=0;i<n;++i)if(packets[i].status==0x80){found=true;check(std::abs(packets[i].nanos-1010000000LL)<=2,"MIDI note off timestamp follows source timing");}check(found,"external note off is emitted without sustain extension");
+        midi.send({10,0,0});render(midi,out,256);n=midi.drainMidi(packets,128);check(n==1 && packets[0].status==MidiOutputQueue::Reset && packets[0].a==1,"pause only resets file MIDI channels");
+        midi.midiOutput(true,true,15);midi.send({256,0,60,100});render(midi,out,256);check(midi.drainMidi(packets,128)==0 && midi.noteVoiceCount(60,0)>0,"device echo suppression leaves native input playback working");
+        midi.send({5});render(midi,out,256);n=midi.drainMidi(packets,128);check(n==1 && packets[0].status==MidiOutputQueue::Reset && packets[0].a==0xffff,"panic releases every external MIDI channel");
+    }
+    {
+        auto midiOwner=std::make_unique<SamplerEngine>();auto& midi=*midiOwner;midi.install(bank(),{},48000);std::vector<TimedEvent> messages;
+        for(int i=0;i<20000;++i)messages.push_back({i,{2,17,1,i%128}});
+        messages.push_back({20000,{2,17,0,2}});messages.push_back({20001,{2,17,32,3}});messages.push_back({20002,{14,17,79,0,192}});messages.push_back({20003,{2,17,121,0}});
+        midi.setTimeline(std::move(messages),48000);midi.midiOutput(true,false,15);midi.seek(21000);
+        MidiPacket packets[128];int n=midi.drainMidi(packets,128),bankIndex=-1,programIndex=-1;
+        check(n<=10 && n>0 && packets[0].status==MidiOutputQueue::Reset,"seek chases a bounded final controller snapshot instead of flooding historical messages");
+        for(int i=0;i<n;++i){if(packets[i].status==0xb0 && packets[i].a==32){bankIndex=i;check(packets[i].b==3,"seek restores bank selection");}if(packets[i].status==0xc0){programIndex=i;check(packets[i].a==79,"seek restores program change");}}
+        check(bankIndex>=0 && programIndex>bankIndex,"bank select is sent before program change on seek");
+    }
+    {
+        auto midiOwner=std::make_unique<SamplerEngine>();auto& midi=*midiOwner;midi.install(bank(),{},48000);midi.setTimeline({{0,{2,17,64,127}},{1,{14,17,5,0,192}},{12000,{0,17,60,100}},{18000,{1,17,60,0}}},48000);midi.configureLoop(12000,24000,true);midi.midiOutput(true,false,15);midi.send({10,0,1});
+        MidiPacket packets[128];bool reset=false,program=false,pedal=false;int notes=0;
+        for(int block=0;block<100;++block){audioThread=true;midi.render(out,256,1000000000LL+int64_t(block*256000000000.0/48000));audioThread=false;int n=midi.drainMidi(packets,128);for(int i=0;i<n;++i){if(packets[i].status==MidiOutputQueue::Reset && packets[i].b==1)reset=true;if(reset && packets[i].status==0xc0 && packets[i].a==5)program=true;if(reset && packets[i].status==0xb0 && packets[i].a==64 && packets[i].b==127)pedal=true;if(packets[i].status==0x90)++notes;}}
+        check(reset && program && pedal && notes>=2,"MIDI A-B loop restores program and pedal before repeated notes");
+    }
+    {
+        auto midiOwner=std::make_unique<SamplerEngine>();auto& midi=*midiOwner;midi.install(bank(),{},48000);midi.setTimeline({{0,{0,17,60,100}}},48000);midi.midiOutput(true,false,15);midi.send({10,0,1});
+        for(int block=0;block<12;++block){for(int i=0;i<500;++i)midi.send({2,16,1,64});render(midi,out,64);}
+        MidiPacket packets[8];check(midi.drainMidi(packets,8)==1 && packets[0].status==MidiOutputQueue::Overflow,"blocked MIDI consumer is measured independently");
+        check(midi.transport()[1]==1 && midi.activeVoices>0 && midi.droppedEvents==0,"external MIDI overload does not stop native playback");
+    }
+    check(audioAllocations==0,"no heap allocation in render or MIDI event mirroring");std::cout<<"PASS: timestamped MIDI output, routing, controller chase, panic, loop and overload isolation; audio allocations=0\n";
     std::remove(path.c_str());return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL: "<<x.what()<<'\n';return 1;}}

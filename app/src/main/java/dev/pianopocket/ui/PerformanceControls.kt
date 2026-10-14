@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.DpSize
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,library:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,library:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit,outputSettings:()->Unit=settings) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
     var returnAfterPreview by rememberSaveable {mutableStateOf(false)}
@@ -57,6 +57,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                         DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                         DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                         DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
+                        DropdownMenuItem(text={Text("MIDI出力")},onClick={more=false;outputSettings()})
                     }
                 }
             }

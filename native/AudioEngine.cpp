@@ -32,8 +32,11 @@ void AudioEngine::install(std::unique_ptr<Instrument> bank,const std::vector<Eff
     try {sampler.install(std::move(bank),fx,sr);} catch(...) {start(device,bursts);throw;}
     if(!start(device,bursts))throw std::runtime_error("Audio output could not be restarted");
 }
-oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream*,void* output,int32_t frames){
-    auto begin=std::chrono::steady_clock::now();sampler.render(static_cast<float*>(output),frames);
+oboe::DataCallbackResult AudioEngine::onAudioReady(oboe::AudioStream* audio,void* output,int32_t frames){
+    auto begin=std::chrono::steady_clock::now();
+    auto nanos=std::chrono::duration_cast<std::chrono::nanoseconds>(begin.time_since_epoch()).count();
+    auto lead=int64_t((audio->getBufferSizeInFrames()+sampler.outputDelayFrames())*1000000000.0/audio->getSampleRate());
+    sampler.render(static_cast<float*>(output),frames,nanos+lead);
     float used=std::chrono::duration<float>(std::chrono::steady_clock::now()-begin).count();
     load.store(used*sampleRate()/frames,std::memory_order_relaxed);return oboe::DataCallbackResult::Continue;
 }
