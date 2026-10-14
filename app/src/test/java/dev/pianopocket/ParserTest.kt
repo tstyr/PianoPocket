@@ -18,6 +18,42 @@ class ParserTest {
         val p=parse("""<DecentSampler><ui><tab><control label="Wet" value="0.3"><binding type="effect" level="instrument" effectIndex="1" parameter="FX_REVERB_WET_LEVEL" translation="linear" /></control></tab></ui><groups><group><sample path="a.wav" rootNote="60" /></group></groups><effects><effect type="gain" level="0.5" /><effect type="reverb" roomSize="0.8" damping="0.2" wetLevel="0.4" enabled="false" /></effects></DecentSampler>""")
         assertEquals(listOf(6,0),p.effects.map { it.type });assertEquals(.8f,p.effects[1].params[1]);assertEquals(0f,p.effects[1].params[4]);assertEquals(1,p.controls.single().bindings.single().index)
     }
+    @Test fun legacyLowpassHasOfficialDefaultsAndPreservesParameters() {
+        fun preset(type: String, attributes: String)=parse("""<DecentSampler><groups><group><sample path="a.wav" rootNote="60" /></group></groups><effects><effect type="$type" $attributes /></effects></DecentSampler>""")
+        for(attributes in listOf("", "frequency=\"1750\" resonance=\"1.2\" enabled=\"false\"")) {
+            val current=preset("lowpass",attributes).effects.single()
+            val legacy=preset("lowpass_4pl",attributes).effects.single()
+            assertEquals(3,legacy.type)
+            assertEquals("lowpass",legacy.name)
+            assertArrayEquals(current.params,legacy.params,0f)
+        }
+        assertArrayEquals(floatArrayOf(0f,22000f,.7f,1f,1f),preset("lowpass_4pl","").effects.single().params,0f)
+    }
+    @Test fun legacyLowpassPreservesChainOrderAndOfficialBindings() {
+        val p=parse("""<DecentSampler><ui><tab>
+            <control label="Tone" value="0.5" minValue="0" maxValue="1"><binding type="effect" level="instrument" effectIndex="1" parameter="FX_FILTER_FREQUENCY" translation="linear" translationOutputMin="100" translationOutputMax="8000" /></control>
+            <control label="Resonance" value="0.7"><binding type="effect" level="instrument" effectIndex="1" parameter="FX_FILTER_RESONANCE" translation="linear" /></control>
+            <control label="On" value="1"><binding type="effect" level="instrument" effectIndex="1" parameter="ENABLED" translation="linear" /></control>
+            </tab></ui><groups><group><sample path="a.wav" rootNote="60" /></group></groups>
+            <effects><effect type="gain" level="-6" /><effect type="lowpass_4pl" frequency="2000" resonance="0.8" /><effect type="gain" level="-3" /></effects></DecentSampler>""")
+        assertEquals(listOf(6,3,6),p.effects.map {it.type})
+        assertEquals(2000f,p.effects[1].params[1],0f)
+        assertEquals(.8f,p.effects[1].params[2],0f)
+        assertEquals(listOf(1,2,4),p.controls.map {it.bindings.single().slot})
+        assertTrue(p.controls.all {it.bindings.single().index==1})
+        assertEquals(100f,p.controls.first().bindings.single().outMin,0f)
+        assertEquals(8000f,p.controls.first().bindings.single().outMax,0f)
+        assertTrue(p.warnings.none {"Unsupported binding" in it || "lowpass_4pl" in it})
+    }
+    @Test fun unknownFilterIsStillRejectedWithItsName() {
+        try {
+            parse("""<DecentSampler><groups><group><sample path="a.wav" /></group></groups><effects><effect type="lowpass_8pl" /></effects></DecentSampler>""")
+            fail("An undocumented filter must not silently become lowpass")
+        }catch(e: IllegalStateException) {
+            assertTrue(e.message.orEmpty().contains("lowpass_8pl"))
+            assertTrue(e.message.orEmpty().contains("未対応"))
+        }
+    }
     @Test fun unknownFeaturesWarn() { val p=parse("""<DecentSampler><groups><group seqMode="round_robin"><sample path="a.wav" rootNote="60" mystery="x" /></group></groups><modulators><lfo /></modulators></DecentSampler>""");assertTrue(p.warnings.any { "mystery" in it });assertTrue(p.warnings.any { "lfo" in it }) }
     @Test(expected=IllegalArgumentException::class) fun traversalRejected(){DspresetParser.safeRelative("Samples/../../secret.wav")}
     @Test(expected=IllegalArgumentException::class) fun absoluteRejected(){DspresetParser.safeRelative("C:\\samples\\a.wav")}

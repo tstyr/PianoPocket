@@ -18,6 +18,8 @@
 
 XML形式のサポートは、自作パーサーと自作DSPによるものです。Decent Samplerのソース、独自アルゴリズム、商標画像、配布プラグインは使用していません。公式ドキュメントに記載されるパラメータを受け付けても、音響的同一性は保証しません。
 
+2026-10-14: 公式ガイドのGitHubソースを再取得し、`lowpass_4pl`が`lowpass`の旧名であることを確認。[実装と検証](DECENT_FILTERS.md)。
+
 2026-10-12追記: 利用者提供のv1.6実ZIPを取得し、[midiVelocity modulators](https://decentsampler-developers-guide.readthedocs.io/en/latest/the-modulators-element.html)、table補間、tag AMP_VOLUME、menuの1-based valueとFX_IR_FILEを公式資料で再照合。配布物のREADMEとIR Creditsも確認。音源・IR・画像・XML原本は公開していません。
 
 2026-10-12 MIDI拡張: [tstyr/openthesia-android](https://github.com/tstyr/openthesia-android/tree/576acf862cf7bcbe7c27ffc4c4385d7d271f8f59)のREADME、PianoRollCanvas、PlaybackController、MIDI models、root GPL-3.0 LICENSEを確認。Falling Notes、88鍵、ポート選択の動作を参考にし、ソースは取り込んでいません。今回のSMF codec、interval segment tree、recording、render / key geometry / transport / WAV writerは独自のMITコードです。新しい外部依存はありません。

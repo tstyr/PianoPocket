@@ -97,7 +97,7 @@ class DspresetParser {
                 require(regions.size <= 16000) { "Region limit exceeded" }
             }
         }
-        warnings += "ADSR curves and reverb/delay/chorus algorithms are approximations; no bit-identical Decent Sampler claim."
+        warnings += "エンベロープ・リバーブ・ディレイ・コーラス・フィルターは近似実装です。純正と同一の音は保証しません。"
         val effectsNode = doc.children.firstOrNull { it.name == "effects" }
         val effects = effectsNode?.children?.filter { it.name == "effect" }?.map { parseEffect(it) }.orEmpty()
         require(effects.size <= 8) { "Maximum 8 global effects" }
@@ -158,7 +158,10 @@ class DspresetParser {
         return (m.groupValues[3].toInt()+1)*12 + pitch + when(m.groupValues[2]) { "#" -> 1; "b" -> -1; else -> 0 }
     }
     private fun parseEffect(n: Node): Effect {
-        val t = n.a["type"] ?: error("Missing effect type")
+        val declaredType = n.a["type"] ?: error("Missing effect type")
+        // The official guide calls lowpass_4pl the legacy name of the 2-pole
+        // lowpass. Do not infer a different filter order from the old suffix.
+        val t = if(declaredType=="lowpass_4pl") "lowpass" else declaredType
         fun f(k: String, d: Float) = number(n.a[k], d)
         val enabled = if (n.a["enabled"] == "false") 0f else 1f
         val p = when (t) {
@@ -168,7 +171,7 @@ class DspresetParser {
             "gain" -> floatArrayOf(0f, if(n.a["levelUnit"]=="linear") gain(n.a["level"] ?: "0.5") else gain((n.a["level"] ?: "-6").removeSuffix("dB")+"dB"), 0f, 0f, enabled)
             "convolution" -> floatArrayOf(f("mix", .5f), 0f, 0f, 0f, enabled)
             "lowpass", "highpass", "bandpass", "peak", "notch", "low_shelf", "high_shelf" -> floatArrayOf(0f, f("frequency", 22000f), f(if(t=="notch")"Q" else "q", f("resonance", .7f)), if(n.a["gainUnit"] == "decibels") 10f.pow(f("gain",0f)/20) else f("gain",1f), enabled)
-            else -> { warnings += "Unsupported effect '$t': import rejected to avoid pretending effect compatibility"; error(warnings.last()) }
+            else -> { warnings += "未対応のエフェクト「$declaredType」が含まれるため、この音源を読み込めません。"; error(warnings.last()) }
         }
         val types = listOf("reverb", "delay", "chorus", "lowpass", "highpass", "bandpass", "gain", "convolution", "peak", "notch", "low_shelf", "high_shelf")
         val known = when(t) { "reverb" -> setOf("wetLevel","roomSize","damping"); "delay" -> setOf("wetLevel","delayTime","feedback","stereoOffset","delayTimeFormat"); "chorus" -> setOf("mix","modDepth","modRate"); "gain" -> setOf("level","levelUnit"); "convolution" -> setOf("mix","irFile"); else -> setOf("frequency","resonance","q","Q","gain","gainUnit") }

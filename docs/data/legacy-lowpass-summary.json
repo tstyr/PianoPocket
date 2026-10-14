@@ -1,0 +1,51 @@
+{
+  "fixture": "Self-authored stereo sine sample (250 Hz + 8000 Hz), six seconds; release two seconds",
+  "userInstrumentVerified": false,
+  "officialLegacyType": "lowpass_4pl",
+  "canonicalEffectType": "lowpass",
+  "canonicalNativeType": 3,
+  "effectChain": [
+    "gain",
+    "lowpass",
+    "gain"
+  ],
+  "uiFrequencyBindingHz": 2000,
+  "nativeFilterTestRatesHz": [
+    44100,
+    48000,
+    96000
+  ],
+  "jvmTests": 97,
+  "nativeTests": "pass",
+  "asanUbsanTests": "pass",
+  "exports": {
+    "current": {
+      "status": "pass",
+      "exportFrames": 480000,
+      "bits": 24,
+      "rate": 48000,
+      "channels": 2,
+      "irMixTestOverride": 0.35,
+      "energy": 67.8451,
+      "tailEnergy": 9.02548,
+      "cacheMisses": 0,
+      "readErrors": 0,
+      "androidDeviceVerified": false
+    },
+    "legacy": {
+      "status": "pass",
+      "exportFrames": 480000,
+      "bits": 24,
+      "rate": 48000,
+      "channels": 2,
+      "irMixTestOverride": 0.35,
+      "energy": 67.8451,
+      "tailEnergy": 9.02548,
+      "cacheMisses": 0,
+      "readErrors": 0,
+      "androidDeviceVerified": false
+    }
+  },
+  "wavByteIdentical": true,
+  "wavSha256": "5e4c6c7f96560ecc98ec3eea284224166f16dfb977df15f63b55f47ab4855dd4"
+}

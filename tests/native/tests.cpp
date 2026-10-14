@@ -55,6 +55,32 @@ int main(){try{
     {auto b=bank();for(int v=0;v<128;++v)b->velocityGains[0][v]=0;e.install(std::move(b),{},48000);e.send({0,0,60,127,0});render(e,out,256);check(energy(out,256)==0 && e.activeVoices==0,"per-voice velocity table suppresses zero layer");}
     {auto b=bank();b->regions[0].trigger=Trigger::PedalDown;b->regions[0].root=1;b->regions[0].low=b->regions[0].high=1;b->lookup={};b->prepare();e.install(std::move(b),{},48000);e.send({2,0,64,127,0});render(e,out,256);check(e.activeVoices==1,"CC trigger independent of mapped note 1");e.send({2,0,64,100,0});render(e,out,256);check(e.activeVoices==1,"continuous pedal messages are debounced");}
     {EffectSpec fx;fx.p={1,.8f,.3f,0,1};Effect reverb(fx,48000);float tail=0;for(int i=0;i<10000;++i){float l=i==0?1:0,r=l;audioThread=true;reverb.process(l,r);audioThread=false;if(i>2000)tail+=std::abs(l)+std::abs(r);}check(tail>0,"reverb tail survives silence");}
+    // lowpass_4pl is parsed as this existing 2-pole effect, per the official
+    // legacy-name definition. Verify actual audio, not only successful parsing.
+    for(int rate:{44100,48000,96000}) {
+        for(int frequency:{250,8000}) {
+            EffectSpec spec;spec.type=EffectType::Lowpass;spec.p={0,1000,.7f,1,1};Effect filter(spec,rate);
+            double inputEnergy=0,outputEnergy=0;
+            for(int i=0;i<rate/2;++i) {
+                float input=.1f*std::sin(2*3.141592653589793*frequency*i/rate),left=input,right=input*.5f;
+                audioThread=true;filter.process(left,right);audioThread=false;
+                check(std::isfinite(left) && std::abs(right-left*.5f)<1e-7f,"lowpass stereo balance and finite audio");
+                if(i>rate/10){inputEnergy+=double(input)*input;outputEnergy+=double(left)*left;}
+            }
+            double ratio=outputEnergy/inputEnergy;
+            check(frequency==250?ratio>.9 && ratio<1.01:ratio<.001,"2-pole lowpass preserves bass and attenuates high frequencies");
+        }
+        EffectSpec spec;spec.type=EffectType::Lowpass;spec.p={0,1200,.7f,1,0};Effect filter(spec,rate);
+        for(int i=0;i<1000;++i){float left=.1f*std::sin(i*.2f),right=0,expected=left;audioThread=true;filter.process(left,right);audioThread=false;check(left==expected && right==0,"disabled lowpass preserves dry audio and independent channels");}
+        for(int i=0;i<rate;++i) {
+            if(i%4000==0){filter.parameter(1,i%8000?40.f:22000.f);filter.parameter(2,i%8000?5.f:.001f);filter.parameter(4,1);}
+            float left=.1f*std::sin(i*.2f),right=0;
+            audioThread=true;filter.process(left,right);audioThread=false;
+            check(std::isfinite(left) && std::abs(left)<10 && right==0,"lowpass frequency and resonance automation stays finite without stereo leakage");
+        }
+        filter.parameter(4,0);
+        for(int i=0;i<rate;++i){float left=.1f*std::sin(i*.2f),right=0,expected=left;audioThread=true;filter.process(left,right);audioThread=false;if(i>rate/2)check(std::abs(left-expected)<1e-6f,"lowpass bypass smoothing returns to dry signal");}
+    }
     {
         e.install(bank(),{},48000);e.setTimeline({{100,{0,17,60,127}},{400,{1,17,60,0}}},600);e.send({10,0,1});
         render(e,out,256);check(energy(out,50)==0,"timeline waits until sample-accurate onset");check(energy(out+200,156)>0,"timeline dispatches within audio block");

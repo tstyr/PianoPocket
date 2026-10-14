@@ -1,19 +1,19 @@
-# PianoPocket 0.14.0 — ライブラリと設定を使いやすく
+# PianoPocket 0.14.1 — 旧名のローパスフィルターに対応
 
-- ピアノアイコンから、MIDI・音源のどちらのライブラリへも進めます。演奏画面、ライブラリ、設定で同じメニューを使えます。
-- 設定の最初の画面は「表示」「音の設定」「MIDIキーボード」「アプリについて」と「詳細設定」に整理しました。
-- ドレミ・ロール・横画面・FPSは「表示」。音の出方は「反応を優先」「音切れを抑える」の2つから選べます。
-- バッファ・発音数・メモリ、動作状況、音の診断は「詳細設定」から必要な画面だけ開けます。
-- 長い説明や診断値の常設をやめ、普段の設定は短い言葉で表示。操作結果のメッセージは一時的に表示します。
-- 戻るボタン・Androidの戻る操作は1つ前の設定画面へ戻ります。画面の切り替え時はスクロールを先頭へ戻します。
+- Decent Sampler音源の `lowpass_4pl` に対応しました。これを含むプリセットで「Unsupported effect」と表示され、読み込めなかった問題を修正しています。
+- 公式仕様では `lowpass_4pl` は `lowpass` の旧名です。既存のローパス処理を使用し、frequency・resonance・enabled、エフェクト順序、つまみの連動を維持します。
+- 別の未対応エフェクトは、その名前を含む日本語のエラーを表示します。
+- 本番パーサーで旧名と現行名を比較し、自作サンプルで書き出したWAVがバイト単位で一致することを確認しました。
+
+更新後、エラーになった音源をもう一度読み込んでください。インポート自体が完了していない場合は、ファイルを選び直してください。
 
 ## ダウンロード
 
-- [APKをダウンロード（Android ARM64）](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.0-arm64.apk)
-- [ソースコード ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.0-source.zip)
-- [テスト結果 ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.0-validation.zip)
-- [SHA-256](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.14.0.txt)
+- [APKをダウンロード（Android ARM64）](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.1-arm64.apk)
+- [ソースコード ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.1-source.zip)
+- [テスト結果 ZIP](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.1-validation.zip)
+- [SHA-256](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/SHA256SUMS-0.14.1.txt)
 
 Android 10以降・ARM64用。デバッグ署名の試用版です。
 
-94件のJVMテスト・Androidビルド・Lintを通過。実機での画面表示・タッチ操作は未検証です。
+97件のJVMテスト・Androidビルド・Lint・ネイティブ音声テスト・ASan/UBSanを通過。今回の音源の実ファイル全体とAndroid実機は未検証です。DSPはPianoPocketの実装で、純正との録音比較は未実施です。
