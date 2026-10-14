@@ -245,11 +245,11 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         val fresh=state.value.sequence.copy(song=song,guided=dev.pianopocket.sequencer.GuidedPractice(),mutedTracks=emptySet());installPractice(fresh)
         if(!foreground)NativeAudio.stop()
         preferences.lastMidi=entry.id
-        mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries(),song=song,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet()),message="${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}") }
+        mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries(),song=song,sourceSong=song,transpose=0,selected=entry.id,title=entry.name,playing=false,position=0,speed=1f,loopA=0,loopB=song.duration,looping=false,hiddenTracks=emptySet(),mutedTracks=emptySet(),guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet()),message="${song.notes.size} notes · ${"%.1f".format(song.bpm)} BPM${if(song.warnings.isEmpty())"" else " · 互換性警告あり"}") }
     }
     fun importMidi(uri: Uri)=work { if(state.value.sequence.recording)stopRecording();mutable.update { it.copy(busy=true) };val (entry,song)=midiLibrary.import(uri);selectSong(entry,song);mutable.update { it.copy(busy=false) } }
     fun selectMidi(entry: MidiEntry)=work { selectSong(entry,midiLibrary.load(entry)) }
-    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
+    fun deleteMidi(entry: MidiEntry)=work { if(state.value.sequence.selected==entry.id){NativeAudio.timeline(longArrayOf(),intArrayOf(),0);val seq=state.value.sequence.copy(song=null,sourceSong=null,transpose=0,selected="",title="MIDIを選択",playing=false,position=0,guided=dev.pianopocket.sequencer.GuidedPractice(),waiting=false,waitingKeys=emptySet());installPractice(seq);mutable.update { it.copy(sequence=seq) } };midiLibrary.delete(entry);mutable.update { it.copy(sequence=it.sequence.copy(library=midiLibrary.entries())) } }
     fun play()=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work
         if(seq.recording || seq.exporting || !state.value.ready)return@work
@@ -258,6 +258,14 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     }
     fun seek(micros: Long)=work { val resume=state.value.sequence.playing;NativeAudio.seekTimeline(micros.coerceIn(0,state.value.sequence.song?.duration ?: 0));if(resume)NativeAudio.event(10,0,1,0,0f) }
     fun speed(value: Float){if(value !in Practice.speeds)return;NativeAudio.event(11,0,0,0,value);mutable.update {it.copy(sequence=it.sequence.copy(speed=value))}}
+    fun transpose(value: Int)=work {
+        val seq=state.value.sequence;val source=seq.sourceSong ?: return@work
+        if(seq.recording || seq.exporting || state.value.busy)return@work
+        require(value in SongTranspose.MIN..SongTranspose.MAX)
+        val song=SongTranspose.apply(source,value)
+        rebuildPractice(seq.copy(song=song,transpose=value))
+        mutable.update {it.copy(message=if(value==0)"元の音程に戻しました" else "転調 ${if(value>0)"+"else ""}$value 半音"+if(song.notes.size<source.notes.size)" · 音域外の音を除外"else "")}
+    }
     fun markA()=work {val seq=state.value.sequence;val duration=seq.song?.duration ?: return@work;require(duration>=100000){"リピートには0.1秒以上必要です"};val a=seq.position.coerceIn(0,duration-100000);val b=if(seq.loopB>a+100000)seq.loopB else duration;configurePracticeLoop(a,b,seq.looping)}
     fun markB()=work {val seq=state.value.sequence;require(seq.position>=seq.loopA+100000){"BはAから0.1秒以上後に設定してください"};configurePracticeLoop(seq.loopA,seq.position,seq.looping)}
     fun looping(enabled: Boolean)=work {val seq=state.value.sequence;configurePracticeLoop(seq.loopA,seq.loopB,enabled)}

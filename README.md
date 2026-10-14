@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを再生する、演奏を残す。
 無料・広告なし・アカウント不要。演奏・録音・書き出しは端末内で動作します。音源の追加ダウンロード時だけ通信します。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.1-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.14.1-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.15.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.15.0-alpha)
 
-Android 10以降・ARM64対応。現在の配布版は **0.14.1 alpha**、デバッグ署名のAPKです。
+Android 10以降・ARM64対応。現在の配布版は **0.15.0 alpha**、デバッグ署名のAPKです。
 
 ## はじめる
 
@@ -43,6 +43,7 @@ SFZは基本的なWAVマッピング、ベロシティ、ADSR、チューニン�
 - カタカナのドレミ、UIの表示・非表示、FPS表示を切り替えできます。画面更新は最大120fps。
 - USB / Bluetooth MIDIの入力選択、サステイン、演奏の録音。
 - `.mid` / `.midi` のライブラリ、速度変更、A–Bリピート、トラックごとの表示・ミュート。正しい鍵盤入力を待つ練習、左右別の伴奏、メトロノームも利用できます。
+- 「その他 → 転調」でMIDIを半音ずつ±2オクターブまで移動できます。ロール・再生・書き出しに反映し、元のファイルは保持します。ドラムチャンネル、画面鍵盤、リアルタイム入力の音程は変えません。
 - 音源ごとの音量・エフェクト設定を保存し、名前を付けてお気に入りに登録できます。
 
 有線・USBオーディオ出力を推奨します。Bluetoothイヤホンでは遅延が大きくなることがあります。バッファや発音数は設定から調整できます。

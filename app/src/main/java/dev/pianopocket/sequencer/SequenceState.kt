@@ -2,6 +2,7 @@ package dev.pianopocket.sequencer
 
 data class SequenceState(
     val library: List<MidiEntry> = emptyList(), val song: MidiSong? = null,
+    val sourceSong: MidiSong? = null, val transpose: Int = 0,
     val selected: String = "", val title: String = "MIDIを選択", val playing: Boolean = false,
     val position: Long = 0, val recording: Boolean = false, val recordingMicros: Long = 0,
     val live: LiveSnapshot = LiveSnapshot(emptyList(),emptySet(),emptySet(),0),
