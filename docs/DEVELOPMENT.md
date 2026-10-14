@@ -13,6 +13,7 @@ APKは `app/build/outputs/apk/debug/app-debug.apk` に生成されます。Andro
 
 ## 資料
 
+- [バックグラウンド演奏](BACKGROUND_PLAYBACK.md)
 - [検証記録](VALIDATION.md)
 - [バージョンごとの変更・検証](INCREMENTAL_RELEASES.md)
 - [Decent Samplerフィルター](DECENT_FILTERS.md)

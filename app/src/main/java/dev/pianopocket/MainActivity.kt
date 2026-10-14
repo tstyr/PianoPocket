@@ -9,7 +9,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collect
+import dev.pianopocket.playback.PerformanceSession
 import dev.pianopocket.ui.PocketScreen
 import dev.pianopocket.ui.PocketViewModel
 import dev.pianopocket.sequencer.ExportFormat
@@ -26,6 +33,7 @@ class MainActivity:ComponentActivity() {
     private var pendingVideo=VideoOptions()
     private var pendingExportUri: Uri?=null
     private var pendingPreview=false
+    private val playbackNotificationPermission=registerForActivityResult(ActivityResultContracts.RequestPermission()){}
     private val notificationPermission=registerForActivityResult(ActivityResultContracts.RequestPermission()){performPendingExport()}
     private val midiFile=registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri->if(uri!=null)model.importMidi(uri) }
     private val saveFile=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result->
@@ -45,7 +53,7 @@ class MainActivity:ComponentActivity() {
     }
     private val permissions=registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted -> if(granted.values.all { it })model.scanBluetooth()else model.message("Bluetooth MIDI検索にはBluetooth権限が必要です。") }
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState);enableEdgeToEdge();model=ViewModelProvider(this)[PocketViewModel::class.java]
+        super.onCreate(savedInstanceState);enableEdgeToEdge();model=PerformanceSession.activityCreated(application)
         pendingPreset=savedInstanceState?.getString("presetUri")?.let(Uri::parse)
         pendingFormat=runCatching { ExportFormat.valueOf(savedInstanceState?.getString("exportFormat") ?: "WAV24") }.getOrDefault(ExportFormat.WAV24)
         pendingRate=savedInstanceState?.getInt("exportRate",48000) ?: 48000;pendingTail=savedInstanceState?.getInt("exportTail",8) ?: 8
@@ -57,13 +65,28 @@ class MainActivity:ComponentActivity() {
             val name=model.state.value.sequence.title.substringBeforeLast('.').replace(Regex("[^\\p{L}\\p{N} _.-]"),"_").take(80).ifBlank { "PianoPocket" }
             saveFile.launch(android.content.Intent(android.content.Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(android.content.Intent.CATEGORY_OPENABLE);type=format.mime;putExtra(android.content.Intent.EXTRA_TITLE,"$name.${format.extension}") })
         },{rate,bitrate,video->pendingRate=rate;pendingBitrate=bitrate;pendingVideo=video;pendingPreview=true;notifyThenExport()}) }
+        observePlaybackNotifications()
+    }
+    private fun observePlaybackNotifications(){
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED){
+                model.state.map {it.backgroundPlayback}.distinctUntilChanged().collect {enabled ->
+                    val prefs=getSharedPreferences("pianopocket",MODE_PRIVATE)
+                    if(enabled && Build.VERSION.SDK_INT>=33 && androidx.core.content.ContextCompat.checkSelfPermission(this@MainActivity,Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED && !prefs.getBoolean("playbackNotificationAsked",false)){
+                        prefs.edit().putBoolean("playbackNotificationAsked",true).apply()
+                        playbackNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
+        }
     }
     private fun notifyThenExport(){
         val prefs=getSharedPreferences("pianopocket",MODE_PRIVATE)
         if(Build.VERSION.SDK_INT>=33 && androidx.core.content.ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=android.content.pm.PackageManager.PERMISSION_GRANTED && !prefs.getBoolean("exportNotificationAsked",false)){prefs.edit().putBoolean("exportNotificationAsked",true).apply();notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)}else performPendingExport()
     }
     private fun performPendingExport(){val uri=pendingExportUri;pendingExportUri=null;val preview=pendingPreview;pendingPreview=false;if(uri!=null)model.export(uri,pendingFormat,pendingRate,pendingTail,pendingBitrate,pendingVideo)else if(preview)model.previewVideo(pendingRate,pendingBitrate,pendingVideo)}
-    override fun onStart(){super.onStart();model.foreground(true)}
-    override fun onStop(){if(!isChangingConfigurations)model.foreground(false);super.onStop()}
+    override fun onStart(){super.onStart();PerformanceSession.activityStarted()}
+    override fun onStop(){PerformanceSession.activityStopped(isChangingConfigurations);super.onStop()}
+    override fun onDestroy(){PerformanceSession.activityDestroyed(isChangingConfigurations);super.onDestroy()}
     override fun onSaveInstanceState(outState: Bundle){pendingPreset?.let { outState.putString("presetUri",it.toString()) };outState.putString("exportFormat",pendingFormat.name);outState.putInt("exportRate",pendingRate);outState.putInt("exportTail",pendingTail);outState.putInt("exportBitrate",pendingBitrate);outState.putInt("videoFps",pendingVideo.fps);outState.putInt("videoHeight",pendingVideo.height);pendingExportUri?.let {outState.putString("pendingExportUri",it.toString())};outState.putBoolean("pendingPreview",pendingPreview);super.onSaveInstanceState(outState)}
 }

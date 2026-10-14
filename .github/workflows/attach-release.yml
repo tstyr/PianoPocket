@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: attach-pianopocket-v0.18.0-alpha
+  group: attach-pianopocket-v0.19.0-alpha
   cancel-in-progress: false
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: v0.18.0-alpha
+      RELEASE_TAG: v0.19.0-alpha
       ARTIFACT_COMMIT: release-artifacts
     steps:
       - name: Download and verify the tested packages
@@ -28,17 +28,17 @@ jobs:
           cd packages
           base="https://raw.githubusercontent.com/${GH_REPO}/${ARTIFACT_COMMIT}"
           for file in \
-            PianoPocket-0.18.0-arm64.apk \
-            PianoPocket-0.18.0-source.zip \
-            PianoPocket-0.18.0-validation.zip \
+            PianoPocket-0.19.0-arm64.apk \
+            PianoPocket-0.19.0-source.zip \
+            PianoPocket-0.19.0-validation.zip \
             PocketFixture.zip \
             PocketStudy.mid \
-            SHA256SUMS-0.18.0.txt; do
+            SHA256SUMS-0.19.0.txt; do
             curl --fail --location --retry 3 --output "$file" "$base/$file"
           done
           # Anchor the APK hash to the artifact already built and tested locally.
-          echo '7a296e5be97983f4f763036d854cc7ea03bc79c2cb13893e49c8cd09d8664e95  PianoPocket-0.18.0-arm64.apk' | sha256sum --check
-          sha256sum --check SHA256SUMS-0.18.0.txt
+          echo '1624950fd5781e6591d395f1a3fab2d68c25f449c7ddb543c447bbc40aa3ff25  PianoPocket-0.19.0-arm64.apk' | sha256sum --check
+          sha256sum --check SHA256SUMS-0.19.0.txt
 
       - name: Attach packages to the existing GitHub release
         shell: bash
@@ -57,12 +57,12 @@ jobs:
           from pathlib import Path
           release = json.loads(Path('release.json').read_text())
           labels = {
-              'PianoPocket-0.18.0-arm64.apk': 'APKをダウンロード（Android ARM64）',
-              'PianoPocket-0.18.0-source.zip': 'ソースZIP',
-              'PianoPocket-0.18.0-validation.zip': '検証結果ZIP',
+              'PianoPocket-0.19.0-arm64.apk': 'APKをダウンロード（Android ARM64）',
+              'PianoPocket-0.19.0-source.zip': 'ソースZIP',
+              'PianoPocket-0.19.0-validation.zip': '検証結果ZIP',
               'PocketFixture.zip': '自作テスト音源',
               'PocketStudy.mid': '自作テストMIDI',
-              'SHA256SUMS-0.18.0.txt': 'SHA-256一覧',
+              'SHA256SUMS-0.19.0.txt': 'SHA-256一覧',
           }
           assets = {item['name']: item for item in release['assets']}
           if any(name not in assets or assets[name]['size'] <= 0 for name in labels):

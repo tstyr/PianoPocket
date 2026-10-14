@@ -5,6 +5,7 @@ import android.media.AudioManager
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.pianopocket.playback.PerformanceSession
 import dev.pianopocket.audio.NativeAudio
 import dev.pianopocket.library.*
 import dev.pianopocket.midi.*
@@ -35,6 +36,7 @@ data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
     val downloadPack: dev.pianopocket.download.DownloadPack?=null,val download:dev.pianopocket.download.DownloadStatus=dev.pianopocket.download.DownloadStatus(),val downloadedInstrument: String="",
     val soundFavorites: List<String> = emptyList(),
+    val backgroundPlayback: Boolean = false,
     val stableAudio: Boolean = false,
     val diagnosticMode: Int = 0, val diagnosticRecording: Boolean = false,
     val targetFps: Int = 60,
@@ -65,9 +67,14 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private val recorder=MidiRecorder()
     private val diagnostics=dev.pianopocket.audio.DiagnosticSession()
     private val live=LiveNotes()
-    private val mutable=MutableStateFlow(PocketState(stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(metronomeBpm=preferences.metronomeBpm,metronomeVolume=preferences.metronomeVolume,exportSelection=preferences.exportSelection,noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
+    private val mutable=MutableStateFlow(PocketState(backgroundPlayback=preferences.backgroundPlayback,stableAudio=preferences.stableAudio,targetFps=preferences.targetFps,showFps=preferences.showFps,landscapePerformance=preferences.landscapePerformance,voices=preferences.voiceLimit,memoryMiB=preferences.memoryMiB,bursts=preferences.bursts, sequence=SequenceState(metronomeBpm=preferences.metronomeBpm,metronomeVolume=preferences.metronomeVolume,exportSelection=preferences.exportSelection,noteLabels=preferences.noteLabels,rollVisible=preferences.rollVisible,lookAhead=preferences.lookAhead)))
     val state=mutable.asStateFlow()
-    @Volatile private var foreground=false;private var initialized=false
+    @Volatile private var foreground=false
+    @Volatile private var backgroundServiceActive=false
+    @Volatile private var focusAvailable=true
+    val isForeground: Boolean get()=foreground
+    private val performanceActive: Boolean get()=(foreground || backgroundServiceActive) && focusAvailable
+    private var initialized=false
     private val midi=MidiController(app,{ text->mutable.update { it.copy(midi=text) } },{ list->mutable.update { it.copy(ble=list) } },{ list->
         val removed=state.value.inputs.any { old->list.none { it.id==old.id } }
         if(removed){live.clear();if(state.value.sequence.recording)viewModelScope.launch { stopRecording() }}
@@ -94,14 +101,15 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
                 val resume=previousRunning && !result.running && result.previewPath==null || previousPreview!=null && result.previewPath==null && !result.running
                 mutable.update { it.copy(uiPedal=if(result.running)false else it.uiPedal,busy=if(result.running)true else if(previousRunning)false else it.busy,ready=if(result.running || result.previewPath!=null)false else it.ready,message=if(result.id>0)result.message else it.message,sequence=it.sequence.copy(exporting=result.running,exportProgress=result.progress,exportPhase=result.phase,exportEtaSeconds=result.etaSeconds,previewPath=result.previewPath,playing=if(result.running)false else it.sequence.playing)) }
                 previousRunning=result.running;previousPreview=result.previewPath
-                if(resume && foreground)work {openAudioWorker(true);mutable.update {it.copy(message=result.message)}}
+                syncBackgroundService()
+                if(resume && performanceActive)work {openAudioWorker(true);mutable.update {it.copy(message=result.message)}}
             }
         }
         viewModelScope.launch {
             while(isActive){delay(1000);withContext(worker){runCatching {saveCurrentSong(throttled=true)}}}
         }
         viewModelScope.launch {
-            while(isActive){delay(100);if(foreground && !displayFramesActive)displayFrame()}
+            while(isActive){delay(100);if(foreground && !displayFramesActive || !foreground && backgroundServiceActive)displayFrame()}
         }
         viewModelScope.launch {
             while(isActive){delay(500);if(foreground)withContext(worker){val values=NativeAudio.stats().toList();val pss=android.os.Debug.getPss()/1024f;val recording=diagnostics.capture(System.nanoTime(),state.value.diagnosticMode,values);mutable.update { it.copy(stats=values,processMiB=pss,diagnosticRecording=recording) };refreshOutputs()}}
@@ -110,8 +118,16 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     @Volatile var displayFramesActive=false
     fun targetFps(value: Int){if(value !in listOf(30,60,90,120))return;preferences.targetFps=value;mutable.update { it.copy(targetFps=value) }}
     fun displayFrame() {
-        if(!foreground)return
-        val transport=NativeAudio.transport();val snapshot=live.snapshot();val practice=NativeAudio.practiceStatus()
+        if(!performanceActive)return
+        val transport=NativeAudio.transport()
+        if(!foreground){
+            mutable.update {s->s.copy(sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),
+                playing=!s.sequence.exporting && s.sequence.previewPath==null && transport[1]>0,
+                recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros))}
+            if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
+            return
+        }
+        val snapshot=live.snapshot();val practice=NativeAudio.practiceStatus()
         val waiting=practice[0]!=0L;val expected=if(waiting)(0..127).filter {((practice[1+it/64] ushr (it%64)) and 1L)!=0L}.toSet()else emptySet()
         mutable.update { s->s.copy(message=if(transport[2]>0)"MIDIのイベント密度が処理上限を超えたため、再生を停止しました。"else s.message,sequence=s.sequence.copy(position=(transport[0]*1000000).toLong(),playing=!s.sequence.exporting && s.sequence.previewPath==null && transport[1]>0,waiting=waiting,waitingKeys=expected,live=snapshot,recordingMicros=if(s.sequence.recording)recorder.elapsed()else s.sequence.recordingMicros,exportProgress=if(s.sequence.exporting)ExportCoordinator.status.value.progress else s.sequence.exportProgress)) }
         if(state.value.sequence.recording && !recorder.isRecording())stopRecording()
@@ -120,18 +136,52 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun foreground(active: Boolean) {
         if(foreground==active)return
         foreground=active
+        if(active)focusAvailable=true
         applyOutputRoute()
-        if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
+        if(!active){diagnosticMode(0);stopDiagnosis();if(!backgroundServiceActive && state.value.sequence.recording)stopRecording()}
         if(active){if(!ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)work {openAudioWorker()} }
-        else work {saveCurrentSong();soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
+        else work {saveCurrentSong();soundSaveJob?.cancel();saveCurrentSound();if(!performanceActive)suspendAudioWorker()}
+    }
+    fun backgroundPlayback(enabled: Boolean){
+        preferences.backgroundPlayback=enabled;mutable.update {it.copy(backgroundPlayback=enabled)}
+        if(!enabled){panic();PerformanceSession.stop(getApplication())}else syncBackgroundService()
+    }
+    fun backgroundService(active: Boolean){
+        backgroundServiceActive=active;applyOutputRoute()
+        if(active && !state.value.ready)work {openAudioWorker()}
+        if(!active && !foreground)work {saveCurrentSong();saveCurrentSound();suspendAudioWorker()}
+    }
+    fun backgroundStartFailed(){
+        preferences.backgroundPlayback=false;mutable.update {it.copy(backgroundPlayback=false,message="背景演奏を開始できません。アプリを開いて演奏してください。")}
+    }
+    fun audioFocus(available: Boolean){
+        focusAvailable=available;applyOutputRoute()
+        if(!available){panic();work {suspendAudioWorker()}}else if(performanceActive)work {openAudioWorker()}
+    }
+    fun backgroundInterrupted(message: String){
+        audioFocus(false);preferences.backgroundPlayback=false
+        mutable.update {it.copy(backgroundPlayback=false,message=message)}
+    }
+    private fun syncBackgroundService(){
+        viewModelScope.launch {
+            val s=state.value
+            if(!s.backgroundPlayback || s.sequence.exporting || s.sequence.previewPath!=null)PerformanceSession.stop(getApplication())
+            else if(foreground && s.ready)PerformanceSession.start(getApplication())
+        }
+    }
+    private fun suspendAudioWorker(){
+        NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop()
+        mutable.update {it.copy(ready=false,uiPedal=false,sequence=it.sequence.copy(playing=false))}
     }
     private fun openAudioWorker(forceReload: Boolean=false) {
-        if(!foreground || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
+        if(!performanceActive || ExportCoordinator.running || ExportCoordinator.status.value.previewPath!=null)return
+        if(state.value.ready && !forceReload && !ExportCoordinator.performanceUnloaded){syncBackgroundService();return}
         check(NativeAudio.start(state.value.device,state.value.bursts)){"オーディオ出力を開始できません"}
         if(!initialized){mutable.update {it.copy(busy=true,message="内蔵ピアノを準備しています")};val entries=repository.ensureBundled();mutable.update {it.copy(library=entries,busy=false)};refreshLibrary();initialized=true}
         val entry=state.value.library.firstOrNull {it.id==(state.value.selected.ifBlank {preferences.lastInstrument})} ?: state.value.library.firstOrNull()
         if(entry!=null && (state.value.preset==null || forceReload || ExportCoordinator.performanceUnloaded))loadInternal(entry)else mutable.update {it.copy(ready=true)}
         if(state.value.sequence.song==null){val last=state.value.sequence.library.firstOrNull {it.id==preferences.lastMidi};if(last!=null)selectSong(last,midiLibrary.load(last))else installPractice(state.value.sequence)}
+        syncBackgroundService()
     }
     private fun refreshOutputs() {
         val devices=getApplication<Application>().getSystemService(AudioManager::class.java).getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -172,9 +222,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         configured.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
         if(state.value.sequence.song!=null)NativeAudio.seekTimeline(state.value.sequence.position)
         repository.used(entry);preferences.lastInstrument=entry.id
-        if(!foreground)NativeAudio.stop()
-        mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=foreground,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
-        saveCurrentSound()
+        if(!performanceActive)NativeAudio.stop()
+        mutable.update { it.copy(preset=configured,selected=entry.id,busy=false,groups=initialGroups,voices=voices,volume=output,soundFavorites=record.favorites.map { it.name },ready=performanceActive,message="${preset.regions.size} zones · ${preset.warnings.size} 件の互換性警告") }
+        saveCurrentSound();syncBackgroundService()
     }
     fun importArchive(uri: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importArchive(uri){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false,message="${imported.size} プリセットをインポートしました。ライブラリで選択してください。") } }
     fun importPreset(uri: Uri, tree: Uri)=work { mutable.update { it.copy(busy=true) };val imported=repository.importPreset(uri,tree){p->mutable.update { it.copy(message=p) } };mutable.update { it.copy(library=repository.entries(),busy=false) };loadInternal(imported.first()) }
@@ -221,7 +271,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun scanBluetooth()=midi.scanBluetooth()
     fun bluetooth(address: String)=midi.connectBluetooth(address)
     private fun receiveMidi(status: Int,a: Int,b: Int,timestamp: Long,allowOutput: Boolean) {
-        if(!foreground || state.value.sequence.exporting || !state.value.ready)return
+        if(!performanceActive || state.value.sequence.exporting || !state.value.ready)return
         val flags=if(allowOutput)0 else 256
         when(status and 0xf0){
             0x90 -> NativeAudio.event(flags or if(b==0)1 else 0,status and 15,a,b,0f)
@@ -233,7 +283,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         live.event(status,a,b);recorder.capture(status,a,b,timestamp)
     }
     fun key(note: Int,velocity: Int) {
-        if(!state.value.ready || state.value.sequence.exporting)return
+        if(!performanceActive || !state.value.ready || state.value.sequence.exporting)return
         if(velocity>0)NativeAudio.noteOn(note,velocity)else NativeAudio.noteOff(note)
         live.event(if(velocity>0)0x90 else 0x80,note,velocity,16)
         if(state.value.midiInput in listOf("all","screen"))recorder.capture(if(velocity>0)0x9f else 0x8f,note,velocity)
@@ -251,7 +301,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private fun applyOutputRoute(){
         val s=state.value;val connected=s.midiOutput!="none"
         NativeAudio.event(4,0,0,0,s.outputMode.localVolume(s.volume,connected))
-        midi.performanceActive(foreground && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null && s.outputMode.sendsMidi(connected))
+        midi.performanceActive(performanceActive && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null && s.outputMode.sendsMidi(connected))
     }
     fun midiThru(enabled: Boolean){val s=state.value;mutable.update {it.copy(midiThru=enabled)};midi.outputOptions(enabled,s.screenMidiChannel)}
     fun screenMidiChannel(channel: Int){if(channel !in 0..15)return;mutable.update {it.copy(screenMidiChannel=channel)};midi.outputOptions(state.value.midiThru,channel)}
@@ -314,7 +364,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun markA()=work {val seq=state.value.sequence;val duration=seq.song?.duration ?: return@work;require(duration>=100000){"リピートには0.1秒以上必要です"};val a=seq.position.coerceIn(0,duration-100000);val b=if(seq.loopB>a+100000)seq.loopB else duration;configurePracticeLoop(a,b,seq.looping)}
     fun markB()=work {val seq=state.value.sequence;require(seq.position>=seq.loopA+100000){"BはAから0.1秒以上後に設定してください"};configurePracticeLoop(seq.loopA,seq.position,seq.looping)}
     fun looping(enabled: Boolean)=work {val seq=state.value.sequence;configurePracticeLoop(seq.loopA,seq.loopB,enabled)}
-    private fun configurePracticeLoop(a: Long,b: Long,enabled: Boolean){val duration=state.value.sequence.song?.duration ?: return;require(!enabled || a>=0 && b<=duration && b-a>=100000){"リピート区間が不正です"};NativeAudio.practiceLoop(a,b,enabled);if(!foreground)NativeAudio.stop();mutable.update {it.copy(sequence=it.sequence.copy(loopA=a,loopB=b,looping=enabled))}}
+    private fun configurePracticeLoop(a: Long,b: Long,enabled: Boolean){val duration=state.value.sequence.song?.duration ?: return;require(!enabled || a>=0 && b<=duration && b-a>=100000){"リピート区間が不正です"};NativeAudio.practiceLoop(a,b,enabled);if(!performanceActive)NativeAudio.stop();mutable.update {it.copy(sequence=it.sequence.copy(loopA=a,loopB=b,looping=enabled))}}
     fun trackVisible(track: Int,visible: Boolean){val seq=state.value.sequence;if(track !in 0 until (seq.song?.tracks ?: 0))return;mutable.update {it.copy(sequence=it.sequence.copy(hiddenTracks=if(visible)it.sequence.hiddenTracks-track else it.sequence.hiddenTracks+track))}}
     fun trackMuted(track: Int,muted: Boolean)=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work;require(track in 0 until song.tracks);val tracks=if(muted)seq.mutedTracks+track else seq.mutedTracks-track;rebuildPractice(seq.copy(mutedTracks=tracks))
@@ -331,7 +381,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(song!=null){val (times,data)=arrays(song,seq.mutedTracks,seq.guided);NativeAudio.timeline(times,data,song.duration)}
         installPractice(seq)
         if(song!=null){NativeAudio.event(11,0,0,0,seq.speed);NativeAudio.practiceLoop(seq.loopA,seq.loopB,seq.looping);NativeAudio.seekTimeline(seq.position);if(seq.playing)NativeAudio.event(10,0,1,0,0f)}
-        if(!foreground)NativeAudio.stop();mutable.update {it.copy(sequence=seq.copy(waiting=false,waitingKeys=emptySet()))}
+        if(!performanceActive)NativeAudio.stop();mutable.update {it.copy(sequence=seq.copy(waiting=false,waitingKeys=emptySet()))}
     }
     fun guidedPractice(options: dev.pianopocket.sequencer.GuidedPractice)=work {
         val seq=state.value.sequence;val song=seq.song ?: return@work
@@ -351,7 +401,17 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         if(!state.value.sequence.recording)return
         val take=recorder.stop();NativeAudio.panic();live.clear()
         mutable.update { it.copy(uiPedal=false,sequence=it.sequence.copy(recording=false)) }
-        work {val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date());val entry=midiLibrary.save(name,song);selectSong(entry,song);mutable.update { it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。") }}
+        // Persist the completed take even if closing the notification clears the session's ViewModel.
+        executor.execute {
+            try {
+                val song=take.toSong();val name="Recording " + java.text.SimpleDateFormat("yyyy-MM-dd HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date())
+                val entry=midiLibrary.save(name,song)
+                if(AudioWorkQueue.isCurrentUi(audioOwner)){
+                    selectSong(entry,song)
+                    mutable.update {it.copy(message=if(recorder.limitReached())"録音の時間・イベント上限に達したため保存しました。" else "録音をMIDIライブラリへ保存しました。")}
+                }
+            }catch(error: Exception){mutable.update {it.copy(message="録音を保存できません: ${error.message}")}}
+        }
     }
     private fun saveCurrentSound(s: PocketState=state.value){
         val p=s.preset ?: return;val schema=SoundSettings.schema(p);val record=try{soundStore.read(s.selected,schema)}catch(e: Exception){soundStore.backupCorrupt(s.selected,schema);mutable.update {it.copy(message="保存設定の破損を検出し、退避しました")};SoundRecord()};soundStore.write(s.selected,schema,record.copy(last=SoundSettings.capture(p,s.volume,s.voices,s.groups)))

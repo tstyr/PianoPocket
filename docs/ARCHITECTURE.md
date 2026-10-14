@@ -62,3 +62,9 @@ ExportCoordinatorが固定スナップショット・キャンセルatomic・進
 書き出し時にOboeを停止し、演奏bankとFXをオーディオ外で解放。元MIDIの位置・レートは保持し、音源の保存設定と現在位置のCCをワーカーで復元して演奏を再開可能にします。offline samplerは別bank。進行だけをatomicでポーリングし、コールバックやJNI transactionをUIスレッドで実行しません。
 
 短いプレビューはコントローラー・鳴っているノートを曲内位置から再構築。現在のサンプル波形の途中位置を復号し直す完全なseekではありません。cache/previewsにMP4を生成し、非公開のFileProviderを使ってアプリ内VideoViewへfdを渡します。Content URIを外部アプリへ自動共有しません。詳細はBACKGROUND_EXPORT.md。
+
+## 演奏セッション
+
+曲の設定はSongSettingsStoreに音源ID・転調・速度・リピート・鍵盤の表示範囲・トラック設定・再開位置を保存します。元のMIDIは変更しません。音の出力モードは保存された音量と分けて扱い、外部機器の切断時は内蔵音源へ戻します。
+
+PerformanceSessionが画面とPlaybackServiceのViewModelStoreを共有します。通知サービスが有効なら画面を閉じても音声・MIDIを保持し、最後の所有者が終了したら解放します。[背景演奏の詳細](BACKGROUND_PLAYBACK.md)。

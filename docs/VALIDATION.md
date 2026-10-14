@@ -61,25 +61,22 @@ zipalign -c -P 16 4 app/build/outputs/apk/debug/app-debug.apk
 
 voice-scope table、tagミキサー、CC64のnote 1 / 2マッピング、整数小数frame、IRメニュー、+12dB gain、256/2048 hybrid FFTを追加。ASan/UBSanのnative suiteと実XFマッピングprobeを通過。実サンプルはCIに置かず、利用者が指定するprivateディレクトリから検証します。詳細と再現コマンドは[HELSINKI.md](HELSINKI.md)。
 
-## GitHub公開後のCI状態
+## 配布とビルド
 
-main / v0.2.0-alphaのプッシュは成功しました。GitHub Actionsの初回実行は `The job was not started because your account is locked due to a billing issue.` というGitHub側の理由でジョブ開始前に停止しています。ローカルのビルド・テスト成功をホステッドCI成功とは扱いません。[実行記録](https://github.com/tstyr/PianoPocket/actions/runs/38220736938)。本体の不具合ではなく、GitHubアカウント側で解消が必要です。
-
-Release Assetsへの通常添付も試行しました。CLIからの直接添付は `uploads.github.com` がHTTP 401を返します。代替として `.github/workflows/attach-release.yml` を追加し、固定した配布コミットから検証済みAPK等を取得・SHA-256確認して既存リリースへ添付する手動実行処理を用意しました。YAML・Bash・Python構文チェックはPASSですが、[添付処理の実行](https://github.com/tstyr/PianoPocket/actions/runs/38222693297)も同じbilling lockで開始前に停止しました。Assets添付の成功とは扱いません。Actionsを使わない方法として、リポジトリ所有者は[リリース編集画面](https://github.com/tstyr/PianoPocket/releases/edit/v0.2.0-alpha)から配布済みAPKを手動で添付できます。
-
+ビルド・自動テストは開発環境で実施しています。GitHub Actionsでの実行成功は確認していません。APK、対応するソース、検証記録はrelease-artifactsブランチで配布し、各リリースからリンクしています。公開先から再取得したファイルのSHA-256一致を確認しています。
 
 ## 0.3.0 MIDI / recording / export
 
 MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件（新規14件）、native / ASan / UBSan、6 WAV形式／レート組合せ、Helsinki XFの実サンプル＋IRによる10秒書き出しがPASS。書き出しではIR mixを0.35に明示変更して残響を検査し、サンプルcache miss / I/O errorは0。Galaxy S26やエミュレーターは未接続のため、ロールUI・SAF保存・USB/BLE録音・レイテンシの実機成功は未確認です。
 
-0.3のmain / tag / release-artifactsブランチをプッシュ済み。Assets直接アップロードは再びHTTP 401となったため、配布用ブランチへAPK・ZIP・自作MIDIを保存してリリース本文からリンク。公開されたAPKを再取得しSHA-256一致を確認。Actionsの新しい実行は行っておらず、先のbilling lockをCI成功として扱いません。
+0.3.0の配布APKを公開先から再取得し、SHA-256一致を確認しました。
 
 
 ## 0.3.1 reverb clipping
 
-利用者のSchool Hall / Mix 0.71の音割れを実データで再現。IR音量補正と固定メモリの先読みリミッターを実装し、実IR5種×4 mix×3発音密度の60ケース、低周波／1kHzの高調波検査、native / ASan / UBSan、36 JVM tests、ビルド／Lintを通過。[原因・検査・実機確認手順](REVERB_FIX.md)。利用者端末での起動と演奏の報告・画面は得ていますが、修正版の聴感・実測レイテンシは開発環境で実機確認していません。
+School Hall / Mix 0.71の音割れを実IRで再現。IR音量補正と固定メモリの先読みリミッターを実装し、実IR5種×4 mix×3発音密度の60ケース、低周波／1kHzの高調波検査、native / ASan / UBSan、36 JVM tests、ビルド／Lintを通過。[原因・検査・実機確認手順](REVERB_FIX.md)。修正版の聴感・実測レイテンシは開発環境で実機確認していません。
 
-0.3.1のmain / tag / release-artifactsブランチとリリースを公開済み。Assets直接添付はHTTP 401が継続し未完了。公開ブランチから修正版APKを再取得してSHA-256一致を確認しました。新しいActions実行は行っていません。
+0.3.1の配布APKを公開先から再取得し、SHA-256一致を確認しました。
 
 ## 0.4 performance UI
 
@@ -89,7 +86,7 @@ MIDI拡張の[詳細・手動検証手順](SEQUENCER.md)を追加。JVMは36件�
 
 APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署名PASS、zipalign 16KiB PASS、3つのELFのLOAD整列が16384。旧版と同じ証明書SHA-256 `d2b4e0c9de24c4a5ec51e6e05651e526aee3da3e3a720f756c2027789b132761`。APK SHA-256 `b0e177b3b0f209e717b66a2ed59060dca7337f43ca16a31de0ea3a9bd5eef027`、27481758 bytes。開発環境の実機・エミュレーターは未接続で、スクリーンショット・UI操作・Galaxy S26での更新成功を検証済みとは主張しません。
 
-0.4.0のmain / tag / release-artifactsとプリリリースを公開済み。APKはrelease-artifactsブランチで配布しています。公開先から27481758 bytesのAPKを再取得し、上記SHA-256と一致しました。ソース・検証ZIP・checksum一覧も公開先から取得可能と確認。新しいActions実行は行っておらず、既存billing lockの解消やホステッドCI成功を主張しません。
+0.4.0のAPK・対応ソース・検証ZIPを公開先から再取得し、SHA-256一致を確認しました。
 
 ## 0.4.1 sustain / labels / compressed audio
 
@@ -102,7 +99,7 @@ APK versionCode 5 / versionName 0.4.0-alpha / ARM64 / min29 / target36。v2署�
 - APK versionCode6 / versionName0.4.1-alpha / ARM64 / min29 / target36。署名v2・zipalign16KiB PASS。4 ELFのLOAD alignment>=16384、新しいlibmp3lame.soと実ライセンス本文assetを確認。旧版と同じ証明書。APK 28589208 bytes / SHA-256 `1605ef1417621c60c563632d55b40afa08596ecd5d3ed65a0e14a34e67dd6bf7`。
 - `AacExporterDeviceTest` 2 testsとAndroid test APKを用意しビルド。端末未接続なので実行せず、M4Aの出力成功を検証済みとは主張しない。新ドレミ・SUSの表示、SAF保存、USB/BLE連動の実機試験も未実施。
 
-0.4.1をmain / tag / release-artifactsとプリリリースに公開。Assetsへの通常添付はHTTP 401で未完了。公開先のAPK・対応ソースZIP・検証ZIP・自作fixture/MIDIを再取得し、SHA-256一覧との一致を確認。新しいActions実行や実機M4A・UI試験の成功は主張しません。
+0.4.1のAPK・対応ソース・検証ZIPを公開先から再取得し、SHA-256一致を確認しました。
 
 ## 0.4.2 MIDI picker / opaque single-line labels
 
@@ -127,4 +124,4 @@ APK versionCode8 / 0.4.3-alpha / ARM64 / min29 / target36、旧版と同じdebug
 公開準備時の0.4.3から、鍵盤上で静止している指をロールのzoom/panだけで別ノートへ移さないよう入力処理を修正。公開するAPKは0.4.4 / versionCode9。45 JVM tests・Androidビルド・Lint errors0、Android test APKのビルドはPASS。実機ジェスチャー・M4Aは未検証。旧版と同じdebug v2署名、zipalign16KiBと4 ELF LOAD>=16384 PASS。
 APK 27686877 bytes / SHA-256 `60074983ed3f0e6ad46519f85256b2e796125417798d8e87ec4a72efe58a1598`。0.4.3のタグは準備時の履歴として保持し、リリース配布は0.4.4で行います。
 
-0.4.4をmain / tag / release-artifactsとプリリリースで公開。Assets直接添付はHTTP 401が継続し未完了。公開先のAPK・対応ソース・検証ZIP・自作fixture/MIDIを取得し、SHA-256一覧と一致。新しいジェスチャー・描画・M4Aの実機成功やホステッドCI成功は主張しません。
+0.4.4のAPK・対応ソース・検証ZIPを公開先から再取得し、SHA-256一致を確認しました。

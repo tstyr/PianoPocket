@@ -62,6 +62,8 @@ internal fun SettingsPanel(
             }
             SettingsPage.Audio -> {
                 OutputModeControl(state, model)
+                SettingsSwitch("アプリを閉じても演奏", state.backgroundPlayback, model::backgroundPlayback)
+                if(state.backgroundPlayback)Text("画面オフでも使えます。通知の「終了」で止められます。", style = MaterialTheme.typography.bodySmall)
                 Text("音の出方", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !state.stableAudio, onClick = { model.stableAudio(false) },
@@ -107,7 +109,7 @@ internal fun SettingsPanel(
                 Text(dev.pianopocket.BuildConfig.VERSION_NAME, style = MaterialTheme.typography.bodyMedium)
                 TextButton(onClick = licenses) { Text("音源・ライブラリのライセンス") }
                 TextButton(onClick = notifications) { Text("通知の設定") }
-                Text("書き出し・ダウンロードの進行を通知します。", style = MaterialTheme.typography.bodySmall)
+                Text("演奏の操作・書き出し・ダウンロードを通知します。", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
