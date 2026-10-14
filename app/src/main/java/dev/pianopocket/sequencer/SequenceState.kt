@@ -16,7 +16,7 @@ data class SequenceState(
     val exporting: Boolean = false, val exportProgress: Float = 0f,
     val exportPhase: String="",val exportEtaSeconds: Long?=null,val previewPath: String?=null
 ) { val fullKeyboard: Boolean get()=viewport.full }
-data class ExportSelection(val format: ExportFormat=ExportFormat.WAV24,val rate: Int=48000,val tail: Int=8,val bitrate: Int=256,val video: dev.pianopocket.video.VideoOptions=dev.pianopocket.video.VideoOptions()) {
+data class ExportSelection(val format: ExportFormat=ExportFormat.WAV24,val rate: Int=48000,val tail: Int=8,val bitrate: Int=256,val video: dev.pianopocket.video.VideoOptions=dev.pianopocket.video.VideoOptions(),val usePlayback: Boolean=true,val loopOnly: Boolean=false) {
     init {require(rate in listOf(44100,48000) && tail in 0..30 && bitrate in listOf(128,192,256,320))}
 }
 enum class ExportFormat(val label: String,val extension: String,val mime: String,val bits: Int) {

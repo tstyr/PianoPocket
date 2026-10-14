@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを聴く、演奏を録る。
 無料・広告なし・アカウント不要。音源の追加ダウンロードを除き、オフラインで使えます。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.21.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.21.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.22.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.22.0-alpha)
 
-Android 10以降・ARM64対応。現在は **0.21.0 alpha**、デバッグ署名の試用版です。
+Android 10以降・ARM64対応。現在は **0.22.0 alpha**、デバッグ署名の試用版です。
 
 ## はじめる
 
@@ -58,6 +58,8 @@ MIDIライブラリに `.mid` / `.midi` を追加すると、降ってくるノ�
 | MIDI | MIDI Type 0 / 1 |
 | 音声 | WAV、FLAC、MP3、M4A |
 | 動画 | MP4、MOV |
+
+書き出し画面で再生速度・ミュートの反映と、曲全体／A–B区間を選べます。MIDI・音声・動画に同じ設定を反映します。
 
 動画にはロールビューと鍵盤を表示します。短いプレビューで見た目を確認できます。書き出しはアプリを閉じても継続し、通知から進行確認・キャンセルできます。M4A・動画には端末の対応エンコーダーが必要です。[形式と設定](docs/EXPORT_FORMATS.md)。
 

@@ -432,7 +432,12 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun diagnosticReport()=diagnostics.report()
     fun cancelExport()=ExportCoordinator.cancel()
     private fun exportRequest(uri: Uri?,format: ExportFormat,rate: Int,tail: Int,bitrate: Int,video: VideoOptions,preview: Boolean): ExportRequest {
-        val s=state.value;val source=s.sequence.song ?: error("MIDIを選択してください");val song=if(preview)PreviewSong.slice(source,s.sequence.position)else source
+        val s=state.value;val seq=s.sequence;val original=seq.song ?: error("MIDIを選択してください")
+        val options=seq.exportSelection;val speed=if(options.usePlayback)seq.speed else 1f
+        val start=if(options.loopOnly)seq.loopA else 0;val end=if(options.loopOnly)seq.loopB else original.duration
+        val source=SongExportSettings.apply(original,speed,if(options.usePlayback)seq.mutedTracks else emptySet(),start,end,mapOf(-1 to s.preset?.articulations?.map {it.key}.orEmpty().toSet()))
+        val previewPosition=((seq.position-start).coerceAtLeast(0)/speed).toLong()
+        val song=if(preview)PreviewSong.slice(source,previewPosition)else source
         val preset=if(format.bits>0)s.preset ?: error("音源を読み込んでください")else null
         val entry=if(preset!=null)s.library.first {it.id==s.selected}else null
         return ExportRequest(uri,format,rate,tail,bitrate,video,song,s.sequence.title,s.memoryMiB,s.volume,s.voices,
