@@ -33,30 +33,30 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val inlineSeek=maxWidth>=600.dp
             Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
-            LibraryMenu(enabled=!seq.recording,midi=midi,instruments=library)
-            PocketIconButton(if(seq.playing)PocketIcon.Pause else PocketIcon.Play,if(seq.playing)"一時停止"else "再生",enabled=seq.song!=null && state.ready && !state.busy && !seq.recording && !seq.exporting,onClick=model::play)
-            PocketIconButton(PocketIcon.Record,if(seq.recording)"録音を停止して保存"else "録音を開始",enabled=state.ready && !state.busy && !seq.exporting,selected=seq.recording,onClick={if(seq.recording)model.stopRecording()else model.startRecording()})
-            if(inlineSeek)PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
-            if(inlineSeek && seq.song!=null && !seq.recording)PerformanceSeekBar(state,model,Modifier.weight(1f))
-            else Box(Modifier.weight(1f).padding(horizontal=8.dp)) {
-                if(inlineSeek)Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.labelMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
-            }
-            PocketIconButton(PocketIcon.Mixer,"音源・マイク・エフェクト",onClick=instrument)
-            PocketIconButton(PocketIcon.Eye,"操作UIを隠す",onClick=hideUi)
-            Box {
-                PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
-                DropdownMenu(expanded=more,onDismissRequest={more=false}) {
-                    DropdownMenuItem(text={Text("MIDIライブラリ")},enabled=!seq.recording,onClick={more=false;midi()})
-                    DropdownMenuItem(text={Text("音源ライブラリ")},enabled=!seq.recording,onClick={more=false;library()})
-                    if(!inlineSeek)DropdownMenuItem(text={Text("すべての音を停止")},onClick={more=false;model.panic()})
-                    if(seq.song!=null && !seq.recording)DropdownMenuItem(text={Text("再生位置")},enabled=!state.busy && !seq.exporting,onClick={more=false;seekDialog=true})
-                    DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
-                    DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
-                    DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
-                    DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
-                    DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
+                LibraryMenu(enabled=!seq.recording,midi=midi,instruments=library)
+                PocketIconButton(if(seq.playing)PocketIcon.Pause else PocketIcon.Play,if(seq.playing)"一時停止"else "再生",enabled=seq.song!=null && state.ready && !state.busy && !seq.recording && !seq.exporting,onClick=model::play)
+                PocketIconButton(PocketIcon.Record,if(seq.recording)"録音を停止して保存"else "録音を開始",enabled=state.ready && !state.busy && !seq.exporting,selected=seq.recording,onClick={if(seq.recording)model.stopRecording()else model.startRecording()})
+                if(inlineSeek)PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
+                if(inlineSeek && seq.song!=null && !seq.recording)PerformanceSeekBar(state,model,Modifier.weight(1f))
+                else Box(Modifier.weight(1f).padding(horizontal=8.dp)) {
+                    if(inlineSeek)Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.labelMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
                 }
-            }
+                PocketIconButton(PocketIcon.Mixer,"音源・マイク・エフェクト",onClick=instrument)
+                PocketIconButton(PocketIcon.Eye,"操作UIを隠す",onClick=hideUi)
+                Box {
+                    PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
+                    DropdownMenu(expanded=more,onDismissRequest={more=false}) {
+                        DropdownMenuItem(text={Text("MIDIライブラリ")},enabled=!seq.recording,onClick={more=false;midi()})
+                        DropdownMenuItem(text={Text("音源ライブラリ")},enabled=!seq.recording,onClick={more=false;library()})
+                        if(!inlineSeek)DropdownMenuItem(text={Text("すべての音を停止")},onClick={more=false;model.panic()})
+                        if(seq.song!=null && !seq.recording)DropdownMenuItem(text={Text("再生位置")},enabled=!state.busy && !seq.exporting,onClick={more=false;seekDialog=true})
+                        DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
+                        DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
+                        DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
+                        DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
+                        DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
+                    }
+                }
             }
         }
         if(seq.exporting)Text("${seq.exportPhase}${seq.exportEtaSeconds?.let {" · 推定残り（この工程） ${durationLabel(it*1000000)}"} ?: ""}",style=MaterialTheme.typography.labelSmall)

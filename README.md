@@ -3,15 +3,15 @@
 Androidでピアノを弾く、MIDIを再生する、演奏を残す。
 無料・広告なし・アカウント不要。演奏・録音・書き出しは端末内で動作します。音源の追加ダウンロード時だけ通信します。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.13.2-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.13.2-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.14.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.14.0-alpha)
 
-Android 10以降・ARM64対応。現在の配布版は **0.13.2 alpha**、デバッグ署名のAPKです。
+Android 10以降・ARM64対応。現在の配布版は **0.14.0 alpha**、デバッグ署名のAPKです。
 
 ## はじめる
 
 1. APKをインストールして起動します。
 2. 内蔵の **Pocket Upright** が読み込まれます。画面の鍵盤、またはUSB MIDIキーボードで演奏できます。
-3. 自分の音源を使うときは、音源ライブラリから「音源をインポート」を選びます。
+3. 自分の音源を使うときは、ピアノアイコン →「音源ライブラリ」→「音源をインポート」を選びます。同じアイコンからMIDIライブラリも開けます。
 
 Pocket Uprightは、VSCO 2 Community Editionの実録音を使ったステレオ・アップライトピアノです。3段階のベロシティ、88鍵のマッピングに対応。音源は約33MiBで、別途ダウンロードする必要はありません。削除した場合も「内蔵ピアノを読み込む」で戻せます。
 
@@ -44,6 +44,8 @@ SFZは基本的なWAVマッピング、ベロシティ、ADSR、チューニン�
 - 音源ごとの音量・エフェクト設定を保存し、名前を付けてお気に入りに登録できます。
 
 有線・USBオーディオ出力を推奨します。Bluetoothイヤホンでは遅延が大きくなることがあります。バッファや発音数は設定から調整できます。
+
+設定は「表示」「音の設定」「MIDIキーボード」に分かれています。ドレミや横画面の切り替えは「表示」、バッファ・発音数・メモリの調整や診断情報は「詳細設定」から開けます。
 
 ## 書き出し
 

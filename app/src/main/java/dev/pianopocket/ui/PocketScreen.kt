@@ -26,6 +26,10 @@ private val colors=darkColorScheme(primary=Color(0xff9ec6b4),background=Color(0x
 fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,importMidi:()->Unit,export:(dev.pianopocket.sequencer.ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit) {
     val state by model.state.collectAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var settingsPage by rememberSaveable { mutableStateOf(SettingsPage.Overview) }
+    val contentScroll=rememberScrollState()
+    LaunchedEffect(tab,settingsPage){contentScroll.scrollTo(0)}
+    LaunchedEffect(tab){if(tab!=3)settingsPage=SettingsPage.Overview}
     var uiHidden by rememberSaveable { mutableStateOf(false) }
     var instrument by rememberSaveable { mutableStateOf(false) }
     var notice by remember { mutableStateOf(true) }
@@ -46,7 +50,13 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
         if(tab==0)bars.hide(WindowInsetsCompat.Type.systemBars()) else bars.show(WindowInsetsCompat.Type.systemBars())
         onDispose { bars.show(WindowInsetsCompat.Type.systemBars());activity.requestedOrientation=ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
     }
-    BackHandler(tab!=0 || instrument || uiHidden){if(uiHidden)uiHidden=false else if(instrument)instrument=false else tab=0}
+    val back: ()->Unit = {
+        if(uiHidden)uiHidden=false
+        else if(instrument)instrument=false
+        else if(tab==3 && settingsPage.parent!=null)settingsPage=settingsPage.parent!!
+        else tab=0
+    }
+    BackHandler(tab!=0 || instrument || uiHidden,onBack=back)
     var lastMidi by rememberSaveable { mutableStateOf(state.sequence.selected) }
     LaunchedEffect(state.sequence.selected){
         if(state.sequence.selected!=lastMidi && tab==1 && state.sequence.selected.isNotBlank())tab=0
@@ -67,7 +77,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                 else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
                                 if(!uiHidden)Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
                                     Surface(color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                        PerformanceToolbar(state,model,export,preview,{instrument=false;tab=1},{instrument=false;tab=2},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
+                                        PerformanceToolbar(state,model,export,preview,{instrument=false;tab=1},{instrument=false;tab=2},{instrument=!instrument},{instrument=false;settingsPage=SettingsPage.Overview;tab=3},{instrument=false;uiHidden=true})
                                     }
                                     Column(Modifier.padding(start=12.dp,top=2.dp).widthIn(max=340.dp)) {
                                         Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.live.held.isNotEmpty() && !state.sequence.playing)"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
@@ -87,14 +97,14 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                     }
                 } else {
                     Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
-                        PocketIconButton(PocketIcon.Back,"演奏に戻る",onClick={tab=0})
-                        Text(listOf("演奏","MIDIライブラリ","音源ライブラリ","設定")[tab],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                        PocketIconButton(PocketIcon.Back,if(tab==3 && settingsPage.parent!=null)"前の設定に戻る"else "演奏に戻る",onClick=back)
+                        Text(if(tab==3)settingsPage.title else listOf("演奏","MIDIライブラリ","音源ライブラリ")[tab],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                         LibraryMenu(enabled=!state.sequence.recording,selected=tab==1 || tab==2,midi={tab=1},instruments={tab=2})
-                        PocketIconButton(PocketIcon.Settings,"設定",selected=tab==3,onClick={tab=3})
+                        PocketIconButton(PocketIcon.Settings,"設定",selected=tab==3,onClick={settingsPage=SettingsPage.Overview;tab=3})
                     }
                     if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text(state.message,Modifier.padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary,maxLines=3)
-                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    if(tab!=3 || notice || state.busy || !state.ready)Text(state.message,Modifier.padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.secondary,maxLines=if(tab==3)2 else 3)
+                    Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(contentScroll).padding(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                         when(tab) {
                             1 -> MidiLibraryPanel(state,model,importMidi){tab=0}
                             2 -> {
@@ -112,49 +122,10 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                 } }
                             }
                             }
-                            3 -> {
-                            Text("描画の上限FPS",style=MaterialTheme.typography.titleMedium)
-                            Row {listOf(30,60,90,120).forEach { rate->FilterChip(selected=state.targetFps==rate,onClick={model.targetFps(rate)},label={Text("$rate")},modifier=Modifier.weight(1f))}}
-                            Text("端末の対応Hz・省電力設定・負荷で実際のFPSは変わります。音声のサンプルレートとは別です。",style=MaterialTheme.typography.bodySmall)
-                            Row { Text("FPSを左下に表示",Modifier.weight(1f));Switch(checked=state.showFps,onCheckedChange=model::showFps) }
-                            Text("表示",style=MaterialTheme.typography.titleMedium)
-                            Row { Text("演奏画面は横向きを優先",Modifier.weight(1f));Switch(checked=state.landscapePerformance,onCheckedChange=model::landscapePerformance) }
-                            Text("オフにすると端末の向きに従います。設定・ライブラリ・ファイル選択は回転を制限しません。",style=MaterialTheme.typography.bodySmall)
-                            Row { Text("カタカナのドレミ",Modifier.weight(1f));Switch(checked=state.sequence.noteLabels,onCheckedChange=model::noteLabels) }
-                            Row { Text("ロールビュー",Modifier.weight(1f));Switch(checked=state.sequence.rollVisible,onCheckedChange=model::rollVisible) }
-                            Parameter("ロール表示時間 (${state.sequence.lookAhead.toInt()} 秒)",state.sequence.lookAhead,2f..10f,true,model::lookAhead)
-                            Text("ロール上のピンチで横幅を拡大・縮小、横ドラッグで音域を移動。ロールと鍵盤は連動します。拡大アイコンで88鍵／2オクターブ、矢印で横移動。",style=MaterialTheme.typography.bodySmall)
-                            Text("オーディオ",style=MaterialTheme.typography.titleMedium)
-                            Row {FilterChip(selected=!state.stableAudio,onClick={model.stableAudio(false)},enabled=!state.busy,label={Text("低遅延")});Spacer(Modifier.width(8.dp));FilterChip(selected=state.stableAudio,onClick={model.stableAudio(true)},enabled=!state.busy,label={Text("安定優先・自動")})}
-                            Text("安定優先は4バースト以上で開始し、XRunが増えたら最大8まで段階的に増やします。出力経路の上限に従い、追加の遅延が生じます。",style=MaterialTheme.typography.bodySmall)
-                            DeviceMenu(state,model)
-                            BufferControl(state,model)
-                            Parameter("最大発音数 (${state.voices} sample voices)",state.voices.toFloat(),32f..1024f,true){model.voices(it.toInt())}
-                            Parameter("先頭WAV＋キャッシュ予算 (${state.memoryMiB} MiB)",state.memoryMiB.toFloat(),32f..512f,true){model.memory(it.toInt())}
-                            Text("${state.stats[0].toInt()} Hz / Float stereo · ${state.stats[1].toInt()} frames buffer · ${state.stats[2].toInt()} frames/burst")
-                            Text("推定出力遅延: ${if(state.stats[4]<0)"取得不可" else "%.2f ms".format(state.stats[4])}（Oboe timestamp。鍵盤から音までの実測ではありません）",style=MaterialTheme.typography.bodySmall)
-                            Text("XRun: ${state.stats[3].toInt()} · DSPコールバック予算: ${"%.1f".format(state.stats[5])}%")
-                            Text("ボイス置換: ${state.stats[15].toLong()} · 先読み要求落ち: ${state.stats[16].toLong()} · キャッシュ ${state.stats[17].toInt()} pages",style=MaterialTheme.typography.bodySmall)
-                            Text("1つの鍵盤でもマイク・velocityレイヤーが複数ボイスを使います。既定512、最大1024。上限や端末負荷を超えると古い音を置換します。",style=MaterialTheme.typography.bodySmall)
-                            Text("サンプル常駐: ${"%.1f".format(state.stats[7]/1048576)} MiB · イベント欠落: ${state.stats[9].toLong()} · 読み込みエラー: ${state.stats[11].toLong()}",style=MaterialTheme.typography.bodySmall)
-                            Text("出力保護: ${"%.2f".format(state.stats[13])} dB減衰 · ${"%.2f".format(state.stats[14])} ms先読み",style=MaterialTheme.typography.bodySmall)
-                            Text("保護前ピーク: ${if(state.stats[12]<=0)"−∞" else "%.1f".format(20*kotlin.math.log10(state.stats[12]))} dBFS。減衰が大きい場合はOutputを下げてください。",style=MaterialTheme.typography.bodySmall)
-                            Text("プロセスPSS: ${"%.1f".format(state.processMiB)} MiB（UI・DSPを含む）",style=MaterialTheme.typography.bodySmall)
-                            if(state.stats[10]>0)Text("オーディオ切断を検出しました。経路を再開してください。")
-                            OutlinedButton(onClick={model.audio()},enabled=!state.busy){Text("オーディオを再開")}
-                            Text("有線またはUSB出力を推奨します。Bluetoothイヤホンは大きく遅延する場合があります。10ms以下は保証しません。",style=MaterialTheme.typography.bodySmall)
-                            DiagnosticsPanel(state,model)
-                            TextButton(onClick={runCatching {context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))}.onFailure {model.message("通知設定を開けません")}}){Text("書き出し通知の設定")}
-                            Text("通知を許可すると背景で進行・キャンセルを確認できます。通知なしでもアプリ内の書き出しは利用できます。",style=MaterialTheme.typography.bodySmall)
-                            Text("MIDI入力",style=MaterialTheme.typography.titleMedium)
-                            MidiInputMenu(state,model)
-                            ChannelMenu(state,model)
-                            OutlinedButton(onClick=bluetooth){Text("Bluetooth MIDIを検索")}
-                            state.ble.forEach { d->TextButton(onClick={model.bluetooth(d.address)}){Text(d.name)} }
-                            Text("USB MIDIは自動検出。Pitch Bendは±2半音。UI鍵盤はMIDIチャンネルと独立。",style=MaterialTheme.typography.bodySmall)
-                            TextButton(onClick={licenses=true}){Text("音源・ライブラリのライセンス") }
-                            Text("PianoPocket ${dev.pianopocket.BuildConfig.VERSION_NAME}\nPocket Upright · VSCO 2 CE / CC0\nAndroid 10以降・ARM64",style=MaterialTheme.typography.bodySmall)
-                            }
+                            3 -> SettingsPanel(state,model,settingsPage,{settingsPage=it},bluetooth,{licenses=true},notifications={
+                                runCatching {context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))}
+                                    .onFailure {model.message("通知設定を開けません")}
+                            })
                         }
                     }
                 }
@@ -167,13 +138,13 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
 @Composable internal fun Parameter(label: String,value: Float,range: ClosedFloatingPointRange<Float>,enabled: Boolean,onChange:(Float)->Unit) {
     Column { Row { Text(label,Modifier.weight(1f),style=MaterialTheme.typography.labelLarge);Text("%.2f".format(value),style=MaterialTheme.typography.labelMedium) };Slider(value=value.coerceIn(range.start,range.endInclusive),onValueChange=onChange,valueRange=range,enabled=enabled) }
 }
-@Composable private fun BufferControl(state: PocketState,model: PocketViewModel) {
+@Composable internal fun BufferControl(state: PocketState,model: PocketViewModel) {
     var pending by remember(state.bursts) { mutableFloatStateOf(state.bursts.toFloat()) }
-    Column { Text("${if(state.stableAudio)"手動基準バッファ"else "バッファ"} (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
+    Column { Text("${if(state.stableAudio)"手動基準バッファ"else "バッファ"} (${pending.toInt()} bursts)");Slider(value=pending,onValueChange={pending=it},valueRange=1f..8f,steps=6,enabled=!state.busy && !state.sequence.recording && !state.sequence.exporting,onValueChangeFinished={model.audio(bursts=pending.toInt())}) }
 }
 @Composable internal fun IrMenuControl(menu: dev.pianopocket.library.IrMenu,enabled: Boolean,onSelect:(Int)->Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box { OutlinedButton(onClick={expanded=true},enabled=enabled){Text("${menu.name}: ${menu.options[menu.selected].name}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { menu.options.forEachIndexed { index,choice->DropdownMenuItem(text={Text(choice.name)},onClick={expanded=false;onSelect(index)}) } } }
 }
-@Composable private fun DeviceMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };Box { OutlinedButton(onClick={expanded=true},enabled=!state.busy){Text(state.outputs.firstOrNull { it.id==state.device }?.label ?: "システム既定")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { state.outputs.forEach { d->DropdownMenuItem(text={Text(d.label)},onClick={expanded=false;model.audio(device=d.id)}) } } } }
-@Composable private fun ChannelMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };Box { OutlinedButton(onClick={expanded=true}){Text(if(state.channel<0)"全チャンネル" else "Channel ${state.channel+1}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { (-1..15).forEach { ch->DropdownMenuItem(text={Text(if(ch<0)"全チャンネル" else "Channel ${ch+1}")},onClick={expanded=false;model.channel(ch)}) } } } }
+@Composable internal fun DeviceMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };val enabled=!state.busy && !state.sequence.recording && !state.sequence.exporting;Box { OutlinedButton(onClick={expanded=true},enabled=enabled){Text(if(state.device==0)"自動" else state.outputs.firstOrNull { it.id==state.device }?.label ?: "自動")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { state.outputs.forEach { d->DropdownMenuItem(text={Text(d.label)},enabled=enabled,onClick={expanded=false;model.audio(device=d.id)}) } } } }
+@Composable internal fun ChannelMenu(state: PocketState,model: PocketViewModel) { var expanded by remember { mutableStateOf(false) };Box { OutlinedButton(onClick={expanded=true}){Text(if(state.channel<0)"すべてのチャンネル" else "チャンネル ${state.channel+1}")};DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) { (-1..15).forEach { ch->DropdownMenuItem(text={Text(if(ch<0)"すべてのチャンネル" else "チャンネル ${ch+1}")},onClick={expanded=false;model.channel(ch)}) } } } }
