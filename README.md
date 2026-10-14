@@ -1,10 +1,10 @@
-# PianoPocket distribution files
+# PianoPocket ダウンロード
 
-Latest: [v0.16.1-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.16.1-alpha).
+最新版: [v0.17.0-alpha](https://github.com/tstyr/PianoPocket/releases/tag/v0.17.0-alpha).
 
-- [APKをダウンロード（Android ARM64）](PianoPocket-0.16.1-arm64.apk)
-- [ソースコード ZIP](PianoPocket-0.16.1-source.zip)
-- [テスト結果 ZIP](PianoPocket-0.16.1-validation.zip)
-- [SHA-256](SHA256SUMS-0.16.1.txt)
+- [APKをダウンロード（Android ARM64）](PianoPocket-0.17.0-arm64.apk)
+- [ソースコード ZIP](PianoPocket-0.17.0-source.zip)
+- [テスト結果 ZIP](PianoPocket-0.17.0-validation.zip)
+- [SHA-256](SHA256SUMS-0.17.0.txt)
 
-Older packages remain available. Pocket Upright (CC0) is included. User-imported instruments and performances are not distributed. Encoder licenses and corresponding sources are included in every source ZIP. Hardware checks remain pending.
+Android 10以降・ARM64対応。APKをダウンロードしてインストールしてください。デバッグ署名の試用版です。内蔵ピアノPocket Upright（CC0）が含まれます。過去のAPKも利用できます。使い方とライセンスは[アプリのREADME](https://github.com/tstyr/PianoPocket#readme)をご覧ください。
