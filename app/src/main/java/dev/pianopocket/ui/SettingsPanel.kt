@@ -61,6 +61,7 @@ internal fun SettingsPanel(
                 Slider(value = state.sequence.lookAhead, onValueChange = model::lookAhead, valueRange = 2f..10f)
             }
             SettingsPage.Audio -> {
+                OutputModeControl(state, model)
                 Text("音の出方", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !state.stableAudio, onClick = { model.stableAudio(false) },

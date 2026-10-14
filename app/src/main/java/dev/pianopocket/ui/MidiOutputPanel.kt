@@ -24,6 +24,7 @@ internal fun MidiOutputPanel(state: PocketState, model: PocketViewModel) {
             }
         }
     }
+    OutputModeControl(state, model)
     if (state.midiOutput != "none") {
         Text("MIDI再生と画面鍵盤を送ります。", style = MaterialTheme.typography.bodySmall)
         Box {

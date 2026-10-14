@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import dev.pianopocket.audio.NativeAudio
 import dev.pianopocket.library.*
 import dev.pianopocket.midi.*
+import dev.pianopocket.settings.OutputMode
 import dev.pianopocket.settings.SongSettings
 import dev.pianopocket.settings.SongSettingsStore
 import dev.pianopocket.settings.Preferences
@@ -47,6 +48,7 @@ data class PocketState(
     val ble: List<BleMidiDevice> = emptyList(), val outputs: List<OutputDevice> = emptyList(), val device: Int = 0,
     val channel: Int = -1, val ready: Boolean = false, val processMiB: Float = 0f,
     val inputs: List<MidiInput> = emptyList(), val midiInput: String = "all", val sequence: SequenceState = SequenceState(),
+    val outputMode: OutputMode=OutputMode.INTERNAL,
     val midiOutputs: List<MidiOutput> = emptyList(),val midiOutput: String="none",val midiOutputStatus: String="MIDI出力オフ",val midiThru: Boolean=false,val screenMidiChannel: Int=15
 )
 class PocketViewModel(app: Application):AndroidViewModel(app) {
@@ -70,7 +72,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         val removed=state.value.inputs.any { old->list.none { it.id==old.id } }
         if(removed){live.clear();if(state.value.sequence.recording)viewModelScope.launch { stopRecording() }}
         mutable.update { it.copy(inputs=list,midiInput=if(it.midiInput !in listOf("all","none","screen") && list.none { d->d.id==it.midiInput })"none" else it.midiInput) }
-    },::receiveMidi,{available,id,message->mutable.update {it.copy(midiOutputs=available,midiOutput=id,midiOutputStatus=message)}})
+    },::receiveMidi,{available,id,message->mutable.update {it.copy(midiOutputs=available,midiOutput=id,midiOutputStatus=message)};viewModelScope.launch {applyOutputRoute()}})
     init {
         mutable.update {it.copy(downloadPack=dev.pianopocket.download.DownloadCatalog.load(app))}
         viewModelScope.launch {dev.pianopocket.download.DownloadCoordinator.status.collect {status->
@@ -88,7 +90,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         viewModelScope.launch {
             var previousRunning=false;var previousPreview: String?=null
             ExportCoordinator.status.collect { result->
-                midi.performanceActive(foreground && !result.running && result.previewPath==null)
+                applyOutputRoute()
                 val resume=previousRunning && !result.running && result.previewPath==null || previousPreview!=null && result.previewPath==null && !result.running
                 mutable.update { it.copy(uiPedal=if(result.running)false else it.uiPedal,busy=if(result.running)true else if(previousRunning)false else it.busy,ready=if(result.running || result.previewPath!=null)false else it.ready,message=if(result.id>0)result.message else it.message,sequence=it.sequence.copy(exporting=result.running,exportProgress=result.progress,exportPhase=result.phase,exportEtaSeconds=result.etaSeconds,previewPath=result.previewPath,playing=if(result.running)false else it.sequence.playing)) }
                 previousRunning=result.running;previousPreview=result.previewPath
@@ -118,7 +120,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun foreground(active: Boolean) {
         if(foreground==active)return
         foreground=active
-        midi.performanceActive(active && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)
+        applyOutputRoute()
         if(!active){diagnosticMode(0);stopDiagnosis();if(state.value.sequence.recording)stopRecording()}
         if(active){if(!ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null)work {openAudioWorker()} }
         else work {saveCurrentSong();soundSaveJob?.cancel();saveCurrentSound();NativeAudio.event(10,0,0,0,0f);live.clear();NativeAudio.panic();NativeAudio.stop();mutable.update {it.copy(ready=false)}}
@@ -165,7 +167,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         ExportCoordinator.performanceRestored()
         val voices=(saved?.voices ?: preferences.voiceLimit).coerceIn(32,1024)
         val output=saved?.output ?: .7f
-        NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,output)
+        NativeAudio.event(8,0,voices,0,0f);NativeAudio.event(4,0,0,0,state.value.outputMode.localVolume(output,state.value.midiOutput!="none"))
         initialGroups.forEachIndexed { i,v -> NativeAudio.event(6,0,i,0,v) }
         configured.controls.filter { c->c.bindings.any { it.type=="master" } }.forEach { applyControl(it,it.value) }
         if(state.value.sequence.song!=null)NativeAudio.seekTimeline(state.value.sequence.position)
@@ -184,7 +186,7 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun useDownloadedPiano()=work {val id=state.value.downloadPack?.id ?: return@work;val entry=repository.findDownloaded(id) ?: error("音源がありません。再取得してください");loadInternal(entry);refreshLibrary()}
     fun restoreBundled()=work { mutable.update {it.copy(busy=true)};val entry=repository.installBundled().first();mutable.update {it.copy(library=repository.entries(),busy=false)};loadInternal(entry) }
     fun message(text: String){mutable.update { it.copy(message=text) }}
-    fun volume(value: Float){NativeAudio.event(4,0,0,0,value);mutable.update { it.copy(volume=value) };saveSoundSoon()}
+    fun volume(value: Float){NativeAudio.event(4,0,0,0,state.value.outputMode.localVolume(value,state.value.midiOutput!="none"));mutable.update { it.copy(volume=value) };saveSoundSoon()}
     fun group(index: Int,value: Float){NativeAudio.event(6,0,index,0,value);mutable.update { s->s.copy(groups=s.groups.mapIndexed { i,v->if(i==index)value else v }) };saveSoundSoon()}
     fun fx(index: Int, slot: Int, value: Float){NativeAudio.event(7,0,index,slot,value);mutable.update { s->s.copy(preset=s.preset?.copy(effects=s.preset.effects.mapIndexed { i,e->if(i==index)e.copy(params=e.params.copyOf().also { it[slot]=value }) else e })) };saveSoundSoon()}
     private fun applyControl(control: Control,value: Float){
@@ -241,7 +243,16 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     fun pedal(down: Boolean){mutable.update { it.copy(uiPedal=down) };val value=if(down)127 else 0;NativeAudio.cc(64,value);live.event(0xb0,64,value,16);if(state.value.midiInput in listOf("all","screen"))recorder.capture(0xbf,64,value)}
     fun panic(){diagnosticMode(0);mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.event(10,0,0,0,0f);NativeAudio.panic();live.clear()}
     fun input(id: String){mutable.update { it.copy(uiPedal=false) };if(state.value.sequence.recording)stopRecording();NativeAudio.panic();live.clear();midi.selected=if(id=="screen")"none" else id;mutable.update { it.copy(midiInput=id) }}
-    fun midiOutput(id: String){if(state.value.sequence.recording || state.value.sequence.exporting)return;panic();midi.selectOutput(id)}
+    fun midiOutput(id: String){if(state.value.sequence.recording || state.value.sequence.exporting)return;panic();if(id!="none" && state.value.outputMode==OutputMode.INTERNAL)mutable.update {it.copy(outputMode=OutputMode.BOTH)};midi.selectOutput(id)}
+    fun outputMode(mode: OutputMode){
+        val s=state.value;if(s.busy || s.sequence.exporting || s.sequence.recording || mode!=OutputMode.INTERNAL && s.midiOutput=="none")return
+        mutable.update {it.copy(outputMode=mode)};applyOutputRoute()
+    }
+    private fun applyOutputRoute(){
+        val s=state.value;val connected=s.midiOutput!="none"
+        NativeAudio.event(4,0,0,0,s.outputMode.localVolume(s.volume,connected))
+        midi.performanceActive(foreground && !ExportCoordinator.running && ExportCoordinator.status.value.previewPath==null && s.outputMode.sendsMidi(connected))
+    }
     fun midiThru(enabled: Boolean){val s=state.value;mutable.update {it.copy(midiThru=enabled)};midi.outputOptions(enabled,s.screenMidiChannel)}
     fun screenMidiChannel(channel: Int){if(channel !in 0..15)return;mutable.update {it.copy(screenMidiChannel=channel)};midi.outputOptions(state.value.midiThru,channel)}
     fun fullKeyboard(value: Boolean){mutable.update { it.copy(sequence=it.sequence.copy(viewport=if(value)KeyboardViewport()else KeyboardViewport.middleTwoOctaves())) }}

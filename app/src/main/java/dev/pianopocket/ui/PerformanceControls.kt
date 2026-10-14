@@ -29,7 +29,10 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
     var info by remember { mutableStateOf(false) }
     var practicing by remember {mutableStateOf(false)}
     var seekDialog by rememberSaveable { mutableStateOf(false) }
+    var choosingOutput by remember { mutableStateOf(false) }
     var transposing by rememberSaveable { mutableStateOf(false) }
+    if(choosingOutput)AlertDialog(onDismissRequest={choosingOutput=false},title={Text("鳴らす音")},
+        text={Column {OutputModeControl(state,model)}},confirmButton={TextButton(onClick={choosingOutput=false}){Text("閉じる")}})
     Column {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val inlineSeek=maxWidth>=600.dp
@@ -57,6 +60,7 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                         DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
                         DropdownMenuItem(text={Text("状態・互換性警告")},onClick={more=false;info=true})
                         DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
+                        DropdownMenuItem(text={Text("鳴らす音")},onClick={more=false;choosingOutput=true})
                         DropdownMenuItem(text={Text("MIDI出力")},onClick={more=false;outputSettings()})
                     }
                 }

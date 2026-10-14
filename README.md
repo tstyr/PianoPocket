@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを聴く、演奏を録る。
 無料・広告なし・アカウント不要。音源の追加ダウンロードを除き、オフラインで使えます。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.17.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.17.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.18.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.18.0-alpha)
 
-Android 10以降・ARM64対応。現在は **0.17.0 alpha**、デバッグ署名の試用版です。
+Android 10以降・ARM64対応。現在は **0.18.0 alpha**、デバッグ署名の試用版です。
 
 ## はじめる
 
@@ -26,6 +26,8 @@ MIDIライブラリに `.mid` / `.midi` を追加すると、降ってくるノ�
 - ロールビューとドレミの切り替え、操作ボタンの非表示、最大120fpsの画面更新。
 
 転調はMIDI再生と書き出しに反映します。ドラムチャンネル、画面鍵盤、入力キーボードの音程は変わりません。[MIDI出力の使い方](docs/MIDI_OUTPUT.md)。
+
+「その他 → 鳴らす音」で内蔵音源・外部MIDI・両方を切り替えできます。外部MIDIの送信先は「設定 → MIDI入出力」で選びます。接続が切れたときは内蔵音源に戻ります。書き出しは選択した音源と保存済みの音量を使います。
 
 有線・USBイヤホンをおすすめします。Bluetoothイヤホンは音が遅れることがあります。
 
