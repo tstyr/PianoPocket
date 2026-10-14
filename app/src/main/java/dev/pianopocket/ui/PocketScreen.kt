@@ -67,7 +67,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                                 else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
                                 if(!uiHidden)Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
                                     Surface(color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                        PerformanceToolbar(state,model,export,preview,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
+                                        PerformanceToolbar(state,model,export,preview,{instrument=false;tab=1},{instrument=false;tab=2},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
                                     }
                                     Column(Modifier.padding(start=12.dp,top=2.dp).widthIn(max=340.dp)) {
                                         Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.live.held.isNotEmpty() && !state.sequence.playing)"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
@@ -89,8 +89,7 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                     Row(Modifier.fillMaxWidth().padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
                         PocketIconButton(PocketIcon.Back,"演奏に戻る",onClick={tab=0})
                         Text(listOf("演奏","MIDIライブラリ","音源ライブラリ","設定")[tab],Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                        PocketIconButton(PocketIcon.Midi,"MIDIライブラリ",selected=tab==1,onClick={tab=1})
-                        PocketIconButton(PocketIcon.Library,"音源ライブラリ",selected=tab==2,onClick={tab=2})
+                        LibraryMenu(enabled=!state.sequence.recording,selected=tab==1 || tab==2,midi={tab=1},instruments={tab=2})
                         PocketIconButton(PocketIcon.Settings,"設定",selected=tab==3,onClick={tab=3})
                     }
                     if(state.busy)LinearProgressIndicator(Modifier.fillMaxWidth())

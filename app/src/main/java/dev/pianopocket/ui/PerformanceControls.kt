@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.DpSize
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
-fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
+fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportFormat,Int,Int,Int,dev.pianopocket.video.VideoOptions)->Unit,preview:(Int,Int,dev.pianopocket.video.VideoOptions)->Unit,midi:()->Unit,library:()->Unit,instrument:()->Unit,settings:()->Unit,hideUi:()->Unit) {
     val seq=state.sequence
     var exporting by rememberSaveable { mutableStateOf(false) }
     var returnAfterPreview by rememberSaveable {mutableStateOf(false)}
@@ -33,10 +33,10 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val inlineSeek=maxWidth>=600.dp
             Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
-            if(inlineSeek)PocketIconButton(PocketIcon.Midi,"MIDIファイルを選択",enabled=!seq.recording,onClick=midi)
+            LibraryMenu(enabled=!seq.recording,midi=midi,instruments=library)
             PocketIconButton(if(seq.playing)PocketIcon.Pause else PocketIcon.Play,if(seq.playing)"一時停止"else "再生",enabled=seq.song!=null && state.ready && !state.busy && !seq.recording && !seq.exporting,onClick=model::play)
             PocketIconButton(PocketIcon.Record,if(seq.recording)"録音を停止して保存"else "録音を開始",enabled=state.ready && !state.busy && !seq.exporting,selected=seq.recording,onClick={if(seq.recording)model.stopRecording()else model.startRecording()})
-            PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
+            if(inlineSeek)PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
             if(inlineSeek && seq.song!=null && !seq.recording)PerformanceSeekBar(state,model,Modifier.weight(1f))
             else Box(Modifier.weight(1f).padding(horizontal=8.dp)) {
                 if(inlineSeek)Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.labelMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
@@ -46,7 +46,9 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             Box {
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
-                    DropdownMenuItem(text={Text("MIDIファイルを選択")},enabled=!seq.recording,onClick={more=false;midi()})
+                    DropdownMenuItem(text={Text("MIDIライブラリ")},enabled=!seq.recording,onClick={more=false;midi()})
+                    DropdownMenuItem(text={Text("音源ライブラリ")},enabled=!seq.recording,onClick={more=false;library()})
+                    if(!inlineSeek)DropdownMenuItem(text={Text("すべての音を停止")},onClick={more=false;model.panic()})
                     if(seq.song!=null && !seq.recording)DropdownMenuItem(text={Text("再生位置")},enabled=!state.busy && !seq.exporting,onClick={more=false;seekDialog=true})
                     DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
                     DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
