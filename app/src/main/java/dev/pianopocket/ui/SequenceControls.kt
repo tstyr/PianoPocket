@@ -17,6 +17,7 @@ fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLe
 @Composable internal fun ExportDialog(name: String,audioReady: Boolean,aacAvailable: Boolean,videoOptions: List<VideoOptions>,selection: ExportSelection,onSelection:(ExportSelection)->Unit,onPreview:(Int,Int,VideoOptions)->Unit,onDismiss:()->Unit,onExport:(ExportFormat,Int,Int,Int,VideoOptions)->Unit) {
     var usePlayback by remember {mutableStateOf(selection.usePlayback)}
     var loopOnly by remember {mutableStateOf(selection.loopOnly)}
+    var normalize by remember {mutableStateOf(selection.normalize)}
     var format by remember { mutableStateOf(selection.format) }
     var rate by remember { mutableIntStateOf(selection.rate) }
     var bitrate by remember { mutableIntStateOf(selection.bitrate) }
@@ -34,7 +35,7 @@ fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLe
         ExportFormat.entries.forEach { f->Row { RadioButton(selected=format==f,onClick={format=f},enabled=supported(f));TextButton(onClick={format=f},enabled=supported(f)){Text(f.label)} } }
         if(videoOptions.isEmpty())Text("H.264 + AACエンコーダーを検出できないため動画保存は利用できません。",style=MaterialTheme.typography.bodySmall)
         if(format.video){
-            TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight),usePlayback,loopOnly));onPreview(rate,bitrate,VideoOptions(videoFps,videoHeight))},enabled=audioReady && VideoOptions(videoFps,videoHeight) in videoOptions){Text("5秒プレビュー")}
+            TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight),usePlayback,loopOnly,normalize));onPreview(rate,bitrate,VideoOptions(videoFps,videoHeight))},enabled=audioReady && VideoOptions(videoFps,videoHeight) in videoOptions){Text("5秒プレビュー")}
             Row { listOf(720,1080).forEach { h->FilterChip(selected=videoHeight==h,onClick={videoHeight=h},enabled=VideoOptions(videoFps,h) in videoOptions,label={Text("${h}p")}) } }
             Row { listOf(30,60).forEach { f->FilterChip(selected=videoFps==f,onClick={videoFps=f},enabled=VideoOptions(f,videoHeight) in videoOptions,label={Text("${f} fps")}) } }
             Text("横16:9のロールと鍵盤＋現在の音源の音声。ドレミ・表示音域を反映します。サステイン延長はロールに含めず、音は維持します。表示用120fps設定とは独立です。端末によって選べる解像度・FPSに制限があります。",style=MaterialTheme.typography.bodySmall)
@@ -46,12 +47,14 @@ fun durationLabel(micros: Long): String {val seconds=(micros/1000000).coerceAtLe
             Text("非可逆圧縮。FLAC / WAVは音質を保った保存です。",style=MaterialTheme.typography.bodySmall)
         }
         if(format.bits>0){
+            Row {Checkbox(checked=normalize,onCheckedChange={normalize=it});Text("音量を自動調整")}
+            Text("曲の強弱を保って調整します。",style=MaterialTheme.typography.bodySmall)
             Row { FilterChip(selected=rate==44100,onClick={rate=44100},label={Text("44.1 kHz")});Spacer(Modifier.width(8.dp));FilterChip(selected=rate==48000,onClick={rate=48000},label={Text("48 kHz")}) }
             Text("残響の追加時間: ${tail.toInt()}秒",style=MaterialTheme.typography.bodySmall)
             Slider(value=tail,onValueChange={tail=it},valueRange=0f..30f,steps=29)
             Text("現在の音源・マイク音量・エフェクトでステレオ音声を生成します。保存先を選ぶ時点の設定を使います。",style=MaterialTheme.typography.bodySmall)
         }else Text("MIDIにはノート・ペダル・テンポなどを保存します。サンプル音源やエフェクト音は含まれません。",style=MaterialTheme.typography.bodySmall)
-    }},confirmButton={TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight),usePlayback,loopOnly));onExport(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight))},enabled=(format.bits==0 || audioReady) && supported(format)){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
+    }},confirmButton={TextButton(onClick={onSelection(ExportSelection(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight),usePlayback,loopOnly,normalize));onExport(format,rate,tail.toInt(),bitrate,VideoOptions(videoFps,videoHeight))},enabled=(format.bits==0 || audioReady) && supported(format)){Text("保存先を選択")}},dismissButton={TextButton(onClick=onDismiss){Text("キャンセル")}})
 }
 @Composable
 fun MidiLibraryPanel(state: PocketState,model: PocketViewModel,importMidi:()->Unit,onOpen:()->Unit) {

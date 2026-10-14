@@ -271,3 +271,11 @@ MIDIライブラリの「⋮ → 編集」または演奏画面の「その他 �
 編集結果はコピーとして保存し、元のMIDIとペダル・テンポ・その他のイベントを保持します。同音程・同チャンネルを複数トラックで使ったときのロールのノート終了も修正しました。
 
 141 JVM tests・Androidビルド・Lint PASS。APK 64183882 bytes / SHA-256 `d1decab9a9c6ba47a76e6e44fc3d54032f9b470d25a32c5b6f70825e4c26deba`。141件のJVMテスト、Androidビルド、Lintを確認済み。実機でのタッチ操作は未検証です。音符の新規追加・一括編集・編集画面での試聴・途中の自動保存は未対応です。[MIDI編集の使い方](https://github.com/tstyr/PianoPocket/blob/v0.25.0-alpha/docs/MIDI_EDITOR.md)。 開発環境の実機／エミュレーター未接続。
+
+## 0.26.0-alpha — 書き出し音量の自動調整
+
+音声・動画の書き出しに「音量を自動調整」を追加しました。曲全体を解析し、左右のバランスと強弱を保った一定倍率で調整します。WAV・FLAC・MP3・M4A・MP4・MOVに対応し、設定を保存します。
+
+Float32で生成してから調整し、整数形式はディザを加えて一度だけ変換します。増幅は最大+12 dB、ほぼ無音のファイルは増幅しません。進捗表示・キャンセル・一時ファイル削除に対応しています。
+
+146 JVM tests・Androidビルド・Lint PASS。APK 63931327 bytes / SHA-256 `95f5f3655400253dd2f515f1109aa62ad2bee96e91f1cc0395cc46a284f76005`。146件のJVMテスト、Androidビルド、Lintを確認済み。自作和音で16/24/32bit変換と本番FLAC・MP3エンコーダーを検証し、FLACのPCM一致と全MP3ビットレートのデコードを確認しました。Android AAC・動画の実機試験は未実施です。LUFS正規化・規格準拠True Peak測定ではなく、元音源の歪み除去は行いません。[音量調整の仕様](https://github.com/tstyr/PianoPocket/blob/v0.26.0-alpha/docs/EXPORT_VOLUME.md)。 開発環境の実機／エミュレーター未接続。
