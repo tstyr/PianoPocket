@@ -13,6 +13,29 @@ object SoundFontFixture {
     private fun bytes(size: Int,write:(ByteBuffer)->Unit)=ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN).also(write).array()
     private fun name(b: ByteBuffer,text: String){b.put(text.toByteArray().copyOf(20))}
     private fun chunk(tag:String,body:ByteArray)=tag.toByteArray()+bytes(4){it.putInt(body.size)}+body+if(body.size%2==1)byteArrayOf(0)else byteArrayOf()
+    private fun split(data: ByteArray): List<Pair<String,ByteArray>> {
+        val result=mutableListOf<Pair<String,ByteArray>>();var offset=0
+        while(offset<data.size){val n=ByteBuffer.wrap(data,offset+4,4).order(ByteOrder.LITTLE_ENDIAN).int;result+=String(data,offset,4) to data.copyOfRange(offset+8,offset+8+n);offset+=8+n+n%2}
+        return result
+    }
+    fun compressed(payload: ByteArray=byteArrayOf(79,103,103,83,1,2,3,4),badOffset: Boolean=false): ByteArray {
+        val lists=split(bank().copyOfRange(12,bank().size)).map {(tag,body)->
+            val list=String(body,0,4);val children=split(body.copyOfRange(4,body.size)).map {(name,data)->
+                val value=when(name){
+                    "ifil"->bytes(4){it.putShort(3).putShort(1)}
+                    "smpl"->payload
+                    "shdr"->data.copyOf().also {val b=ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN);b.putInt(20,0);b.putInt(24,if(badOffset)payload.size+5 else payload.size);b.putShort(44,17)}
+                    else->data
+                };chunk(name,value)
+            }
+            chunk(tag,list.toByteArray()+children.fold(byteArrayOf()){a,b->a+b})
+        }
+        return chunk("RIFF","sfbk".toByteArray()+lists.fold(byteArrayOf()){a,b->a+b})
+    }
+    fun decodedWave(): ByteArray = bytes(44+512*4){b->
+        b.put("RIFF".toByteArray()).putInt(36+512*4).put("WAVEfmt ".toByteArray()).putInt(16).putShort(3).putShort(1).putInt(48000).putInt(192000).putShort(4).putShort(32).put("data".toByteArray()).putInt(512*4)
+        repeat(512){i->b.putFloat((kotlin.math.sin(i*2*Math.PI/64)*.3).toFloat())}
+    }
     fun bank(sampleEnd: Int=512,rom: Boolean=false): ByteArray {
         val info=chunk("LIST","INFO".toByteArray()+chunk("ifil",bytes(4){it.putShort(2).putShort(4)}))
         val smpl=bytes((512+46)*2){b->repeat(512){i->b.putShort((kotlin.math.sin(i*2*Math.PI/64)*10000).toInt().toShort())};repeat(46){b.putShort(0)}}
@@ -47,7 +70,7 @@ class SoundFontTest {
     }}
     @Test fun rejectsTruncatedRiffAndInvalidVersion(){exercise {file,target->
         file.writeBytes(file.readBytes().dropLast(1).toByteArray());assertTrue(runCatching {SoundFontReader.import(file,target)}.isFailure)
-        val bytes=SoundFontFixture.bank();val version=bytes.toString(Charsets.ISO_8859_1).indexOf("ifil");bytes[version+8]=3
+        val bytes=SoundFontFixture.bank();val version=bytes.toString(Charsets.ISO_8859_1).indexOf("ifil");bytes[version+8]=4
         file.writeBytes(bytes);assertTrue(runCatching {SoundFontReader.import(file,target)}.isFailure)
     }}
 }

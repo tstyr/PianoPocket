@@ -247,3 +247,11 @@ SFZのキースイッチで奏法を切り替えられます。音源パネル�
 同じチャンネル・音程でもノートオフをトラック別に管理します。音源ごとのマイク・エフェクトを分け、音声・動画の書き出しにも反映します。
 
 132 JVM tests・Androidビルド・Lint PASS。APK 64829146 bytes / SHA-256 `b37940ff7f0be50b05f6401f7169c3a93c3c6c5d9be989d942c26ee214e87bbc`。132件の自動テスト、Androidビルド、Lint、ネイティブ音声テスト、ASan／UBSanを確認済み。音声処理内の動的確保は0。主音源に加えて8種類まで。同じ音源は共有できます。新機能のAndroid実機試験は未実施です。[使い方・上限](https://github.com/tstyr/PianoPocket/blob/v0.23.0-alpha/docs/TRACK_INSTRUMENTS.md)。 開発環境の実機／エミュレーター未接続。
+
+## 0.24.0-alpha — SF3圧縮SoundFontに対応
+
+音源ライブラリからSF3を読み込めます。Vorbis圧縮サンプルを準備時に展開し、音色を選んでオフラインで演奏できます。SF2と同じトラック別音源選択・音声／動画書き出しを使えます。
+
+SF2対応、SFZの奏法・排他グループ、再生設定を反映した書き出し、トラック別音源も含まれます。
+
+135 JVM tests・Androidビルド・Lint PASS。APK 63974686 bytes / SHA-256 `df87c1cdc5d07373129feadd73080a30e1df0a52a7e9ad980b862f9a9735fc87`。135件の自動テスト、Androidビルド、Lintを確認済み。検証用に生成したSF3の520個のVorbisサンプルを本番デコーダーで復号し、136音色の解析とピアノの音声生成を確認しました。SF3は展開用の空き容量が必要です。追加機能のAndroid実機試験は未実施です。[対応範囲](https://github.com/tstyr/PianoPocket/blob/v0.24.0-alpha/docs/SOUNDFONT.md)。 開発環境の実機／エミュレーター未接続。

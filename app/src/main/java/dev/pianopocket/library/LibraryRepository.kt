@@ -3,6 +3,7 @@ package dev.pianopocket.library
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import dev.pianopocket.audio.NativeAudio
 import androidx.documentfile.provider.DocumentFile
 import org.json.JSONArray
 import org.json.JSONObject
@@ -124,7 +125,8 @@ class LibraryRepository(private val context: Context) {
       }.sortedBy { it.preset!=primary }
     }
     fun importSoundFont(uri: Uri,progress: (String)->Unit): List<LibraryEntry> = transaction(progress) {dir ->
-        val file=File(dir,"Imported.sf2")
+        val extension=DocumentFile.fromSingleUri(context,uri)?.name?.substringAfterLast('.')?.lowercase()?.takeIf {it in setOf("sf2","sf3")} ?: "sf2"
+        val file=File(dir,"Imported.$extension")
         context.contentResolver.openInputStream(uri)?.use {input->file.outputStream().use {out->copyBounded(input,512L*1024*1024){b,n->out.write(b,0,n)}}} ?: error("SoundFontを開けません")
         progress("SoundFontを展開しています")
     }
@@ -133,9 +135,9 @@ class LibraryRepository(private val context: Context) {
         val id=UUID.randomUUID().toString();val stage=File(home,"$id.pending");activeStages.add(stage.absolutePath);stage.mkdirs();val destination=File(home,id)
         try {
             copy(stage)
-            val fonts=stage.walkTopDown().filter {it.isFile && it.extension.equals("sf2",true)}.toList();require(fonts.size<=32){"SoundFontは1回につき32ファイルまでです"};var expandedFonts=0L
+            val fonts=stage.walkTopDown().filter {it.isFile && it.extension.lowercase() in setOf("sf2","sf3")}.toList();require(fonts.size<=32){"SoundFontは1回につき32ファイルまでです"};var expandedFonts=0L
             fonts.forEach {source ->
-                val target=File(source.parentFile,source.name+".pocket");require(!target.exists()){ "SoundFontの展開先が重複しています" };SoundFontReader.import(source,target,progress,2L*1024*1024*1024-expandedFonts);expandedFonts+=target.walkTopDown().filter {it.isFile && it.extension=="wav"}.sumOf {it.length()-44}
+                val target=File(source.parentFile,source.name+".pocket");require(!target.exists()){ "SoundFontの展開先が重複しています" };SoundFontReader.import(source,target,progress,2L*1024*1024*1024-expandedFonts){packed,wav->NativeAudio.decodeSample(packed.path,wav.path)};expandedFonts+=target.walkTopDown().filter {it.isFile && it.extension=="wav"}.sumOf {it.length()-44}
             }
             val presets=stage.walkTopDown().filter { it.isFile && LibraryFilePolicy.isPreset(it.relativeTo(stage).invariantSeparatorsPath) }.toList()
             require(presets.isNotEmpty() && presets.size<=2048) { "対応する音源がないか、音色数が上限を超えています" }

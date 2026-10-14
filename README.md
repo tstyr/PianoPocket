@@ -3,9 +3,9 @@
 Androidでピアノを弾く、MIDIを聴く、演奏を録る。
 無料・広告なし・アカウント不要。音源の追加ダウンロードを除き、オフラインで使えます。
 
-[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.23.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.23.0-alpha)
+[**APKをダウンロード**](https://raw.githubusercontent.com/tstyr/PianoPocket/release-artifacts/PianoPocket-0.24.0-arm64.apk) · [リリース](https://github.com/tstyr/PianoPocket/releases/tag/v0.24.0-alpha)
 
-Android 10以降・ARM64対応。現在は **0.23.0 alpha**、デバッグ署名の試用版です。
+Android 10以降・ARM64対応。現在は **0.24.0 alpha**、デバッグ署名の試用版です。
 
 ## はじめる
 
@@ -38,15 +38,15 @@ MIDIライブラリに `.mid` / `.midi` を追加すると、降ってくるノ�
 
 ## 音源を追加する
 
-音源ライブラリから **SFZ、SF2、Decent Samplerプリセット、ZIP** を読み込めます。
+音源ライブラリから **SFZ、SF2 / SF3、Decent Samplerプリセット、ZIP** を読み込めます。
 
 | 形式 | 選ぶもの |
 | --- | --- |
 | `.sfz` / `.dspreset` | プリセットを選び、続けて同じフォルダーを選択 |
-| `.sf2` | SoundFontファイルを選択。収録された音色をライブラリに追加 |
+| `.sf2` / `.sf3` | SoundFontファイルを選択。収録された音色をライブラリに追加 |
 | `.zip` / `.dslibrary` | プリセットとサンプルをまとめたZIP |
 
-フォルダー構成は変えずに読み込んでください。インポートした音源は端末内に保存されます。サンプルはWAV・FLAC・OGG Vorbisに対応。未対応の設定は警告を表示します。SF2は音色ごとに選択できます。一部の変調・エフェクトは未対応です。[SoundFontの対応範囲](docs/SOUNDFONT.md)。
+フォルダー構成は変えずに読み込んでください。インポートした音源は端末内に保存されます。サンプルはWAV・FLAC・OGG Vorbisに対応。未対応の設定は警告を表示します。SF2・SF3は音色ごとに選択できます。一部の変調・エフェクトは未対応です。[SoundFontの対応範囲](docs/SOUNDFONT.md)。
 
 **Helsinki 1967 Pro** は、正規に入手したDecent Sampler版を読み込んで利用できます。通常版・XF版、マイク、リリース・ペダル音、付属IRに対応しています。Helsinkiの音源・IRは同梱していません。[互換性](docs/HELSINKI.md) · [SFZの対応範囲](docs/SFZ.md)。
 

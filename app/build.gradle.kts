@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 38
-        versionName = "0.23.0-alpha"
+        versionCode = 39
+        versionName = "0.24.0-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -49,5 +49,5 @@ tasks.register<JavaExec>("inspectSoundFont") {
     dependsOn("compileDebugUnitTestKotlin")
     classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter { it.extension=="jar" }
     mainClass.set("dev.pianopocket.tools.SoundFontProbeKt")
-    doFirst { args(project.property("soundFontFile").toString(),project.property("soundFontOutput").toString()) }
+    doFirst { args(project.property("soundFontFile").toString(),project.property("soundFontOutput").toString());project.findProperty("sf3Decoder")?.let {args(it.toString())} }
 }

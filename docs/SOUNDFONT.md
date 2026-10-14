@@ -1,6 +1,6 @@
 # SoundFont
 
-音源ライブラリからSF2ファイルを選ぶと、含まれる音色をBank・Program番号付きで追加します。音色を選んで画面鍵盤やMIDIから演奏できます。元のファイルと展開済みWAVを端末内に保存するため、再起動後も使えます。
+音源ライブラリからSF2・SF3ファイルを選ぶと、含まれる音色をBank・Program番号付きで追加します。音色を選んで画面鍵盤やMIDIから演奏できます。元のファイルと展開済みWAVを端末内に保存するため、再起動後も使えます。
 
 ## 対応範囲
 
@@ -23,3 +23,21 @@ SF2 2.xのRIFF/hydraテーブル、プリセット・楽器のグローバル／
 ```
 
 展開したプリセット・サンプルの再配布には元の音源の利用条件が適用されます。
+
+## SF3
+
+SF3のVorbis圧縮サンプルに対応します。SoundFontの音色・マッピングはSF2と同じ扱いです。インポート時に圧縮データのバイト範囲を取り出し、既存のstb_vorbisでFloat32 WAVへ展開します。再生中はVorbisを復号しません。ZIP内のSF3も読み込めます。
+
+圧縮された原ファイルは小さくなりますが、展開後のWAVと元ファイルの両方を保存します。必要な空き容量は圧縮サイズより大きくなり、SF2よりアプリ内の保存容量が小さくなるとは限りません。1サンプルの展開は512MiB、SoundFontの展開PCM合計は2GiBまでです。再生範囲・ループは復号後のフレームで検査します。ROM・Vorbis以外の圧縮は未対応です。
+
+[MuseScore sf3convert](https://github.com/musescore/sftools)のbyte offset・loop frame・sample typeの形式と、[FluidSynth](https://github.com/FluidSynth/fluidsynth)のSF3形式の扱いを参照しています。これらの実装コードは取り込んでいません。新しい商用ライセンスやアプリ依存はありません。
+
+構造テストでは独自のデコーダー注入を使い、サンプル範囲、1回だけの復号、共有WAV、不正データ・展開上限を検査します。実際のVorbis復号は別途、本番ネイティブデコーダーを使って検証します。
+
+```sh
+./gradlew inspectSoundFont -PsoundFontFile=/path/to/owned.sf3 \
+  -PsoundFontOutput=/path/to/private/output \
+  -Psf3Decoder=/path/to/build/native/sample_decode_probe
+```
+
+検証用にTimGM6mbからVorbis圧縮のSF3を生成し、本番デコーダーで136音色・2063リージョン・520サンプルを復号・解析しました。展開したピアノの10秒書き出しで非ゼロの音声、cache miss 0、読み込みエラー0を確認しています。この派生音源と書き出し音声は配布しません。SF3のAndroid実機試験は未実施です。
