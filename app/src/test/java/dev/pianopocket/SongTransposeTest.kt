@@ -58,5 +58,12 @@ class SongTransposeTest {
         val keys=mutableListOf<Int>();changed.keyIndex.visible(0,40000){keys+=it.key}
         assertEquals(listOf(58),keys)
     }
+    @Test fun octaveChangesPreserveTheOriginalEnharmonicKeySignature() {
+        for(fifths in -7..7)for(minor in 0..1)for(shift in listOf(-24,-12,12,24)) {
+            val signature=byteArrayOf(0x59,fifths.toByte(),minor.toByte())
+            val source=song().copy(records=song().records+MidiRecord(0,0,0xff,signature))
+            assertArrayEquals(signature,SongTranspose.apply(source,shift).records.last().data)
+        }
+    }
     @Test(expected=IllegalArgumentException::class) fun limitsAreChecked() {SongTranspose.apply(song(),25)}
 }

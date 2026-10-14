@@ -181,3 +181,13 @@ Native tests・ASan/UBSan PASS。詳細はdocs/AUDIO_STABILITY.md。
 USB機器を接続、またはBluetooth MIDIを検索・接続してから送信先を選んでください。外部MIDI出力は起動時にオフです。
 
 110 JVM tests・Androidビルド・Lint PASS。APK 63730622 bytes / SHA-256 `e46e29e54717a40d56971a326a7b8611ea2ca4fdce53df49f8f286cff6c500b6`。110件のJVMテスト・Androidビルド・Lint・ネイティブ音声／MIDIテスト・ASan/UBSanを通過。音声処理中の動的確保は0。USB／Bluetooth MIDI機器での実機送信と遅延・同期の測定は未実施です。SysEx・MIDI Clock・MIDI 2.0 UMPは送信しません。 開発環境の実機／エミュレーター未接続。
+
+## 0.16.1-alpha — 転調とMIDI出力・書き出しの調整
+
+- 「その他 → 転調」で半音ずつ±24半音。再生・ロール・練習・MIDI／音声／動画の書き出しに反映します。
+- 「その他 → MIDI出力」、または「設定 → MIDI入出力」でUSB／Bluetooth MIDI機器への送信先を選べます。入力キーボードの転送も切り替えできます。
+- オクターブだけ転調したとき、元のMIDIの調号をそのまま保つよう修正しました。C♯の調がD♭表記に置き換わる等の不要な変更を防ぎます。
+
+外部MIDI出力は起動時にオフです。MIDIファイルのチャンネルを維持し、画面鍵盤の送信チャンネルを選べます。
+
+111 JVM tests・Androidビルド・Lint PASS。APK 63485227 bytes / SHA-256 `f6288aaa314eb4967b0ee0e6348f1defcbe7c1236c1073c8a98187d87e554c8d`。111件のJVMテスト・Androidビルド・Lintを通過。0.16.0でネイティブ音声／MIDIテスト・ASan/UBSanを通過しており、この版のネイティブコードは同一です。USB／Bluetooth MIDI機器での実機送信と遅延・同期の測定は未実施です。SysEx・MIDI Clock・MIDI 2.0 UMPは送信しません。 開発環境の実機／エミュレーター未接続。

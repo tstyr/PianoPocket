@@ -22,7 +22,7 @@ object SongTranspose {
             if (pitch(record.status)) {
                 val key = (record.data[0].toInt() and 127) + semitones
                 if (key !in 0..127) null else record.copy(data = record.data.copyOf().also { it[0] = key.toByte() })
-            } else if (record.status == 0xff && record.data.size == 3 && record.data[0] == 0x59.toByte() && record.data[1].toInt() in -7..7 && record.data[2].toInt() in 0..1) {
+            } else if (semitones % 12 != 0 && record.status == 0xff && record.data.size == 3 && record.data[0] == 0x59.toByte() && record.data[1].toInt() in -7..7 && record.data[2].toInt() in 0..1) {
                 val original = record.data[1].toInt()
                 val target = Math.floorMod(original * 7 + semitones, 12)
                 val fifths = (-7..7).filter { Math.floorMod(it * 7, 12) == target }
