@@ -1,0 +1,5 @@
+7b15a78207b36d61c50c9ea6ecb838fcb95d8a8c3cc4211b7493410316198d6e  PianoPocket-0.21.0-arm64.apk
+1e8606b868619272c42441a6cdf76ef7e376b5ff833cdcd25fe555a28a7f28ad  PianoPocket-0.21.0-source.zip
+22be3197fbd27ad1490a8ba87b59b659f8681dcdf7ebf4c6fe10a63fc78815bc  PianoPocket-0.21.0-validation.zip
+6d4212ba121265871deb6e669fd6c4cec8efbaa8ff91e2256be060de6641f929  PocketStudy.mid
+b9dfb5bace114b8196bec0725a407b750f0a2ee7f964cebb10a5fce1801232d7  PocketFixture.zip
