@@ -107,6 +107,7 @@ internal fun SettingsPanel(
             SettingsPage.About -> {
                 Text("PianoPocket", style = MaterialTheme.typography.titleLarge)
                 Text(dev.pianopocket.BuildConfig.VERSION_NAME, style = MaterialTheme.typography.bodyMedium)
+                UpdatePanel(state,model)
                 TextButton(onClick = licenses) { Text("音源・ライブラリのライセンス") }
                 TextButton(onClick = notifications) { Text("通知の設定") }
                 Text("演奏の操作・書き出し・ダウンロードを通知します。", style = MaterialTheme.typography.bodySmall)

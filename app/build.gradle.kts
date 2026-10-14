@@ -7,8 +7,8 @@ android {
         applicationId = "dev.pianopocket"
         minSdk = 29
         targetSdk = 36
-        versionCode = 42
-        versionName = "0.26.0-alpha"
+        versionCode = 43
+        versionName = "0.27.0-alpha"
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild { cmake { cppFlags += "-std=c++17"; arguments += "-DANDROID_STL=c++_shared" } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -56,4 +56,10 @@ tasks.register<JavaExec>("verifyNormalization") {
     classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter {it.extension=="jar"}
     mainClass.set("dev.pianopocket.tools.NormalizationProbeKt")
     doFirst {args(project.property("normalizationOutput").toString())}
+}
+tasks.register<JavaExec>("verifyUpdateDownload") {
+    dependsOn("compileDebugUnitTestKotlin")
+    classpath=files(layout.buildDirectory.dir("tmp/kotlin-classes/debugUnitTest"),layout.buildDirectory.dir("tmp/kotlin-classes/debug")) + configurations.getByName("debugUnitTestRuntimeClasspath").filter {it.extension=="jar"}
+    mainClass.set("dev.pianopocket.tools.UpdateDownloadProbeKt")
+    doFirst {args(project.property("updateCode").toString(),project.property("updateVersion").toString(),project.property("updateMinSdk").toString(),project.property("updateBytes").toString(),project.property("updateSha").toString(),project.property("updateOutput").toString())}
 }

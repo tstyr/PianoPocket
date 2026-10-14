@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 data class OutputDevice(val id: Int, val label: String)
 data class PocketState(
+    val update: dev.pianopocket.update.UpdateStatus=dev.pianopocket.update.UpdateStatus(),
     val midiEdit: MidiEditSession? = null,val midiEditSaving: Boolean=false,val midiEditError: String="",
     val downloadPack: dev.pianopocket.download.DownloadPack?=null,val download:dev.pianopocket.download.DownloadStatus=dev.pianopocket.download.DownloadStatus(),val downloadedInstrument: String="",
     val soundFavorites: List<String> = emptyList(),
@@ -84,6 +85,8 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
         mutable.update { it.copy(inputs=list,midiInput=if(it.midiInput !in listOf("all","none","screen") && list.none { d->d.id==it.midiInput })"none" else it.midiInput) }
     },::receiveMidi,{available,id,message->mutable.update {it.copy(midiOutputs=available,midiOutput=id,midiOutputStatus=message)};viewModelScope.launch {applyOutputRoute()}})
     init {
+        dev.pianopocket.update.UpdateCoordinator.restore(app)
+        viewModelScope.launch {dev.pianopocket.update.UpdateCoordinator.status.collect {update->mutable.update {it.copy(update=update)}}}
         mutable.update {it.copy(downloadPack=dev.pianopocket.download.DownloadCatalog.load(app))}
         viewModelScope.launch {dev.pianopocket.download.DownloadCoordinator.status.collect {status->
             mutable.update {it.copy(download=status)}
@@ -282,6 +285,9 @@ class PocketViewModel(app: Application):AndroidViewModel(app) {
     private fun refreshLibrary(){val pack=state.value.downloadPack;mutable.update {it.copy(library=repository.entries(),downloadedInstrument=pack?.let {p->repository.findDownloaded(p.id)?.id} ?: "")}}
     fun downloadPiano(){if(!state.value.busy && !ExportCoordinator.running)dev.pianopocket.download.DownloadCoordinator.start(getApplication())}
     fun cancelPianoDownload(){dev.pianopocket.download.DownloadCoordinator.cancel(getApplication())}
+    fun checkUpdate(){dev.pianopocket.update.UpdateCoordinator.check(getApplication())}
+    fun downloadUpdate(){dev.pianopocket.update.UpdateCoordinator.download(getApplication())}
+    fun cancelUpdate(){dev.pianopocket.update.UpdateCoordinator.cancel()}
     fun useDownloadedPiano()=work {val id=state.value.downloadPack?.id ?: return@work;val entry=repository.findDownloaded(id) ?: error("音源がありません。再取得してください");loadInternal(entry);refreshLibrary()}
     fun restoreBundled()=work { mutable.update {it.copy(busy=true)};val entry=repository.installBundled().first();mutable.update {it.copy(library=repository.entries(),busy=false)};loadInternal(entry) }
     fun message(text: String){mutable.update { it.copy(message=text) }}
