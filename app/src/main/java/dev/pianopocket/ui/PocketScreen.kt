@@ -65,14 +65,16 @@ fun PocketScreen(model: PocketViewModel,import:()->Unit,bluetooth:()->Unit,impor
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 if(state.sequence.rollVisible)PianoRoll(state,model,Modifier.fillMaxSize())
                                 else if(!uiHidden)Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.secondary)}
-                                if(!uiHidden)Surface(Modifier.align(Alignment.TopCenter).fillMaxWidth(),color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
-                                    PerformanceToolbar(state,model,export,preview,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
+                                if(!uiHidden)Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()) {
+                                    Surface(color=MaterialTheme.colorScheme.background.copy(alpha=.9f)) {
+                                        PerformanceToolbar(state,model,export,preview,{tab=1},{instrument=!instrument},{tab=3},{instrument=false;uiHidden=true})
+                                    }
+                                    Column(Modifier.padding(start=12.dp,top=2.dp).widthIn(max=340.dp)) {
+                                        Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.live.held.isNotEmpty() && !state.sequence.playing)"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
+                                        if(notice || state.busy || !state.ready)Text(state.message,style=MaterialTheme.typography.bodySmall,maxLines=2)
+                                    }
                                 }
                                 if(!uiHidden && state.busy)LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp).align(Alignment.TopCenter))
-                                if(!uiHidden)Column(Modifier.align(Alignment.TopStart).padding(start=12.dp,top=if(state.sequence.song!=null && !state.sequence.recording)78.dp else 54.dp).widthIn(max=340.dp)) {
-                                    Text(if(state.sequence.recording)"REC · ${durationLabel(state.sequence.recordingMicros)} · ${inputLabel(state)}" else if(state.sequence.playing)state.sequence.title else if(state.sequence.live.held.isNotEmpty())"LIVE · ${inputLabel(state)}" else state.sequence.title,style=MaterialTheme.typography.labelSmall,color=if(state.sequence.recording)Color(0xffe6a397)else MaterialTheme.colorScheme.secondary,maxLines=1)
-                                    if(notice || state.busy || !state.ready)Text(state.message,style=MaterialTheme.typography.bodySmall,maxLines=2)
-                                }
                                 if(!uiHidden)KeyboardTools(state,model,Modifier.align(Alignment.BottomEnd).padding(4.dp))
                                 if(instrument && !uiHidden)Surface(Modifier.align(Alignment.CenterEnd).fillMaxHeight().width(panelWidth),tonalElevation=4.dp,shadowElevation=8.dp) {
                                     InstrumentPanel(state,model,{instrument=false},{instrument=false;tab=2})

@@ -1,6 +1,7 @@
 package dev.pianopocket.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpSize
 import dev.pianopocket.sequencer.ExportFormat
 
 @Composable
@@ -26,23 +28,26 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
     var more by remember { mutableStateOf(false) }
     var info by remember { mutableStateOf(false) }
     var practicing by remember {mutableStateOf(false)}
+    var seekDialog by rememberSaveable { mutableStateOf(false) }
     Column {
-        Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
-            TextButton(onClick=instrument,modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=8.dp)) {
-                Column(Modifier.fillMaxWidth()) {
-                    Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.titleSmall,maxLines=1,overflow=TextOverflow.Ellipsis)
-                    Text(state.midi,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary,maxLines=1,overflow=TextOverflow.Ellipsis)
-                }
-            }
-            PocketIconButton(PocketIcon.Midi,"MIDIファイルを選択",enabled=!seq.recording,onClick=midi)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val inlineSeek=maxWidth>=600.dp
+            Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
+            if(inlineSeek)PocketIconButton(PocketIcon.Midi,"MIDIファイルを選択",enabled=!seq.recording,onClick=midi)
             PocketIconButton(if(seq.playing)PocketIcon.Pause else PocketIcon.Play,if(seq.playing)"一時停止"else "再生",enabled=seq.song!=null && state.ready && !state.busy && !seq.recording && !seq.exporting,onClick=model::play)
             PocketIconButton(PocketIcon.Record,if(seq.recording)"録音を停止して保存"else "録音を開始",enabled=state.ready && !state.busy && !seq.exporting,selected=seq.recording,onClick={if(seq.recording)model.stopRecording()else model.startRecording()})
             PocketIconButton(PocketIcon.Stop,"すべての音を停止",onClick=model::panic)
+            if(inlineSeek && seq.song!=null && !seq.recording)PerformanceSeekBar(state,model,Modifier.weight(1f))
+            else Box(Modifier.weight(1f).padding(horizontal=8.dp)) {
+                if(inlineSeek)Text(state.preset?.name ?: "音源を選択",style=MaterialTheme.typography.labelMedium,maxLines=1,overflow=TextOverflow.Ellipsis)
+            }
             PocketIconButton(PocketIcon.Mixer,"音源・マイク・エフェクト",onClick=instrument)
             PocketIconButton(PocketIcon.Eye,"操作UIを隠す",onClick=hideUi)
             Box {
                 PocketIconButton(PocketIcon.More,"その他の操作",onClick={more=true})
                 DropdownMenu(expanded=more,onDismissRequest={more=false}) {
+                    DropdownMenuItem(text={Text("MIDIファイルを選択")},enabled=!seq.recording,onClick={more=false;midi()})
+                    if(seq.song!=null && !seq.recording)DropdownMenuItem(text={Text("再生位置")},enabled=!state.busy && !seq.exporting,onClick={more=false;seekDialog=true})
                     DropdownMenuItem(text={Text("MIDI / 音声 / 動画を書き出し")},enabled=seq.song!=null && !seq.recording && !state.busy && !seq.exporting,onClick={more=false;exporting=true})
                     DropdownMenuItem(text={Text("練習・メトロノーム")},enabled=state.ready && !state.busy && !seq.recording && !seq.exporting,onClick={more=false;practicing=true})
                     DropdownMenuItem(text={Text(if(seq.rollVisible)"ロールを隠す"else "ロールを表示")},onClick={more=false;model.rollVisible(!seq.rollVisible)})
@@ -50,12 +55,6 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
                     DropdownMenuItem(text={Text("設定・MIDI入力")},onClick={more=false;settings()})
                 }
             }
-        }
-        if(seq.song!=null && !seq.recording) {
-            var seeking by remember(seq.selected){mutableStateOf<Float?>(null)}
-            Row(Modifier.padding(horizontal=12.dp).height(24.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text("${durationLabel(seq.position)} / ${durationLabel(seq.song.duration)}",style=MaterialTheme.typography.labelSmall)
-                Slider(value=seeking ?: (seq.position/1000000f).coerceIn(0f,(seq.song.duration/1000000f).coerceAtLeast(.001f)),onValueChange={seeking=it},valueRange=0f..(seq.song.duration/1000000f).coerceAtLeast(.001f),enabled=!state.busy && !seq.recording && !seq.exporting,modifier=Modifier.weight(1f),onValueChangeFinished={seeking?.let { model.seek((it*1000000).toLong()) };seeking=null})
             }
         }
         if(seq.exporting)Text("${seq.exportPhase}${seq.exportEtaSeconds?.let {" · 推定残り（この工程） ${durationLabel(it*1000000)}"} ?: ""}",style=MaterialTheme.typography.labelSmall)
@@ -65,6 +64,8 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
             PocketIconButton(PocketIcon.Close,"書き出しをキャンセル",onClick=model::cancelExport)
         }
     }
+    if(seekDialog && seq.song!=null && !seq.recording)AlertDialog(onDismissRequest={seekDialog=false},title={Text("再生位置")},text={PerformanceSeekBar(state,model,Modifier.fillMaxWidth())},confirmButton={TextButton(onClick={seekDialog=false}){Text("閉じる")}})
+    LaunchedEffect(seq.selected,seq.recording){seekDialog=false}
     if(practicing)PracticeDialog(state,model){practicing=false}
     if(exporting)ExportDialog(seq.title,state.ready,state.aacAvailable,state.videoOptions,seq.exportSelection,model::exportSelection,onPreview={r,b,v->returnAfterPreview=true;exporting=false;preview(r,b,v)},onDismiss={exporting=false}){f,r,t,b,v->exporting=false;export(f,r,t,b,v)}
     if(info)AlertDialog(onDismissRequest={info=false},title={Text("状態・互換性警告")},text={Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -74,6 +75,25 @@ fun PerformanceToolbar(state: PocketState,model: PocketViewModel,export:(ExportF
         state.preset?.warnings?.forEach { Text("• $it",style=MaterialTheme.typography.bodySmall) }
         seq.song?.warnings?.forEach { Text("• $it",style=MaterialTheme.typography.bodySmall) }
     }},confirmButton={TextButton(onClick={info=false}){Text("閉じる")}})
+}
+// One 48dp transport row: a thin track without reducing the gesture target.
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PerformanceSeekBar(state: PocketState,model: PocketViewModel,modifier: Modifier=Modifier) {
+    val seq=state.sequence
+    val song=seq.song ?: return
+    var seeking by remember(seq.selected){mutableStateOf<Float?>(null)}
+    val end=(song.duration/1000000f).coerceAtLeast(.001f)
+    val enabled=!state.busy && !seq.recording && !seq.exporting
+    val interaction=remember {MutableInteractionSource()}
+    Row(modifier.height(48.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text("${durationLabel(seeking?.let {(it*1000000).toLong()} ?: seq.position)} / ${durationLabel(song.duration)}",style=MaterialTheme.typography.labelSmall,maxLines=1)
+        Slider(value=seeking ?: (seq.position/1000000f).coerceIn(0f,end),onValueChange={seeking=it},valueRange=0f..end,enabled=enabled,interactionSource=interaction,
+            modifier=Modifier.weight(1f).height(48.dp).semantics {contentDescription="再生位置"},
+            thumb={SliderDefaults.Thumb(interactionSource=interaction,enabled=enabled,thumbSize=DpSize(8.dp,20.dp))},
+            track={SliderDefaults.Track(sliderState=it,modifier=Modifier.height(4.dp),enabled=enabled,drawStopIndicator=null,thumbTrackGapSize=0.dp)},
+            onValueChangeFinished={seeking?.let {model.seek((it*1000000).toLong())};seeking=null})
+    }
 }
 @Composable
 fun KeyboardTools(state: PocketState,model: PocketViewModel,modifier: Modifier=Modifier) {
